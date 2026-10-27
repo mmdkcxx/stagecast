@@ -172,9 +172,14 @@ public sealed class ConfigStore
         if (volume != audio.Volume) notes.Add($"audio volume {audio.Volume} is outside 0-1; using {volume}");
         string? deviceId = string.IsNullOrWhiteSpace(audio.DeviceId) || audio.DeviceId.Length > 200 ? null : audio.DeviceId.Trim();
 
+        var ndi = input.Ndi ?? new NdiConfig();
+        string ndiName = Stagecast.Core.Output.SourceNameRules.Repair(ndi.Name, Stagecast.Core.Output.SourceNameRules.DefaultNdiName);
+        if (ndiName != ndi.Name) notes.Add($"NDI source name '{ndi.Name}' is not usable; using '{ndiName}'");
+
         return new AppConfig
         {
             SchemaVersion = AppConfig.CurrentSchemaVersion,
+            Ndi = new NdiConfig { Name = ndiName },
             Audio = new AudioConfig { DeviceId = deviceId, Volume = volume, Muted = audio.Muted },
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
             Output = new OutputConfig { MonitorId = monitorId, Scale = scale, AlwaysOnTop = output.AlwaysOnTop },

@@ -44,6 +44,7 @@ public partial class MainWindow
         MuteButton.IsChecked = _audioConfig.Muted;
         ShowAudioDevice();
         SyncAudioSources();
+        InitNdiCard();
 
         _audioTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _audioTimer.Tick += (_, _) => OnAudioTick();
@@ -77,6 +78,7 @@ public partial class MainWindow
     {
         if (_audio is null) return;
         if (++_audioTick % 40 == 0) SyncAudioSources();
+        if (_audioTick % 20 == 0) ShowNdiStatus();
 
         var levels = _audio.Levels;
         double width = (MeterLeft.Parent as Grid)?.ActualWidth ?? 0;
@@ -171,10 +173,11 @@ public partial class MainWindow
         menu.IsOpen = true;
     }
 
-    /// <summary>The tone goes to the local device only until NDI and OMT exist; those will ask first when they are on.</summary>
+    /// <summary>The tone replaces the program audio, so it reaches NDI (and OMT later) too; those ask first when they are on.</summary>
     internal bool StartTone(ToneChannel channel)
     {
         if (_audio is null) return false;
+        if (_ndi is not null && !Confirm("NDI sedang nyala. Nada uji akan terkirim ke semua penerima NDI (misalnya vMix) dan bisa ikut tersiar. Lanjutkan?")) return false;
         _audio.StartTone(channel);
         return true;
     }

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
+using Stagecast.Core.Output;
 
 namespace Stagecast.Core.Tests;
 
@@ -136,5 +137,52 @@ public sealed class ConfigAudioTests : IDisposable
         var result = Store().Load();
         Assert.Equal(ConfigLoadStatus.Repaired, result.Status);
         Assert.Equal(1, result.Config.Audio.Volume);
+    }
+}
+
+public sealed class SourceNameTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "stagecast-tests-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+    }
+
+    [Theory]
+    [InlineData("Stagecast", SourceNameError.None)]
+    [InlineData("  LED Utama  ", SourceNameError.None)]
+    [InlineData("", SourceNameError.Empty)]
+    [InlineData("   ", SourceNameError.Empty)]
+    [InlineData("tab\tname", SourceNameError.InvalidCharacter)]
+    public void Validate(string name, SourceNameError expected) => Assert.Equal(expected, SourceNameRules.Validate(name));
+
+    [Fact]
+    public void Validate_TooLong() => Assert.Equal(SourceNameError.TooLong, SourceNameRules.Validate(new string('a', SourceNameRules.MaxLength + 1)));
+
+    [Fact]
+    public void Validate_ExactlyMaxIsFine() => Assert.Equal(SourceNameError.None, SourceNameRules.Validate(new string('a', SourceNameRules.MaxLength)));
+
+    [Fact]
+    public void Repair_TrimsCutsOrFallsBack()
+    {
+        Assert.Equal("LED", SourceNameRules.Repair("  LED ", "x"));
+        Assert.Equal(SourceNameRules.MaxLength, SourceNameRules.Repair(new string('a', 100), "x").Length);
+        Assert.Equal("x", SourceNameRules.Repair("", "x"));
+        Assert.Equal("x", SourceNameRules.Repair("a\u0001b", "x"));
+    }
+
+    [Fact]
+    public void Config_KeepsNdiName_AndRepairsABadOne()
+    {
+        var store = new ConfigStore(Path.Combine(_dir, "config.json"), NullLogger.Instance);
+        store.Load();
+        store.Save(new AppConfig { Ndi = new NdiConfig { Name = "Panggung 1" } });
+        Assert.Equal("Panggung 1", new ConfigStore(Path.Combine(_dir, "config.json"), NullLogger.Instance).Load().Config.Ndi.Name);
+
+        File.WriteAllText(Path.Combine(_dir, "config.json"), "{\"ndi\":{\"name\":\"   \"}}");
+        var repaired = new ConfigStore(Path.Combine(_dir, "config.json"), NullLogger.Instance).Load();
+        Assert.Equal(ConfigLoadStatus.Repaired, repaired.Status);
+        Assert.Equal(SourceNameRules.DefaultNdiName, repaired.Config.Ndi.Name);
     }
 }

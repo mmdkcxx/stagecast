@@ -17,6 +17,9 @@ public sealed class AppConfig
 
     public AudioConfig Audio { get; init; } = new();
 
+    /// <summary>NDI source name. Whether NDI is on is never saved.</summary>
+    public NdiConfig Ndi { get; init; } = new();
+
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
@@ -61,6 +64,11 @@ public sealed class OutputConfig
 
     /// <summary>The output window covers other windows, including the taskbar.</summary>
     public bool AlwaysOnTop { get; init; } = true;
+}
+
+public sealed class NdiConfig
+{
+    public string Name { get; init; } = Stagecast.Core.Output.SourceNameRules.DefaultNdiName;
 }
 
 public sealed class AudioConfig

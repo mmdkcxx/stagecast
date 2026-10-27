@@ -6,6 +6,7 @@ using Microsoft.Web.WebView2.Core;
 using Stagecast.Core.Audio;
 using Stagecast.Core.Output;
 using Stagecast.Rendering.Audio;
+using Stagecast.Rendering.Ndi;
 using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
@@ -38,6 +39,7 @@ internal sealed class SelfTest
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
+        if (name == "a6") { await RunNdiAsync(window); return; }
         if (name == "a5") { await RunGateAndAudioAsync(window); return; }
         if (name == "a4") { await RunScreenOutputAsync(window); return; }
         if (name == "a3b") { await RunPreviewTakeAsync(window); return; }
@@ -510,6 +512,89 @@ internal sealed class SelfTest
         var saved = window.ReadConfigFromDisk();
         Expect(saved.Audio.Volume == 1 && !saved.Audio.Muted, "the audio settings are saved");
         _logger.LogInformation(_failures.Count == 0 ? "A5 selftest ok" : "A5 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>Our own NDI source, looked at with an NDI receiver the way vMix would: name, picture size and colour, audio level, Freeze, Blackout, tone, rename.</summary>
+    private async Task RunNdiAsync(MainWindow window)
+    {
+        if (NdiOutput.CheckRuntime() is { } missing)
+        {
+            Expect(false, missing);
+            _logger.LogInformation("A6 selftest FAILED: {Failures}", string.Join("; ", _failures));
+            return;
+        }
+        window.Confirm = _ => true;
+        window.ApplyFromCode(new Resolution(2520, 1080), 60);
+        string tone = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-tone.html")).AbsoluteUri;
+        await _engine.NavigateAsync(tone, TimeSpan.FromSeconds(20));
+        await Task.Delay(1500);
+        window.SyncAudioSources();
+
+        Expect(!window.RenameNdi("   "), "an empty NDI name is refused");
+        Expect(window.RenameNdi("Stagecast Uji") && window.NdiSettings.Name == "Stagecast Uji", "the NDI name can be changed while off");
+        Expect(window.StartNdi() && window.Ndi is { IsRunning: true }, $"NDI can be switched on ({window.NdiMessage})");
+        await Task.Delay(1500);
+
+        var sources = NdiProbe.Sources(TimeSpan.FromSeconds(8));
+        _logger.LogInformation("A6 NDI sources: {Sources}", string.Join(" | ", sources));
+        Expect(sources.Any(n => n.Contains("(Stagecast Uji)")), "the source shows up under the chosen name");
+
+        using (var probe = NdiProbe.Connect("(Stagecast Uji)", TimeSpan.FromSeconds(8)))
+        {
+            Expect(probe is not null, "a receiver can connect");
+            if (probe is not null)
+            {
+                var video = probe.ReadVideo(TimeSpan.FromSeconds(5));
+                Expect(video is { Width: 2520, Height: 1080 }, $"the picture arrives at the native size ({video?.Width}x{video?.Height})");
+                Expect(video is { } v && Math.Abs(v.Red - 0x10) <= 4 && Math.Abs(v.Green - 0x14) <= 4 && Math.Abs(v.Blue - 0x18) <= 4,
+                    $"the page colour is right ({video?.Red:X2}{video?.Green:X2}{video?.Blue:X2})");
+                Expect(window.Ndi!.Connections >= 1, $"the sender sees the receiver ({window.Ndi.Connections})");
+
+                var heard = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1.5));
+                Expect(heard is { } h && h.Left is > -23 and < -17 && h.Right is > -23 and < -17, $"the page tone arrives on both channels ({heard?.Left:0.0} / {heard?.Right:0.0} dBFS)");
+
+                window.SetGate(Stagecast.Core.Output.GateMode.Freeze);
+                await Task.Delay(500);
+                var frozen = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1));
+                Expect(frozen is { } f && f.Left < -60 && f.Right < -60, $"Freeze sends silence ({frozen?.Left:0.0} / {frozen?.Right:0.0})");
+                window.SetGate(Stagecast.Core.Output.GateMode.Blackout);
+                await Task.Delay(500);
+                var black = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
+                Expect(black is { Red: < 6, Green: < 6, Blue: < 6 }, $"Blackout sends black ({black?.Red:X2}{black?.Green:X2}{black?.Blue:X2})");
+                var duringBlackout = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1));
+                Expect(duringBlackout is { } d && d.Left is > -23 and < -17, $"Blackout keeps the audio ({duringBlackout?.Left:0.0})");
+                window.SetGate(Stagecast.Core.Output.GateMode.Live);
+                await Task.Delay(500);
+                var back = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
+                Expect(back is { } b && Math.Abs(b.Red - 0x10) <= 4, "releasing brings the picture back");
+
+                window.StartTone(ToneChannel.Left);
+                await Task.Delay(600);
+                var left = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1));
+                Expect(left is { } l && l.Left is > -21.5 and < -18.5 && l.Right < -60, $"the left-only tone reaches only the left channel ({left?.Left:0.0} / {left?.Right:0.0})");
+                window.StopTone();
+
+                window.ApplyFromCode(new Resolution(1920, 1080), 60);
+                await Task.Delay(1500);
+                var resized = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
+                Expect(resized is { Width: 1920, Height: 1080 }, $"a resolution change reaches the receiver ({resized?.Width}x{resized?.Height})");
+            }
+        }
+
+        window.Confirm = _ => false;
+        Expect(!window.RenameNdi("Lain") && window.NdiSettings.Name == "Stagecast Uji", "refusing the rename warning keeps the old name");
+        window.Confirm = _ => true;
+        Expect(window.RenameNdi("Stagecast Dua") && window.Ndi is { IsRunning: true, SourceName: "Stagecast Dua" }, "renaming while on recreates the sender");
+        await Task.Delay(1500);
+        var renamed = NdiProbe.Sources(TimeSpan.FromSeconds(8));
+        Expect(renamed.Any(n => n.Contains("(Stagecast Dua)")), $"the new name is visible ({string.Join(" | ", renamed)})");
+
+        window.StopNdi(null);
+        Expect(window.Ndi is null, "NDI can be switched off");
+        await Task.Delay(1500);
+        var saved = window.ReadConfigFromDisk();
+        Expect(saved.Ndi.Name == "Stagecast Dua", "the NDI name is saved");
+        _logger.LogInformation(_failures.Count == 0 ? "A6 selftest ok" : "A6 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
     private const double LevelMeterFloor = -90;

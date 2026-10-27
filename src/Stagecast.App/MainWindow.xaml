@@ -138,6 +138,20 @@
                     <TextBlock x:Name="OutputNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
                                Text="Matikan darurat dari mana saja: Ctrl+Alt+H."/>
 
+                    <TextBlock Text="NDI" Style="{StaticResource Label}" Margin="0,24,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="NdiNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix / NDI Monitor" KeyDown="OnNdiNameKeyDown"/>
+                        <Button Grid.Column="1" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnNdiRename" ToolTip="Mengganti nama saat NDI nyala membuat sumber dibuat ulang"/>
+                    </Grid>
+                    <Button x:Name="NdiButton" Content="Nyalakan NDI" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleNdi"/>
+                    <TextBlock x:Name="NdiStatus" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    <TextBlock Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Mengirim ukuran render asli (tidak diperas) beserta audio. NDI® adalah merek dagang terdaftar dari Vizrt NDI AB. ndi.video"/>
+
                     <TextBlock Text="AUDIO" Style="{StaticResource Label}" Margin="0,24,0,6"/>
                     <Button x:Name="AudioDeviceButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnAudioDeviceMenu" ToolTip="Perangkat keluaran audio lokal"/>
                     <Grid>

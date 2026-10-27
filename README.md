@@ -52,3 +52,7 @@ Run them once per batch of phases, not after every change; see `docs/TESTING.md`
 ## Status
 
 Spikes S0-S3 pass (skeleton, one WebView2, composition hosting, viewport at several sizes and simulated display scales). Next: S4 (capture one frame; early decision point).
+
+## Third-party notices
+
+NDI® is a registered trademark of Vizrt NDI AB (https://ndi.video). The NDI runtime is not bundled: install NDI Tools or the NDI Runtime from ndi.video to use the NDI output.
