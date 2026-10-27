@@ -123,6 +123,14 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Lulus:** pindah tab mengganti gambar dan audio tanpa error dan tanpa suara dobel. [Anda]
 
 ### S10 - Kontrol halaman dan tampilan diperbesar
+- **Status: lulus untuk bagian [Saya] (2026-10-27); bagian [Anda] belum.** Diuji otomatis (`--mode s10`, halaman `assets/control.html`, pemetaan memakai `Core/Display/ViewTransform`, jadi kode yang sama dipakai aplikasi nanti):
+  - **Akurasi klik:** Fit di kontrol 1280x720 (skala 0,508), 100% di tengah, 100% di pojok kanan-bawah; 21 titik. Selisih maksimum terhadap titik yang dituju 1,0 px (Fit), 0,57 px (100%); terhadap titik yang dikirim 0,00 px, jadi selisih hanya dari pembulatan mouse ke piksel penuh. Sembilan tombol tertuju semua dengan benar (selisih di bawah batas 2 px).
+  - **Scroll roda** bekerja (scrollTop 300). **Keyboard** bekerja: keystroke Unicode asli lewat `SendInput` ke jendela aktif sampai ke kolom teks halaman ("stagecast 2520"); menjawab [U] keyboard. Jendela harus menjadi jendela aktif dan `MoveFocus` dipanggil.
+  - **Zoom halaman** (`ZoomFactor`): 2,0 menjadikan viewport halaman 1260x540 (dpr 2), 0,5 menjadi 5040x2160; ukuran render tetap 2520x1080. Jadi zoom halaman mengubah isi output seperti diperkirakan.
+  - **Kursor:** `CursorChanged` menyala dengan nilai kursor sistem (bentuk panah vs tangan), cukup untuk menggambar overlay. Menggambar overlay itu sendiri belum dibuat.
+  - **Latensi klik ke frame:** 12/12 klik, minimum 38-39 ms, median 45 ms, maks 47 ms (frame dicuplik tiap 33 ms), dua run sama.
+  - `FrameGate` (Freeze/Blackout) dan `ViewTransform` ada di Core dengan unit test; sink output nyata datang di fase A.
+  - **Belum:** jendela preview terpisah, zoom tampilan dengan geser memakai mouse di UI nyata, Freeze/Blackout pada output sungguhan, Canva play/pause dan ganti slide dari preview [Anda]. Pointer ke piksel di DPI Windows 150% belum diuji.
 Tujuan: halaman bisa dioperasikan dari preview yang diperbesar, bukan hanya dilihat.
 - **Input ke halaman:** teruskan gerak mouse, klik, dan roda scroll dari preview ke WebView2 (`SendMouseInput`), dengan pemetaan koordinat: posisi di preview, dibagi skala tampilan, ditambah offset geser, menjadi piksel viewport.
 - **Keyboard:** uji mengetik di kolom teks pada mode composition hosting. Apakah keyboard sampai ke halaman otomatis belum terbukti [U]; jika tidak, cari jalur fokus lain.

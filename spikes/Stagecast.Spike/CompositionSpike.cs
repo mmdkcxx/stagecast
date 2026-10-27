@@ -154,6 +154,8 @@ internal sealed class CompositionSpike : IDisposable
 
     public void SetMuted(bool muted) => Core.IsMuted = muted;
 
+    internal CoreWebView2CompositionController Controller => _controller!;
+
     public int BrowserProcessId => (int)Core.BrowserProcessId;
 
     public Task<string> EvalAsync(string script) => Core.ExecuteScriptAsync(script);

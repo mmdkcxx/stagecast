@@ -24,7 +24,7 @@ public partial class MainWindow : Window
     private async Task StartAsync()
     {
         if (_mode == "s9") await StartTabsAsync();
-        else if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i" or "s8") await StartCompositionAsync();
+        else if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i" or "s8" or "s10") await StartCompositionAsync();
         else await StartPlainAsync();
     }
 
@@ -71,6 +71,8 @@ public partial class MainWindow : Window
             string url = _url;
             if (_mode == "s5" && ArgValue("--url") is null)
                 url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "animation.html")).AbsoluteUri;
+            if (_mode == "s10" && ArgValue("--url") is null)
+                url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "control.html")).AbsoluteUri;
             if (_mode == "s8" && ArgValue("--url") is null)
                 url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "tone.html")).AbsoluteUri;
             if (_mode == "s6" && ArgValue("--url") is null)
@@ -85,6 +87,13 @@ public partial class MainWindow : Window
                 await _composition.LogViewportAsync();
                 Status.Text = "S2 ok: page loaded in a composition visual (nothing is shown on screen by design)";
                 SpikeLog.Write("S2 ok");
+            }
+            else if (_mode == "s10")
+            {
+                await Task.Delay(1000);
+                bool ok = await new ControlSpike(_composition).RunAsync(this);
+                Status.Text = ok ? "S10 ok" : "S10 FAILED (see log)";
+                SpikeLog.Write(ok ? "S10 ok" : "S10 FAILED");
             }
             else if (_mode == "s8")
             {
