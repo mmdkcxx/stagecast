@@ -46,6 +46,7 @@ public partial class MainWindow
         foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active.Id).ToList()) await AddEngineTabAsync(engine, info);
         engine.SortTabs(_tabs.Items.Select(t => t.Id).ToList());
         RebuildTabList();
+        await OpenStoredPdfsAsync();
     }
 
     // A file tab has no page to load; until the sources that play files exist it only holds its place on the stage.
@@ -280,6 +281,7 @@ public partial class MainWindow
         if (leftPreviewMode) await _engine.ExitPreviewModeAsync();
         else if (wasActive && _engine.TabById(newActive.Id) is { } next) await _engine.SelectAsync(next);
         _engine.CloseTab(tab);
+        ForgetDocument(id);
         if (leftPreviewMode) PagePreviewView.PreviewMode = false;
         UpdateModeButtons();
         TabError.Text = string.Empty;
@@ -369,13 +371,13 @@ public partial class MainWindow
         return "kosong";
     }
 
-    private FrameworkElement ThumbnailFor(Guid id, string url)
+    private FrameworkElement ThumbnailFor(Guid id, string label)
     {
         var picture = new Image { Stretch = Stretch.Uniform, Visibility = Visibility.Collapsed, SnapsToDevicePixels = true };
         RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
         var placeholder = new TextBlock
         {
-            Text = ThumbnailLabel(url), Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 10,
+            Text = label, Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 10,
             TextTrimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0),
         };
         if (_thumbs.Get(id) is { } known)
@@ -439,7 +441,7 @@ public partial class MainWindow
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var thumbnail = ThumbnailFor(tab.Id, tab.Url);
+            var thumbnail = ThumbnailFor(tab.Id, TabKinds.IsDocument(tab.Kind) ? FileLabel(tab.Source) : ThumbnailLabel(tab.Url));
             grid.Children.Add(thumbnail);
 
             var content = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 4, 0) };
@@ -487,7 +489,7 @@ public partial class MainWindow
                 var title = new TextBlock
                 {
                     Foreground = (Brush)FindResource("Text"), FontFamily = (FontFamily)FindResource("FontSemi"), FontSize = 15,
-                    TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = $"{tab.Name}\n{tab.Url}",
+                    TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = $"{tab.Name}\n{(TabKinds.IsDocument(tab.Kind) ? tab.Source : tab.Url)}",
                 };
                 if (i < 9)
                     title.Inlines.Add(new Run((i + 1) + "  ") { Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 12 });

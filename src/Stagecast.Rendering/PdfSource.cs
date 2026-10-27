@@ -11,6 +11,9 @@ using Windows.UI.Composition;
 
 namespace Stagecast.Rendering;
 
+/// <summary>A small picture of a page: premultiplied BGRA, <c>Width * 4</c> bytes per row.</summary>
+public sealed record PdfThumbnail(byte[] Pixels, int Width, int Height);
+
 public enum PdfOpenResult
 {
     Opened,
@@ -77,8 +80,8 @@ public sealed class PdfSource : IDisposable
 
     public event Action? PageChanged;
 
-    /// <summary>Opens <paramref name="path"/> and shows its first page. The password is only used for this call.</summary>
-    public async Task<PdfOpenResult> OpenAsync(string path, string? password = null)
+    /// <summary>Opens <paramref name="path"/> and shows page <paramref name="startPage"/> (zero-based, the first by default). The password is only used for this call.</summary>
+    public async Task<PdfOpenResult> OpenAsync(string path, string? password = null, int startPage = 0)
     {
         ClearDocument();
         string temp = Path.Combine(Path.GetTempPath(), "stagecast-pdf-" + Guid.NewGuid().ToString("N") + ".pdf");
@@ -113,7 +116,7 @@ public sealed class PdfSource : IDisposable
         }
 
         _logger.LogInformation("PDF opened: {Pages} pages", PageCount);
-        await GoToAsync(0);
+        await GoToAsync(startPage);
         return PdfOpenResult.Opened;
     }
 
@@ -166,13 +169,8 @@ public sealed class PdfSource : IDisposable
                 // The default PNG output costs about three times as much time as raw pixels (docs/SPIKE_REPORT.md).
                 BitmapEncoderId = BitmapEncoder.BmpEncoderId,
             };
-            using var stream = new InMemoryRandomAccessStream();
-            await page.RenderToStreamAsync(stream, options);
-            BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
-            PixelDataProvider data = await decoder.GetPixelDataAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
-                new BitmapTransform(), ExifOrientationMode.IgnoreExifOrientation, ColorManagementMode.DoNotColorManage);
-            byte[] pixels = data.DetachPixelData();
-            var rendered = new Rendered(index, pixels, (int)decoder.PixelWidth, (int)decoder.PixelHeight, layout, cw, ch);
+            (byte[] pixels, int pixelWidth, int pixelHeight) = await DrawAsync(page, options);
+            var rendered = new Rendered(index, pixels, pixelWidth, pixelHeight, layout, cw, ch);
             _cache[index] = rendered;
             return rendered;
         }
@@ -180,6 +178,49 @@ public sealed class PdfSource : IDisposable
         {
             _logger.LogWarning(ex, "Could not render PDF page {Page}", index + 1);
             Problem = $"Page {index + 1} could not be drawn.";
+            return null;
+        }
+        finally
+        {
+            _renderLock.Release();
+        }
+    }
+
+    private static async Task<(byte[] Pixels, int Width, int Height)> DrawAsync(PdfPage page, PdfPageRenderOptions options)
+    {
+        using var stream = new InMemoryRandomAccessStream();
+        await page.RenderToStreamAsync(stream, options);
+        BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+        PixelDataProvider data = await decoder.GetPixelDataAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
+            new BitmapTransform(), ExifOrientationMode.IgnoreExifOrientation, ColorManagementMode.DoNotColorManage);
+        return (data.DetachPixelData(), (int)decoder.PixelWidth, (int)decoder.PixelHeight);
+    }
+
+    /// <summary>
+    /// A small picture of page <paramref name="index"/> (zero-based) at most <paramref name="maxWidth"/> x <paramref name="maxHeight"/>,
+    /// premultiplied BGRA, for the page strip. Null when no document is open or the page cannot be drawn.
+    /// </summary>
+    public async Task<PdfThumbnail?> RenderThumbnailAsync(int index, int maxWidth, int maxHeight)
+    {
+        await _renderLock.WaitAsync();
+        try
+        {
+            if (_document is null || _disposed || index < 0 || index >= PageCount) return null;
+            using PdfPage page = _document.GetPage((uint)index);
+            FitLayout layout = FitComposer.Fit(page.Size.Width, page.Size.Height, maxWidth, maxHeight);
+            var options = new PdfPageRenderOptions
+            {
+                DestinationWidth = (uint)layout.Width,
+                DestinationHeight = (uint)layout.Height,
+                BackgroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255),
+                BitmapEncoderId = BitmapEncoder.BmpEncoderId,
+            };
+            (byte[] pixels, int width, int height) = await DrawAsync(page, options);
+            return new PdfThumbnail(pixels, width, height);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not draw a thumbnail of PDF page {Page}", index + 1);
             return null;
         }
         finally

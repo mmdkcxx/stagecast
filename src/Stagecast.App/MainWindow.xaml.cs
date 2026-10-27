@@ -445,6 +445,7 @@ public partial class MainWindow : Window
         BackButton.IsEnabled = _engine.CanGoBack;
         ForwardButton.IsEnabled = _engine.CanGoForward;
         if (!UrlBox.IsKeyboardFocusWithin && _engine.CurrentUrl is { Length: > 0 } url) UrlBox.Text = url;
+        UpdateDocumentControls();
     }
 
     private void UpdateViewButtons()

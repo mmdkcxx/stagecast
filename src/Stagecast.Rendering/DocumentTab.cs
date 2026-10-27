@@ -27,6 +27,12 @@ public sealed class DocumentTab : StageTab
 
     public override string Title { get; }
 
+    /// <summary>Remembers the file the tab plays (a new one was chosen).</summary>
+    public void SetSource(string? source) => Source = source;
+
+    /// <summary>Sets what is wrong with the tab for the operator (null clears it).</summary>
+    public void SetProblem(string? text) => Problem = text;
+
     /// <summary>The pages of a PDF tab, once <see cref="RenderEngine.AttachPdf"/> has been called.</summary>
     public PdfSource? Pdf { get; internal set; }
 
