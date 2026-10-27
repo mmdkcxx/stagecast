@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "spikes", "spikes", "{BF78DFB5-BCE5-4F56-BC23-B5458FC1CCA4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Stagecast.Spike", "spikes\Stagecast.Spike\Stagecast.Spike.csproj", "{5CBFC24F-F75A-4289-99F1-B3A25C125164}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5CBFC24F-F75A-4289-99F1-B3A25C125164}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CBFC24F-F75A-4289-99F1-B3A25C125164}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CBFC24F-F75A-4289-99F1-B3A25C125164}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CBFC24F-F75A-4289-99F1-B3A25C125164}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5CBFC24F-F75A-4289-99F1-B3A25C125164} = {BF78DFB5-BCE5-4F56-BC23-B5458FC1CCA4}
+	EndGlobalSection
+EndGlobal

@@ -5,7 +5,7 @@ Prinsip: setiap langkah kecil, bisa dijalankan, dan punya kriteria lulus yang je
 Penanda verifikasi: **[Saya]** = saya cek lewat build/log/angka; **[Anda]** = hanya bisa dinilai dengan melihat/mendengar di layar Anda.
 
 Lingkungan: Windows 11 (build 26300), .NET SDK 8.0.301, WebView2 Runtime 155, GPU AMD iGPU + NVIDIA GTX 1650.
-Lokasi: kode di `/home/doh_rog/browser_render/spike`, build dan jalan di Windows dari salinan `C:\dev\browser_render_spike`.
+Lokasi: kode spike di `spikes/`, dibangun dan dijalankan di Windows dari salinan `C:\dev\stagecast` lewat `scripts/run-spike.sh`.
 
 ---
 
@@ -18,7 +18,7 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - Skrip salin ke `C:\dev` + build + jalankan dari WSL.
 - Jendela kosong yang terbuka.
 - **Lulus:** build tanpa error dan jendela muncul. [Saya]
-- **Status: lulus (2026-10-27).** Build 0 peringatan 0 error; jendela terbuka dan menulis `logs/s0.log` (runtime .NET 8.0.21, Windows 10.0.26300, jendela 720x420). Paket `Microsoft.Web.WebView2` 1.0.4314.35 sudah ditambahkan tetapi belum dipakai. Jalankan dengan `spike/run.sh`.
+- **Status: lulus (2026-10-27).** Build 0 peringatan 0 error; jendela terbuka dan menulis `logs/s0.log` (runtime .NET 8.0.21, Windows 10.0.26300, jendela 720x420). Paket `Microsoft.Web.WebView2` 1.0.4314.35 sudah ditambahkan tetapi belum dipakai. Jalankan dengan `scripts/run-spike.sh`.
 
 ### S1 - WebView2 biasa
 - Tampilkan satu WebView2 standar yang memuat URL.
