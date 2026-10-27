@@ -22,7 +22,7 @@ public partial class App : Application
             .MinimumLevel.Information()
             .WriteTo.File(Path.Combine(paths.LogDirectory, "stagecast-.log"), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
             .CreateLogger();
-        using var factory = new SerilogLoggerFactory(Log.Logger);
+        var factory = new SerilogLoggerFactory(Log.Logger);
         _logger = factory.CreateLogger<App>();
         DispatcherUnhandledException += OnUnhandledException;
 
@@ -33,13 +33,15 @@ public partial class App : Application
         var render = result.Config.Render;
         _logger.LogInformation("Config {Status}: {Width}x{Height} at {Fps} fps, {Presets} custom presets", result.Status, render.Width, render.Height, render.Fps, result.Config.Presets.Count);
 
-        var window = new MainWindow(version, paths, result);
+        var store = new ConfigStore(paths.ConfigFile, factory.CreateLogger<ConfigStore>());
+        var window = new MainWindow(new StartupContext(version, paths, store, result, factory, ArgValue(e.Args, "--url"), ArgValue(e.Args, "--selftest")));
         window.Show();
         _logger.LogInformation("Main window shown");
 
         if (e.Args.Contains("--autoclose"))
         {
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            // With a self test the window closes once the test is done (a few seconds after it starts logging).
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(e.Args.Contains("--selftest") ? 90 : 4) };
             timer.Tick += (_, _) => { timer.Stop(); _logger.LogInformation("Autoclose"); window.Close(); };
             timer.Start();
         }

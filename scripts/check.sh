@@ -33,8 +33,8 @@ smoke_mode() { # mode, pattern...
 
 # Run the real application with a throwaway data folder and assert what it logged.
 smoke_app() { # pattern...
-  local data='C:\dev\stagecast-data' log="$WSL_DIR/stagecast-data/logs"
-  winps "dotnet build Stagecast.sln -c Debug -nologo -v q | Out-Null; Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue; Start-Process -Wait -FilePath '.\\src\\Stagecast.App\\bin\\Debug\\$TFM\\Stagecast.exe' -ArgumentList '--autoclose','--data-dir','$data'" || return 1
+  local data='C:\dev\stagecast-data' log="/mnt/c/dev/stagecast-data/logs"
+  winps "dotnet build Stagecast.sln -c Debug -nologo -v q | Out-Null; Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue; Start-Process -Wait -FilePath '.\\src\\Stagecast.App\\bin\\Debug\\$TFM\\Stagecast.exe' -ArgumentList '--autoclose','--data-dir','$data'${APP_EXTRA:-}" || return 1
   echo "--- app ---"; cat "$log"/stagecast-*.log
   local p
   for p in "$@"; do
@@ -44,6 +44,7 @@ smoke_app() { # pattern...
 
 smoke() {
   smoke_app "Config \"CreatedDefault\": 2520x1080 at 60 fps" "Main window shown" "exiting with code 0" || return 1
+  APP_EXTRA=",'--selftest','a2'" smoke_app "A2 selftest ok" "exiting with code 0" || return 1
   smoke_mode s1 "webview2 runtime " "navigation completed success=True" || return 1
   smoke_mode s2 "composition controller created" "root visual target set" "navigation completed success=True" "page viewport 2520x1080" "S2 ok" || return 1
   smoke_mode s3 "S3 summary pass=16 fail=0" "S3 ok" || return 1

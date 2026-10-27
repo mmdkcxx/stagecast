@@ -201,6 +201,10 @@ Dimulai dari proyek baru yang bersih; kode spike diambil sebagai referensi, buka
 - Input resolusi (W x H) dan toggle FPS 30/60 di UI; preview.
 - FrameHub dengan ring buffer, pengulangan frame untuk halaman diam, statistik.
 - **Lulus:** ubah resolusi/fps saat berjalan tanpa crash; statistik tampil. [Saya + Anda]
+- **Status: bagian saya lulus (2026-10-27), menunggu pengecekan Anda.** Modul baru `src/Stagecast.Rendering` (RenderEngine, FrameCapturer WGC, FramePump) dan di Core `Frames/` (Frame berhitung referensi, FramePool, FrameHub). UI: kotak URL, input lebar x tinggi + Terapkan (divalidasi 100-8192), pilihan FPS 30/60, preview, panel statistik 1 Hz; resolusi dan FPS disimpan ke `config.json`. `--selftest a2` menjalankan skenario otomatis (dipakai `check.sh smoke`): 2520x1080@60 -> 30 fps -> 1920x1080@60 -> halaman diam -> kembali 2520x1080. Hasil: keluaran tepat 60,0/s dan 30,0/s di semua langkah, halaman diam tetap 60/s lewat pengulangan frame, ukuran frame mengikuti resolusi baru, tanpa error; 86 unit test lulus (13 baru untuk FrameHub/Frame/FramePool).
+  - **Temuan:** `GraphicsCaptureItem.CreateFromVisual` menyimpan ukuran visual saat dibuat, jadi mengubah resolusi harus membuat ulang item/sesi tangkap (`FrameCapturer.Restart`); sesi baru langsung memberi satu frame walau halaman diam.
+  - **Catatan untuk A4:** jadwal tangkap dan detak pompa adalah dua jam 60 Hz yang tidak terkunci, sehingga pada halaman bergerak jumlah detak yang mengulang frame bergantung pada fase (terlihat 3 sampai 119 dari 480 per 8 detik). Rata-rata tetap 60/s, tetapi gerakan bisa terlihat kurang halus; ukur lagi dengan keluaran nyata (layar penuh/NDI) sebelum memutuskan perlu penguncian fase.
+  - **[Anda]:** jalankan `Stagecast.exe`, ketik resolusi lain, ganti 30/60, buka halaman (mis. Canva) dan lihat preview serta statistik.
 
 ### A2b - Kontrol halaman
 - Toolbar di atas preview: Fit/100%, zoom halaman (di menu …), tombol Interaksi, Perbesar, jendela terpisah.
