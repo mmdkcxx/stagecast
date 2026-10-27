@@ -3,6 +3,24 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.2.0-custom.1] - belum dirilis
+
+Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`.
+
+### Ditambahkan
+- Sumber PDF: tab PDF (tombol **+ PDF**) menampilkan halaman dengan scale to fit di layar penuh, NDI, dan OMT; bar hitam di sisa kanvas.
+  Kontrol halaman (awal, sebelumnya, berikutnya, akhir, kotak nomor halaman), strip thumbnail dengan bingkai merah (sekarang) dan biru
+  (berikutnya), Muat ulang dan Pilih berkas dengan konfirmasi bila tab sedang tayang, kata sandi PDF ditanyakan di dalam aplikasi
+  dan tidak disimpan. Berkas dibuka dari salinan sementara.
+- Clicker presentasi (Page Down/Up, panah, Backspace, B atau titik untuk Blackout, F5 kembali ke halaman 1); mode global opsional
+  untuk tombol halaman saja. Di Preview + Take, halaman tab yang sedang tayang tetap bisa digeser lewat bar PROGRAM atau clicker.
+- Jenis tab (`Web`, `Pdf`, kelak `PowerPoint`, `Video`) di daftar tab dan berkas pengaturan; pengaturan lama dibaca sebagai tab web.
+- `scripts/check.sh selftest NAMA`, `CONTINUE=1` untuk smoke, dan self test `d1a` dan `d5`.
+
+### Belum diuji
+Tampilan UI (strip, DPI 125/150%), kata sandi, rotasi dan ukuran halaman campuran, PDF ratusan halaman, soak dengan output menyala,
+dan alpha untuk bar transparan (belum dibangun).
+
 ## [1.1.6] - 2026-10-27
 
 Rilis publik pertama. Isinya sama dengan 0.1.6 (tidak ada perubahan kode); hanya nomor versi yang dinaikkan. Riwayat 0.1.0
