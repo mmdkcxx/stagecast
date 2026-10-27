@@ -2,7 +2,7 @@
 ; Prerequisites: the app is self-contained (.NET 8 is inside), so only the WebView2 Runtime is required (downloaded when missing);
 ; the NDI runtime is optional and only offered when it is not installed.
 #ifndef AppVersion
-  #define AppVersion "0.1.1"
+  #define AppVersion "0.1.2"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\dist\publish"

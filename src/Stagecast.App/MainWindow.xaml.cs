@@ -440,7 +440,7 @@ public partial class MainWindow : Window
     {
         bool enlarged = EnlargeButton.IsChecked == true;
         SidePanel.Visibility = enlarged ? Visibility.Collapsed : Visibility.Visible;
-        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(300);
+        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(340);
     }
 
     private void OnMore(object sender, RoutedEventArgs e)

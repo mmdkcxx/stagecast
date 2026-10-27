@@ -3,6 +3,13 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [0.1.2] - 2026-10-27
+
+### Diperbaiki
+- Panel samping terpotong di sisi kanan (tombol "Kelola" dan tombol "Ganti nama" pada NDI/OMT). Lebar panel dinaikkan
+  dari 300 ke 340 dan baris tombol resolusi (Terapkan, Simpan preset, Kelola) sekarang turun ke baris berikutnya bila
+  tidak muat.
+
 ## [0.1.1] - 2026-10-27
 
 ### Diperbaiki

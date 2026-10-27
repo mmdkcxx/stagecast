@@ -34,7 +34,7 @@
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="SideColumn" Width="300"/>
+                <ColumnDefinition x:Name="SideColumn" Width="340"/>
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0" Margin="16">
@@ -108,11 +108,11 @@
                         <TextBlock Grid.Column="1" Text="×" Foreground="{StaticResource Muted}" FontSize="16" VerticalAlignment="Center" Margin="8,0"/>
                         <TextBox x:Name="HeightBox" Style="{StaticResource Field}" Grid.Column="2" ToolTip="Tinggi dalam piksel (100-8192)" KeyDown="OnResolutionKeyDown"/>
                     </Grid>
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button x:Name="ApplyButton" Content="Terapkan" Style="{StaticResource ActionButton}" Click="OnApplyResolution"/>
-                        <Button Content="Simpan preset" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnSavePreset" ToolTip="Simpan resolusi yang sedang dipakai sebagai preset"/>
-                        <Button Content="Kelola" Style="{StaticResource ToolButton}" Margin="0" Click="OnManagePresets"/>
-                    </StackPanel>
+                    <WrapPanel Margin="0,10,0,0">
+                        <Button x:Name="ApplyButton" Content="Terapkan" Style="{StaticResource ActionButton}" Margin="0,0,8,6" Click="OnApplyResolution"/>
+                        <Button Content="Simpan preset" Style="{StaticResource ToolButton}" Margin="0,0,8,6" Click="OnSavePreset" ToolTip="Simpan resolusi yang sedang dipakai sebagai preset"/>
+                        <Button Content="Kelola" Style="{StaticResource ToolButton}" Margin="0,0,0,6" Click="OnManagePresets"/>
+                    </WrapPanel>
                     <Border x:Name="PresetPanel" Visibility="Collapsed" Margin="0,10,0,0" Padding="10" Background="{StaticResource Raised}" BorderBrush="{StaticResource LineStrong}" BorderThickness="1">
                         <StackPanel x:Name="PresetPanelBody"/>
                     </Border>
