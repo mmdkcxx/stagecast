@@ -3,7 +3,9 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
+using Stagecast.Core.Presets;
 using Microsoft.Extensions.Logging;
 using Stagecast.Core.Rendering;
 using Stagecast.Rendering;
@@ -29,6 +31,7 @@ internal sealed class SelfTest
     public async Task RunAsync(string name, MainWindow window)
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
+        if (name == "a2c") { await RunChangesAndPresetsAsync(window); return; }
         if (name != "a2") { _logger.LogError("Unknown self test {Name}", name); return; }
 
         string animation = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-animation.html")).AbsoluteUri;
@@ -64,6 +67,63 @@ internal sealed class SelfTest
         Expect(back.Capture is { Width: 2520, Height: 1080 }, "frames are 2520x1080 again");
 
         _logger.LogInformation(_failures.Count == 0 ? "A2 selftest ok" : "A2 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>Confirmation of resolution/rate changes while an output is on (simulated), and the resolution presets.</summary>
+    private async Task RunChangesAndPresetsAsync(MainWindow window)
+    {
+        var hd = new Resolution(1920, 1080);
+        var wide = new Resolution(2520, 1080);
+        await Task.Delay(500);
+
+        window.ApplyFromCode(hd, 60);
+        Expect(_engine.Resolution == hd && !window.BannerVisible, "with no output on, a new resolution applies at once, without a banner");
+
+        window.SetSimulatedLive(true);
+        window.ApplyFromCode(wide, 30);
+        await Task.Delay(300);
+        Expect(_engine.Resolution == hd && _engine.Fps == 60, "with an output on, nothing changes before confirmation");
+        Expect(window.BannerVisible && window.PendingChange == new Stagecast.Core.Output.RenderChange(wide, 30), "the banner waits with the requested resolution and rate");
+
+        window.CancelPending();
+        Expect(_engine.Resolution == hd && _engine.Fps == 60 && !window.BannerVisible && window.PendingChange is null, "Batal keeps everything as it was");
+
+        window.ApplyFromCode(wide, 30);
+        window.ConfirmPending();
+        await Task.Delay(1500);
+        Expect(_engine.Resolution == wide && _engine.Fps == 30 && !window.BannerVisible, "Terapkan applies the waiting change");
+        var stats = _engine.Stats();
+        Expect(stats.Capture is { Width: 2520, Height: 1080 }, "frames follow the confirmed resolution");
+
+        window.SetSimulatedLive(false);
+        window.ApplyFromCode(hd, 60);
+        Expect(_engine.Resolution == hd && _engine.Fps == 60 && !window.BannerVisible, "with the output off again, changes apply at once");
+
+        // Presets.
+        window.Confirm = _ => true;
+        Expect(window.SavePreset("") == PresetError.NameEmpty, "an empty preset name is refused");
+        Expect(window.SavePreset("Full HD baru") == PresetError.ResolutionInUse, "a resolution that already has a preset is refused");
+        window.ApplyFromCode(new Resolution(1600, 900), 60);
+        Expect(window.SavePreset(new string('x', 25)) == PresetError.NameTooLong, "a name over 24 characters is refused");
+        Expect(window.SavePreset("led 7×3") == PresetError.NameInUse, "a name already used (ignoring case) is refused");
+        Expect(window.SavePreset("  Panggung  ") == PresetError.None, "a valid preset is saved");
+        Expect(window.SavePreset("Lagi") == PresetError.ResolutionInUse, "the same resolution cannot be saved twice");
+
+        var reloaded = PresetCatalog.FromConfig(window.ReadConfigFromDisk());
+        Expect(reloaded.All.Any(p => p.Name == "Panggung" && p.Resolution == new Resolution(1600, 900)), "the preset is in the settings file, so it survives a restart");
+
+        Expect(!window.DeletePreset(PresetRules.BuiltIns[0]), "a built-in preset cannot be deleted");
+        var mine = window.Presets.All.First(p => p.Name == "Panggung");
+        bool asked = false;
+        window.Confirm = _ => { asked = true; return false; };
+        Expect(!window.DeletePreset(mine) && asked && window.Presets.All.Contains(mine), "declining the confirmation keeps the preset");
+        window.Confirm = _ => true;
+        Expect(window.DeletePreset(mine) && !window.Presets.All.Contains(mine), "deleting asks and then removes the preset");
+        Expect(_engine.Resolution == new Resolution(1600, 900), "deleting the preset in use does not change the active resolution");
+        Expect(!PresetCatalog.FromConfig(window.ReadConfigFromDisk()).All.Any(p => p.Name == "Panggung"), "the deleted preset is gone from the settings file");
+
+        window.ApplyFromCode(wide, 60);
+        _logger.LogInformation(_failures.Count == 0 ? "A2c selftest ok" : "A2c selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
     /// <summary>Page controls: pointer mapping in Fit and 100%, preview region, panning, wheel, page zoom, keyboard and Esc, history.</summary>

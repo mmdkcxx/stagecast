@@ -221,6 +221,7 @@ Dimulai dari proyek baru yang bersih; kode spike diambil sebagai referensi, buka
 - Ubah resolusi atau FPS saat ada output nyala: spanduk konfirmasi Batal/Terapkan. Resolusi yang diketik berlaku setelah Terapkan.
 - Matikan output selalu minta konfirmasi; test tone ke NDI/OMT yang nyala minta konfirmasi.
 - **Lulus:** ubah resolusi/FPS saat live tidak berlaku sebelum dikonfirmasi; mematikan output tidak terjadi dengan satu klik tak sengaja; menyalakan output tidak minta konfirmasi. [Anda]
+- **Status: sebagian selesai (2026-10-27).** Selesai: spanduk kuning Batal/Terapkan untuk resolusi dan FPS (`RenderChangeGate` di Core, 8 tes). Resolusi dan FPS yang diminta bersamaan menunggu bersama; meminta nilai yang sedang berlaku menarik kembali bagian itu; kontrol (pilihan FPS, tombol preset) menampilkan nilai yang menunggu, spanduk menampilkan nilai lama dan baru. **Belum bisa diuji dengan output sungguhan** karena output baru ada di A4: sementara ada kotak centang "Uji: anggap ada output yang nyala" di panel kanan (hapus di A4). Konfirmasi matikan output dan test tone ke NDI/OMT dikerjakan bersama fasenya (A4, A6, A7, A8).
 
 ### A2d - Preset resolusi
 - Lebar/tinggi bisa diketik (validasi 100-8192 piksel, angka batas ini usulan untuk mockup, belum diuji terhadap batas WebView2/GPU [U]).
@@ -228,6 +229,8 @@ Dimulai dari proyek baru yang bersih; kode spike diambil sebagai referensi, buka
 - **Hapus preset:** lewat mode Kelola; preset bawaan (LED 7x3, Full HD, 4K UHD, Vertikal) tidak bisa dihapus; konfirmasi sebelum hapus; menghapus preset yang sedang dipakai tidak mengubah resolusi aktif.
 - Preset disimpan di profil JSON. Menerapkan resolusi baru meminta konfirmasi bila output nyala (A2c).
 - **Lulus:** preset buatan sendiri bertahan setelah aplikasi dibuka ulang. [Anda]
+- **Status: bagian saya lulus (2026-10-27), menunggu pengecekan Anda.** Tombol "Preset: <nama>" (atau "Kustom") membuka daftar preset; memilih preset melewati spanduk A2c yang sama. "Simpan preset" menyimpan resolusi yang sedang dipakai (nama dipangkas, maks 24 karakter, tidak kosong, tidak kembar nama tanpa memandang huruf besar/kecil, tidak kembar resolusi; pesan galat per kasus). "Kelola" menampilkan daftar dengan Hapus (preset bawaan diberi tanda "bawaan", tanpa tombol), meminta konfirmasi, dan tidak mengubah resolusi aktif. Disimpan di `config.json` lewat `PresetCatalog` (Core, 12 tes); entri rusak/kembar saat memuat dibuang. `--selftest a2c` (bagian dari `check.sh smoke`) mencakup banner dan preset, termasuk bahwa berkas config berisi preset (bertahan setelah dibuka ulang) dan hilang setelah dihapus. 122 tes unit.
+  - **[Anda]:** simpan preset sendiri, tutup lalu buka lagi aplikasinya, cek masih ada; coba kotak centang uji untuk melihat spanduk.
 
 ### A3 - Multi-tab
 - Daftar tab: tambah, tutup, ganti nama (pensil di baris tab, F2), urut; pindah tab mengganti sumber. Nama tab hanya label operator, disimpan di profil, tidak boleh kosong, maksimal 40 karakter.
