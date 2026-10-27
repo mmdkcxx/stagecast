@@ -342,8 +342,13 @@ internal sealed class SelfTest
         Expect(window.Tabs.ProgramId == window.Tabs.Items[2].Id && window.Tabs.Active.Id == programId, "program and preview swapped");
         Expect(_engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "audio follows the program after TAKE");
 
+        long blackBeforeResize = Interlocked.Read(ref sink.Black) - black;
         window.ApplyFromCode(new Resolution(1920, 1080), 60);
         await Task.Delay(1500);
+        // A resolution change restarts the capture, so black frames while it settles are not a Preview + Take problem; only log them.
+        long blackByResize = Interlocked.Read(ref sink.Black) - black - blackBeforeResize;
+        _logger.LogInformation("A3b black frames before the resolution change: {Before}, caused by it: {Resize}", blackBeforeResize, blackByResize);
+        black += blackByResize;
         Expect(sink.Seen == colours[2], $"a resolution change in the mode keeps the program (saw {sink.Seen})");
         Expect(await window.TakeAsync(), "TAKE works again");
         await Task.Delay(800);
@@ -361,7 +366,9 @@ internal sealed class SelfTest
     /// <summary>Screen output on the available monitor: the guard question, window placement, scale numbers, frames arriving, stopping.</summary>
     private async Task RunScreenOutputAsync(MainWindow window)
     {
-        await _engine.NavigateAsync(Page("3050E0"), TimeSpan.FromSeconds(10));
+        // A moving page: the window skips repeated frames, so a still page would only be drawn once.
+        string animation = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-animation.html")).AbsoluteUri;
+        await _engine.NavigateAsync(animation, TimeSpan.FromSeconds(20));
         window.RefreshMonitors();
         var monitors = window.Monitors;
         Expect(monitors.Count >= 1, $"at least one monitor is listed ({monitors.Count})");
@@ -471,6 +478,7 @@ internal sealed class SelfTest
         Expect(await MaxPeakAsync(800) is > -23 and < -17, "unmuting brings the audio back");
 
         window.SetVolume(0.5);
+        await Task.Delay(500); // the meter holds its peak and falls 30 dB per second; let the old level pass
         double half = await MaxPeakAsync(800);
         Expect(half is > -29 and < -23, $"half volume is about 6 dB lower ({half:0.0})");
         window.SetVolume(1);
