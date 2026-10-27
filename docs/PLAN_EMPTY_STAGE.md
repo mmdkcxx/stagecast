@@ -23,12 +23,17 @@ Semua tab bisa ditutup sampai tidak ada yang terbuka. Saat tidak ada tab sama se
 
 ### Test pattern sebagai sumber bingkai
 - Sumber tersendiri di samping tab web, bukan tab. Dihasilkan Stagecast pada resolusi dan FPS render yang aktif, lalu masuk ke `FrameHub` seperti sumber lain. Jadi Freeze, Blackout, layar penuh, NDI, dan OMT bekerja tanpa perubahan.
-- Isi yang diusulkan, untuk kalibrasi videotron dan pengecekan penerima:
-  - bar warna, gradasi abu-abu, dan petak kotak-kotak;
-  - bingkai tipis 1 piksel di keempat tepi (cek pemotongan), garis silang tengah, dan diagonal;
-  - lingkaran di tengah (cek squeeze anamorfik: harus tampak bulat setelah Resolume/vMix mengembalikan skala);
-  - teks ukuran render, FPS, dan nama sumber;
-  - elemen bergerak (bar atau penghitung waktu) supaya Freeze dan FPS terlihat.
+- **Isi pola (disetujui pemilik, 2026-10-27):** acuan gambar ada di artifact https://claude.ai/artifact/7XuJE5kDxVjetER6bQdZ7p (privat; contoh di browser, bukan keluaran aplikasi). Susunannya, dari atas ke bawah pada kanvas render:
+  - 7 bar warna (putih, kuning, sian, hijau, magenta, merah, biru) setinggi 42% kanvas;
+  - gradasi abu-abu 11 langkah (12% tinggi);
+  - petak hitam-abu dengan sel 15 piksel pada kanvas 540 piksel (30% tinggi), diskalakan sesuai tinggi render;
+  - jalur bawah (sisa tinggi) berisi timecode `HH:MM:SS:FF` di kiri, bar putih yang menyapu kiri ke kanan tiap 2 detik, dan kotak "BEEP nn" di kanan yang menyala putih selama 100 ms tiap detik;
+  - garis kisi samar 10 kolom × 6 baris, dua diagonal sudut ke sudut;
+  - lingkaran putih di tengah (jari-jari 34% tinggi, dengan tepi hitam tipis) dan garis silang;
+  - pelat teks di tengah: ukuran render besar, "STAGECAST TEST PATTERN · nn FPS", dan "RASIO n.nn:1";
+  - tanda sudut berbentuk L di empat sudut dan bingkai 1 piksel di keempat tepi.
+- Tujuan tiap elemen: bar dan gradasi untuk warna dan kecerahan; bingkai tepi untuk pemotongan; lingkaran untuk cek squeeze anamorfik (harus tampak bulat setelah skala dikembalikan); petak dan diagonal untuk ketajaman dan skala piksel; bar bergerak dan timecode untuk Freeze dan FPS; kotak BEEP untuk sinkron suara dan gambar.
+- Semua ukuran dihitung dari lebar dan tinggi render, jadi pola yang sama berlaku untuk 2520×1080, 1920×1080, dan 3840×2160. Teks memakai Barlow dan IBM Plex Mono yang sudah dibundel.
 - Audio senyap secara bawaan. Nada uji adalah opsi terpisah (belum diputuskan).
 - Opaque penuh. Opsi alpha NDI/OMT tidak berpengaruh pada pattern.
 - Tally di pratinjau memakai aturan yang sama dengan sumber lain.
@@ -82,7 +87,7 @@ Aturan proyek berlaku: typecheck selama membangun, batch pengujian penuh hanya s
 - Lulus kalau: semua tab bisa ditutup, aplikasi tidak error pada nol tab, dan pembukaan ulang tidak membuat tab live.
 
 ### E2 - Sumber test pattern
-- File baru `Stagecast.Core/Frames/TestPattern.cs`: menggambar bingkai BGRA pada ukuran render, murni dan bisa diuji unit. Isi: bar warna, gradasi abu-abu, petak, bingkai 1 piksel di tepi, garis silang dan diagonal, lingkaran tengah, teks ukuran render dan FPS, bar yang bergerak, kilatan bertempo, dan timecode.
+- File baru `Stagecast.Core/Frames/TestPattern.cs`: menggambar bingkai BGRA pada ukuran render, murni dan bisa diuji unit. Isi dan tata letak mengikuti bagian "Isi pola (disetujui pemilik)" di atas; artifact acuan: https://claude.ai/artifact/7XuJE5kDxVjetER6bQdZ7p.
 - Dijalankan pada FPS render dan ukuran render yang aktif; diulang saat resolusi diubah.
 - Lulus kalau: unit test membuktikan ukuran dan piksel penanda (tepi, pusat, bar) benar pada beberapa resolusi (2520×1080, 1920×1080, 3840×2160).
 
