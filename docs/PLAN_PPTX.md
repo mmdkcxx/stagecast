@@ -84,6 +84,9 @@ Status: rancangan, belum dibuat. Mockup ada di artifact storyboard.
 - Belum ada di tab web dan MP4. Di Preview + Take, strip tampil untuk tab PowerPoint yang dioperasikan.
 - Hal yang harus dibuktikan: lama ekspor seluruh slide pada deck besar, dan apakah `Slide.Export` aman dipanggil selagi show berjalan. Dimasukkan ke spike P0 dan fase P3.
 
+### Hubungan dengan sumber PDF
+PDF direncanakan di `docs/PLAN_PDF.md` dan berbagi lapisan "sumber dokumen" dengan PPTX: antarmuka berikutnya/sebelumnya/loncat/thumbnail/muat ulang, penyusun kanvas scale to fit (`FitComposer`), strip thumbnail, clicker, dan Preview + Take. Bagian bersama itu sebaiknya dibangun sekali dan dipakai kedua jenis sumber; `PowerPointSource` mengimplementasikan antarmuka yang sama.
+
 ### Slide tersembunyi (hidden)
 Status: rancangan, belum dibuat, belum diuji. Perilaku PowerPoint di bawah ini adalah yang saya ketahui dari PowerPoint biasa dan harus dibuktikan di spike P0 lewat COM.
 
