@@ -20,6 +20,9 @@ public sealed class AppConfig
     /// <summary>NDI source name. Whether NDI is on is never saved.</summary>
     public NdiConfig Ndi { get; init; } = new();
 
+    /// <summary>OMT source name. Whether OMT is on is never saved.</summary>
+    public OmtConfig Omt { get; init; } = new();
+
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
@@ -64,6 +67,11 @@ public sealed class OutputConfig
 
     /// <summary>The output window covers other windows, including the taskbar.</summary>
     public bool AlwaysOnTop { get; init; } = true;
+}
+
+public sealed class OmtConfig
+{
+    public string Name { get; init; } = Stagecast.Core.Output.SourceNameRules.DefaultOmtName;
 }
 
 public sealed class NdiConfig

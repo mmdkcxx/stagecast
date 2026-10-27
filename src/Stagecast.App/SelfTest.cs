@@ -7,6 +7,7 @@ using Stagecast.Core.Audio;
 using Stagecast.Core.Output;
 using Stagecast.Rendering.Audio;
 using Stagecast.Rendering.Ndi;
+using Stagecast.Rendering.Omt;
 using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
@@ -39,6 +40,7 @@ internal sealed class SelfTest
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
+        if (name == "a7") { await RunOmtAsync(window); return; }
         if (name == "a6") { await RunNdiAsync(window); return; }
         if (name == "a5") { await RunGateAndAudioAsync(window); return; }
         if (name == "a4") { await RunScreenOutputAsync(window); return; }
@@ -597,6 +599,83 @@ internal sealed class SelfTest
         var saved = window.ReadConfigFromDisk();
         Expect(saved.Ndi.Name == "Stagecast Dua", "the NDI name is saved");
         _logger.LogInformation(_failures.Count == 0 ? "A6 selftest ok" : "A6 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>Our own OMT source, looked at with an OMT receiver the way vMix would (same checks as NDI).</summary>
+    private async Task RunOmtAsync(MainWindow window)
+    {
+        window.Confirm = _ => true;
+        window.ApplyFromCode(new Resolution(2520, 1080), 60);
+        string tone = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-tone.html")).AbsoluteUri;
+        await _engine.NavigateAsync(tone, TimeSpan.FromSeconds(20));
+        await Task.Delay(1500);
+        window.SyncAudioSources();
+
+        Expect(!window.RenameOmt("   "), "an empty OMT name is refused");
+        Expect(window.RenameOmt("Stagecast Uji") && window.OmtSettings.Name == "Stagecast Uji", "the OMT name can be changed while off");
+        Expect(window.StartOmt() && window.Omt is { IsRunning: true }, $"OMT can be switched on ({window.OmtMessage})");
+        await Task.Delay(1500);
+
+        _logger.LogInformation("A7 OMT sources: {Sources}", string.Join(" | ", OmtProbe.Sources()));
+        using (var probe = OmtProbe.Connect("(Stagecast Uji)", TimeSpan.FromSeconds(10)))
+        {
+            Expect(probe is not null, "the source shows up under the chosen name and a receiver can connect");
+            if (probe is not null)
+            {
+                var video = probe.ReadLatestVideo(TimeSpan.FromSeconds(3));
+                Expect(video is { Width: 2520, Height: 1080 }, $"the picture arrives at the native size ({video?.Width}x{video?.Height})");
+                // The VMX codec is lossy, so allow a wider margin than for NDI.
+                Expect(video is { } v && Math.Abs(v.Red - 0x10) <= 8 && Math.Abs(v.Green - 0x14) <= 8 && Math.Abs(v.Blue - 0x18) <= 8,
+                    $"the page colour is right ({video?.Red:X2}{video?.Green:X2}{video?.Blue:X2})");
+                Expect(window.Omt!.Receivers >= 1, $"the sender sees the receiver ({window.Omt.Receivers})");
+
+                var heard = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1.5));
+                Expect(heard is { } h && h.Left is > -23 and < -17 && h.Right is > -23 and < -17, $"the page tone arrives on both channels ({heard?.Left:0.0} / {heard?.Right:0.0} dBFS)");
+
+                window.SetGate(Stagecast.Core.Output.GateMode.Freeze);
+                await Task.Delay(500);
+                var frozen = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1));
+                Expect(frozen is { } f && f.Left < -60 && f.Right < -60, $"Freeze sends silence ({frozen?.Left:0.0} / {frozen?.Right:0.0})");
+                window.SetGate(Stagecast.Core.Output.GateMode.Blackout);
+                await Task.Delay(500);
+                var black = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
+                Expect(black is { Red: < 8, Green: < 8, Blue: < 8 }, $"Blackout sends black ({black?.Red:X2}{black?.Green:X2}{black?.Blue:X2})");
+                var duringBlackout = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1));
+                Expect(duringBlackout is { } d && d.Left is > -23 and < -17, $"Blackout keeps the audio ({duringBlackout?.Left:0.0})");
+                window.SetGate(Stagecast.Core.Output.GateMode.Live);
+                await Task.Delay(500);
+                var back = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
+                Expect(back is { } b && Math.Abs(b.Red - 0x10) <= 8, "releasing brings the picture back");
+
+                window.StartTone(ToneChannel.Left);
+                await Task.Delay(600);
+                var left = probe.ReadAudioPeaks(TimeSpan.FromSeconds(1));
+                Expect(left is { } l && l.Left is > -21.5 and < -18.5 && l.Right < -60, $"the left-only tone reaches only the left channel ({left?.Left:0.0} / {left?.Right:0.0})");
+                window.StopTone();
+
+                window.ApplyFromCode(new Resolution(1920, 1080), 60);
+                Expect(window.PendingChange is not null, "with OMT on, a resolution change asks for confirmation");
+                window.ConfirmPending();
+                await Task.Delay(1500);
+                var resized = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
+                Expect(resized is { Width: 1920, Height: 1080 }, $"a resolution change reaches the receiver ({resized?.Width}x{resized?.Height})");
+            }
+        }
+
+        window.Confirm = _ => false;
+        Expect(!window.RenameOmt("Lain") && window.OmtSettings.Name == "Stagecast Uji", "refusing the rename warning keeps the old name");
+        window.Confirm = _ => true;
+        Expect(window.RenameOmt("Stagecast Dua") && window.Omt is { IsRunning: true, SourceName: "Stagecast Dua" }, "renaming while on recreates the sender");
+        await Task.Delay(1500);
+        var renamed = OmtProbe.Sources();
+        Expect(renamed.Any(n => n.Contains("(Stagecast Dua)")), $"the new name is visible ({string.Join(" | ", renamed)})");
+
+        window.StopOmt(null);
+        Expect(window.Omt is null, "OMT can be switched off");
+        await Task.Delay(1500);
+        var saved = window.ReadConfigFromDisk();
+        Expect(saved.Omt.Name == "Stagecast Dua", "the OMT name is saved");
+        _logger.LogInformation(_failures.Count == 0 ? "A7 selftest ok" : "A7 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
     private const double LevelMeterFloor = -90;

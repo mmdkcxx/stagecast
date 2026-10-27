@@ -176,9 +176,14 @@ public sealed class ConfigStore
         string ndiName = Stagecast.Core.Output.SourceNameRules.Repair(ndi.Name, Stagecast.Core.Output.SourceNameRules.DefaultNdiName);
         if (ndiName != ndi.Name) notes.Add($"NDI source name '{ndi.Name}' is not usable; using '{ndiName}'");
 
+        var omt = input.Omt ?? new OmtConfig();
+        string omtName = Stagecast.Core.Output.SourceNameRules.Repair(omt.Name, Stagecast.Core.Output.SourceNameRules.DefaultOmtName);
+        if (omtName != omt.Name) notes.Add($"OMT source name '{omt.Name}' is not usable; using '{omtName}'");
+
         return new AppConfig
         {
             SchemaVersion = AppConfig.CurrentSchemaVersion,
+            Omt = new OmtConfig { Name = omtName },
             Ndi = new NdiConfig { Name = ndiName },
             Audio = new AudioConfig { DeviceId = deviceId, Volume = volume, Muted = audio.Muted },
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },

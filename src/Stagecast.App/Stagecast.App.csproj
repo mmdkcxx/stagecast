@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <Content Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Native VMX codec used by the OMT output (libomtnet.dll is copied through the Rendering reference). -->
+    <Content Include="..\..\third_party\omt\libvmx.dll" Link="libvmx.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

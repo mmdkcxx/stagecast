@@ -173,6 +173,21 @@ public sealed class SourceNameTests : IDisposable
     }
 
     [Fact]
+    public void Config_KeepsOmtName_AndRepairsABadOne()
+    {
+        var path = Path.Combine(_dir, "config.json");
+        var store = new ConfigStore(path, NullLogger.Instance);
+        store.Load();
+        store.Save(new AppConfig { Omt = new OmtConfig { Name = "LED Utama" } });
+        Assert.Equal("LED Utama", new ConfigStore(path, NullLogger.Instance).Load().Config.Omt.Name);
+
+        File.WriteAllText(path, "{\"omt\":{\"name\":\"\"}}");
+        var repaired = new ConfigStore(path, NullLogger.Instance).Load();
+        Assert.Equal(ConfigLoadStatus.Repaired, repaired.Status);
+        Assert.Equal(SourceNameRules.DefaultOmtName, repaired.Config.Omt.Name);
+    }
+
+    [Fact]
     public void Config_KeepsNdiName_AndRepairsABadOne()
     {
         var store = new ConfigStore(Path.Combine(_dir, "config.json"), NullLogger.Instance);

@@ -152,6 +152,20 @@
                     <TextBlock Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
                                Text="Mengirim ukuran render asli (tidak diperas) beserta audio. NDI® adalah merek dagang terdaftar dari Vizrt NDI AB. ndi.video"/>
 
+                    <TextBlock Text="OMT (vMix)" Style="{StaticResource Label}" Margin="0,24,0,6"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="OmtNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix (vMix 29+)" KeyDown="OnOmtNameKeyDown"/>
+                        <Button Grid.Column="1" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnOmtRename" ToolTip="Mengganti nama saat OMT nyala membuat sumber dibuat ulang"/>
+                    </Grid>
+                    <Button x:Name="OmtButton" Content="Nyalakan OMT" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleOmt"/>
+                    <TextBlock x:Name="OmtStatus" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    <TextBlock Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Mengirim ukuran render asli (tidak diperas) beserta audio. Open Media Transport (MIT)."/>
+
                     <TextBlock Text="AUDIO" Style="{StaticResource Label}" Margin="0,24,0,6"/>
                     <Button x:Name="AudioDeviceButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnAudioDeviceMenu" ToolTip="Perangkat keluaran audio lokal"/>
                     <Grid>

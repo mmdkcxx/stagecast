@@ -8,9 +8,9 @@ SPIKE_LOG="$WSL_DIR/spikes/Stagecast.Spike/bin/Debug/$TFM/logs/spike.log"
 # Copy the buildable parts of the repo to the Windows folder (the repo itself stays on the Linux side).
 sync_sources() {
   mkdir -p "$WSL_DIR"
-  rm -rf "$WSL_DIR/spikes" "$WSL_DIR/src" "$WSL_DIR/tests"
+  rm -rf "$WSL_DIR/spikes" "$WSL_DIR/src" "$WSL_DIR/tests" "$WSL_DIR/third_party"
   (cd "$REPO" && tar --exclude=bin --exclude=obj --exclude=logs --exclude=.gitkeep \
-     -cf - spikes src tests global.json Directory.Build.props .editorconfig Stagecast.sln) \
+     -cf - spikes src tests third_party global.json Directory.Build.props .editorconfig Stagecast.sln) \
     | tar -xf - -C "$WSL_DIR"
 }
 

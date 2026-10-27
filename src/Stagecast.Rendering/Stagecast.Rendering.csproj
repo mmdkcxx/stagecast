@@ -17,6 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="libomtnet">
+      <HintPath>..\..\third_party\omt\libomtnet.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Stagecast.Core\Stagecast.Core.csproj" />
   </ItemGroup>
 

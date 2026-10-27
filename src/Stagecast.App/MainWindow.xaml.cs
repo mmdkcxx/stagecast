@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         _tabs = BuildTabList();
         _outputConfig = _config.Output;
         _ndiConfig = _config.Ndi;
+        _omtConfig = _config.Omt;
         Confirm = text => MessageBox.Show(this, text, "Stagecast", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
         VersionText.Text = $"v{context.Version}";
         WidthBox.Text = _config.Render.Width.ToString();
@@ -53,6 +54,7 @@ public partial class MainWindow : Window
         {
             ShutdownOutput();
             StopNdi(null);
+            StopOmt(null);
             ShutdownAudio();
             _detached?.Close();
             _engine?.Dispose();
@@ -159,7 +161,7 @@ public partial class MainWindow : Window
     private readonly RenderChangeGate _gate = new();
 
     /// <summary>True when a real output is on, or the test checkbox says so (NDI and OMT will join in A6 and A7).</summary>
-    internal bool OutputsLive => LiveSimBox.IsChecked == true || _output is not null || _ndi is not null;
+    internal bool OutputsLive => LiveSimBox.IsChecked == true || _output is not null || _ndi is not null || _omt is not null;
 
     internal Func<string, bool> Confirm { get; set; } = _ => false;
 
@@ -518,6 +520,7 @@ public partial class MainWindow : Window
             Output = _outputConfig,
             Audio = _audioConfig,
             Ndi = _ndiConfig,
+            Omt = _omtConfig,
             Presets = _presets.ToEntries(),
             Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
             ActiveTab = _tabs.LiveIndex,

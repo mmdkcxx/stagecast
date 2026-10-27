@@ -56,3 +56,5 @@ Spikes S0-S3 pass (skeleton, one WebView2, composition hosting, viewport at seve
 ## Third-party notices
 
 NDI® is a registered trademark of Vizrt NDI AB (https://ndi.video). The NDI runtime is not bundled: install NDI Tools or the NDI Runtime from ndi.video to use the NDI output.
+
+Open Media Transport libraries (`third_party/omt`: libomtnet.dll, libvmx.dll) are MIT licensed, copyright Open Media Transport Contributors; see `third_party/omt/LICENSE.txt`.

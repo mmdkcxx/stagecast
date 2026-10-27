@@ -45,6 +45,7 @@ public partial class MainWindow
         ShowAudioDevice();
         SyncAudioSources();
         InitNdiCard();
+        InitOmtCard();
 
         _audioTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
         _audioTimer.Tick += (_, _) => OnAudioTick();
@@ -78,7 +79,7 @@ public partial class MainWindow
     {
         if (_audio is null) return;
         if (++_audioTick % 40 == 0) SyncAudioSources();
-        if (_audioTick % 20 == 0) ShowNdiStatus();
+        if (_audioTick % 20 == 0) { ShowNdiStatus(); ShowOmtStatus(); }
 
         var levels = _audio.Levels;
         double width = (MeterLeft.Parent as Grid)?.ActualWidth ?? 0;
@@ -178,6 +179,7 @@ public partial class MainWindow
     {
         if (_audio is null) return false;
         if (_ndi is not null && !Confirm("NDI sedang nyala. Nada uji akan terkirim ke semua penerima NDI (misalnya vMix) dan bisa ikut tersiar. Lanjutkan?")) return false;
+        if (_omt is not null && !Confirm("OMT sedang nyala. Nada uji akan terkirim ke semua penerima OMT (vMix) dan bisa ikut tersiar. Lanjutkan?")) return false;
         _audio.StartTone(channel);
         return true;
     }
