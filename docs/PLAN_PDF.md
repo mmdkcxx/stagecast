@@ -12,9 +12,15 @@ Aplikasi bisa membaca file PDF, mirip dengan PPTX: halaman ditayangkan ke layar 
 |---|---|---|---|
 | **A. Windows.Data.Pdf (disarankan)** | Komponen PDF bawaan Windows 10/11 merender tiap halaman menjadi gambar pada ukuran yang diminta | Tanpa pemasangan tambahan dan tanpa lisensi; kontrol penuh atas urutan halaman; thumbnail mudah; gambar langsung masuk ke jalur bingkai | Tidak menjalankan skrip, formulir, atau media yang tertanam di PDF; fidelitas untuk PDF yang rumit harus diuji |
 | B. Penampil PDF bawaan WebView2 | Buka file di tab web biasa | Sudah bisa hari ini, tanpa kode baru | Ada antarmuka penampil di gambar; navigasi halaman sulit dikontrol dari luar; tidak bisa strip thumbnail dan scale to fit yang sama |
+| D. PDF.js di dalam halaman WebView2 | Halaman penampil milik Stagecast (pdf.js terkemas) di tab web, dikontrol lewat skrip | Tab PDF otomatis memakai seluruh mesin tab web yang ada (capture, thumbnail, Preview + Take) tanpa mengubah mesin | Pustaka JavaScript ikut dikemas (lisensi Apache-2.0, perlu dicatat); alpha pada bar belum tentu bisa dipertahankan lewat capture web; pengurai PDF berjalan sebagai JavaScript |
 | C. Pustaka pihak ketiga (mis. PDFium) | DLL asli ikut dikemas | Fidelitas tinggi, jalan tanpa komponen Windows | Menambah DLL dan lisensi untuk dikemas; belum perlu kecuali D0 menunjukkan A kurang |
 
-Rekomendasi: **A**. Tab web ke file PDF tetap bisa dipakai seperti sekarang; tab PDF baru memberi pengalaman setara PPTX.
+Rekomendasi: **A**, dengan **D** sebagai pembanding di spike D0. Tab web ke file PDF tetap bisa dipakai seperti sekarang; tab PDF baru memberi pengalaman setara PPTX.
+
+### Temuan penting dari kode (mempengaruhi rancangan)
+- Tab sekarang selalu halaman web: `TabInfo(Id, Name, Url, ProfileId)` di `Stagecast.Core/Tabs/TabList.cs`, `PageTab` dengan WebView2 di mesin render, dan `TabEntry.Url` di konfigurasi (`AppConfig.cs`). Batas tab `TabRules.MaxTabs = 12`.
+- `FrameHub.Publish(Frame)` tidak peduli siapa pengirimnya, jadi sumber baru bisa mengirim bingkai langsung. Yang belum ada adalah tab yang bukan WebView2 di `RenderEngine`: memilih, menjadikan program, thumbnail, menutup, dan Preview + Take saat ini mengandaikan `PageTab`.
+- Jadi pekerjaan terbesar bukan merender PDF, tetapi memberi mesin dan daftar tab konsep "jenis tab" (web, PDF, PowerPoint) dan "sumber non-web". Itu juga yang dibutuhkan sumber PowerPoint, jadi dikerjakan sekali di fase D1a.
 
 ### Beda dengan PPTX
 - Tidak butuh PowerPoint dan tidak ada capture jendela. Stagecast merender sendiri halaman PDF menjadi gambar, lalu menempatkannya di kanvas dengan scale to fit. Karena itu bagian ini lebih sederhana dan lebih mudah diuji.
@@ -65,7 +71,9 @@ Saran saya: kerjakan lapisan bersama (D1 dan D2) bersama PDF lebih dulu, karena 
 - PDF yang berasal dari ekspor PowerPoint kehilangan animasi dan video; operator harus tahu bahwa itu bukan pengganti file PPTX untuk deck beranimasi.
 - Ruang lingkup tidak mencakup: anotasi, pencarian teks, zoom manual, mode dua halaman, dan bookmark.
 
-## Pertanyaan untuk pemilik
-1. Urutan: lapisan bersama bersama PDF dulu, atau spike PowerPoint (P0) dulu?
-2. PDF berkata sandi: isian setiap kali dibuka tanpa disimpan, sudah sesuai?
-3. Apakah perlu lompat halaman dengan mengetik nomor halaman di kotak kecil (selain klik thumbnail)?
+## Keputusan pemilik (2026-10-27)
+1. **Urutan:** PDF dikerjakan dulu, bersama lapisan bersama (jenis tab, sumber dokumen, `FitComposer`, strip, clicker). Spike PowerPoint (P0) mengikuti setelahnya atau paralel bila pemilik meminta.
+2. **Kata sandi PDF:** isian setiap kali dibuka, tidak pernah disimpan.
+3. **Loncat halaman:** ada kotak kecil untuk mengetik nomor halaman, selain klik thumbnail dan tombol berikutnya/sebelumnya.
+
+Rencana per fase yang terperinci ada di `docs/PLAN_PDF_PHASES.md`.
