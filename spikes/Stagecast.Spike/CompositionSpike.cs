@@ -161,6 +161,8 @@ internal sealed class CompositionSpike : IDisposable
         return (first, capture.Summarize());
     }
 
+    public void SetMuted(bool muted) => Core.IsMuted = muted;
+
     public string CurrentUrl => Core.Source;
 
     public void Navigate(string url) => Core.Navigate(url);

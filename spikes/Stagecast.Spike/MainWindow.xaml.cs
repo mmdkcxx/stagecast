@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 
     private async Task StartAsync()
     {
-        if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i") await StartCompositionAsync();
+        if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i" or "s8") await StartCompositionAsync();
         else await StartPlainAsync();
     }
 
@@ -43,18 +43,29 @@ public partial class MainWindow : Window
             string url = _url;
             if (_mode == "s5" && ArgValue("--url") is null)
                 url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "animation.html")).AbsoluteUri;
-            if (_mode == "s6" && ArgValue("--url") is null)
+            if (_mode is "s6" or "s8" && ArgValue("--url") is null)
             {
                 string media = new Uri(ArgValue("--media") ?? @"C:\dev\media\bbb.mp4").AbsoluteUri;
                 url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "video.html")).AbsoluteUri + "?src=" + Uri.EscapeDataString(media);
             }
-            string? browserArgs = ArgValue("--autoplay") == "open" ? "--autoplay-policy=no-user-gesture-required" : null;
+            string? browserArgs = ArgValue("--autoplay") == "open" || _mode == "s8" ? "--autoplay-policy=no-user-gesture-required" : null;
             await _composition.InitializeAsync(hwnd, dataDir, url, new Stagecast.Core.Rendering.Resolution(2520, 1080), browserArgs);
             if (_mode == "s2")
             {
                 await _composition.LogViewportAsync();
                 Status.Text = "S2 ok: page loaded in a composition visual (nothing is shown on screen by design)";
                 SpikeLog.Write("S2 ok");
+            }
+            else if (_mode == "s8")
+            {
+                await Task.Delay(2000); // let the video start
+                string wav = Path.Combine(AppContext.BaseDirectory, "logs", "s8-loopback.wav");
+                var phases = await AudioSpike.RunAsync(Environment.ProcessId, m => { _composition.SetMuted(m); return Task.CompletedTask; }, wav);
+                foreach (var p in phases) SpikeLog.Write($"S8 phase {p.Name}: {p.Seconds:F1}s peak={p.PeakDb:F1} dBFS rms={p.RmsDb:F1} dBFS");
+                bool audible = phases.Where(p => p.Name != "muted").All(p => p.PeakDb > -60);
+                bool muted = phases.First(p => p.Name == "muted").PeakDb < -80;
+                Status.Text = $"S8: audible={audible} mute-silent={muted}";
+                SpikeLog.Write(audible && muted ? "S8 ok" : $"S8 FAILED audible={audible} muteSilent={muted}");
             }
             else if (_mode == "s6i")
             {

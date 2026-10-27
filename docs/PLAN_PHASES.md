@@ -82,6 +82,18 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Lulus:** video terputar halus dan warna benar di preview. [Anda]
 
 ### S7 - Pemilihan GPU
+- **Status: lulus dengan bukti tipis (2026-10-27).** `scripts/gpu-compare.ps1` memaksa spike dan `msedgewebview2.exe` ke tiap GPU lewat preferensi grafis Windows per aplikasi (dikembalikan setelah uji), lalu menghitung pemakaian mesin GPU nyata dari counter Windows. Satu laptop hybrid (AMD iGPU menggerakkan layar, GTX 1650 dGPU), 40 dtk per kasus:
+
+  | GPU dipaksa | Konten | fps terkirim | interval >25 ms | CPU | GPU yang terpakai |
+  |---|---|---|---|---|---|
+  | iGPU AMD | animasi 60 fps | 60,0 | 4 | 0,3% | AMD 3D ~6% |
+  | GTX 1650 | animasi 60 fps | 60,0 | 58 | 0,3% | NVIDIA copy ~12% + AMD 3D ~10% |
+  | iGPU AMD | video 30 fps | 30,0 (isi video 30 fps) | n/a | 0,1% | AMD 3D ~3,5%, video ~4% |
+  | GTX 1650 | video 30 fps | 30,0 | n/a | 0,0% | NVIDIA 3D ~8%, video ~5% + AMD 3D ~3% |
+
+  - Keduanya mencapai 60 fps. Pada GTX, **kedua GPU tetap bekerja**: hasil render NVIDIA disalin ke AMD karena layar laptop dikendalikan AMD. Ini menambah salinan lintas-GPU dan, pada satu run ini, jarak antar frame lebih tidak rata (58 vs 4 interval >25 ms).
+  - **Rekomendasi sementara:** biarkan iGPU (bawaan "hemat daya") untuk capture. Lebih sedikit salinan, lebih rata, beban kecil. GTX baru layak dicoba bila halaman sangat berat (Canva dengan animasi banyak) atau bila monitor HDMI ke event dikendalikan GTX.
+  - **Batas bukti:** satu run per kasus, hanya 2-6 sampel counter, tanpa halaman berat, dan interval stutter sangat bervariasi antar run (S5 menunjukkan 2-20 per 1200 frame pada kondisi sama). Uji ulang di mesin event dengan konten asli sebelum memutuskan. Video 30 fps tidak berguna untuk menilai kerataan 60 fps.
 - Ukur S5 dan S6 dengan aplikasi dipaksa ke GTX 1650 dan ke iGPU AMD (setting grafis Windows per aplikasi).
 - Catat mana yang lebih stabil.
 - **Lulus:** ada rekomendasi GPU berdasarkan angka. [Saya]
