@@ -77,10 +77,10 @@ D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitCompose
 
 **Dikerjakan**
 - Penangkap tombol clicker sebagai perintah (bukan penerusan mentah): pemetaan bawaan dari `docs/PLAN_PPTX.md` (Page Down/panah kanan/spasi/Enter = berikutnya, Page Up/panah kiri/Backspace = sebelumnya, B atau titik = Blackout, F5 = awal, Esc tidak dipakai). Mode fokus bawaan; mode global opsional dengan lencana, mengikuti rencana PPTX.
-- Tab PDF sebagai preview maupun program; Take tanpa memulai ulang; perintah halaman tetap bekerja pada tab PDF yang sedang program (pengecualian yang sama dengan rencana PPTX, menunggu konfirmasi pemilik).
+- Tab PDF sebagai preview maupun program; Take tanpa memulai ulang; perintah navigasi halaman (Berikutnya, Sebelumnya, awal, akhir, loncat ke nomor, klik thumbnail, clicker) tetap bekerja pada tab dokumen yang sedang program, tanpa keluar dari mode Preview + Take (keputusan pemilik 2026-10-27, pengecualian yang sama dengan rencana PPTX). Klik dan tombol mentah ke isi halaman tetap terkunci.
 - Target clicker: tab dokumen yang program lebih dulu; kalau tidak ada, yang di preview.
 
-**Lulus kalau:** satu klik clicker = satu halaman; Take dari preview mulus dan tanpa suara atau kilatan aneh; mode global tidak merusak aplikasi lain saat mati.
+**Lulus kalau:** satu klik clicker = satu halaman; Berikutnya/Sebelumnya dan loncat bekerja pada tab dokumen yang sedang program di mode Preview + Take, sementara klik ke isi halaman tetap terkunci; Take dari preview mulus dan tanpa suara atau kilatan aneh; mode global tidak merusak aplikasi lain saat mati.
 
 ## D4 - Ketahanan
 
@@ -104,7 +104,7 @@ D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitCompose
 | D0 | 3 sampai 5 PDF contoh yang mewakili pemakaian sungguhan (satu hasil ekspor PowerPoint, satu yang berat); keputusan A/D/PDFium setelah angka keluar |
 | D1a | Tidak ada; ada satu pertanyaan terbuka: apakah batas 12 tab perlu dinaikkan setelah ada jenis tab baru |
 | D2 | Tinjau mockup antarmuka PDF (strip, kotak nomor halaman) sebelum dibangun bila diinginkan |
-| D3 | Konfirmasi: perintah halaman boleh dipakai pada tab dokumen yang sedang program di Preview + Take |
+| D3 | Sudah diputuskan: navigasi halaman boleh dipakai pada tab dokumen yang sedang program di Preview + Take |
 | D5 | Pengujian manual di perangkat keras sungguhan |
 
 ## Hubungan dengan rencana lain
