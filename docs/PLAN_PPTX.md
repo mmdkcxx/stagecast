@@ -95,6 +95,26 @@ Status: rancangan, belum dibuat, belum diuji. Perilaku PowerPoint di bawah ini a
 - **Belum diketahui:** apakah `Slide.Export` menghasilkan thumbnail untuk slide tersembunyi sama seperti slide biasa (pemilik belum mencoba; diuji di P0). Kalau gagal, thumbnail slide tersembunyi diganti kotak abu-abu bertuliskan nomor dan TERSEMBUNYI.
 - **Tambahan uji P0:** deck uji berisi slide tersembunyi di awal, di tengah, dan di akhir; periksa Berikutnya/Sebelumnya, mulai dari awal, akhir show, loncat ke slide tersembunyi, dan ekspor thumbnail-nya.
 
+### Hasil tinjauan celah (2026-10-27)
+Status: rancangan, belum dibuat, belum diuji.
+
+**Diputuskan pemilik**
+- **Maju slide hanya manual.** Waktu maju otomatis di file diabaikan; slide hanya berpindah lewat perintah operator atau clicker. Diterapkan lewat pengaturan show (`AdvanceMode` manual). Yang diabaikan hanya pergantian slide otomatis. Animasi di dalam satu slide yang diatur "setelah sebelumnya" dan video yang otomatis mulai tetap berjalan; perlu dibuktikan di P0 bahwa pengaturan itu memang tidak mematikannya.
+- **Muat ulang deck.** Kalau file asli diubah setelah dibuka (misalnya diedit menit terakhir), tombol "Muat ulang" membuka salinan baru dan kembali ke nomor slide yang sama. Tidak ada deteksi otomatis. Asumsi saya: kalau tab sedang program, muat ulang meminta konfirmasi di dalam aplikasi.
+- **Jenis file:** versi pertama hanya `.pptx` (jenis lain tidak umum bagi pemilik). `.pptm` dan `.ppsm` tetap ditolak.
+- **Tanpa layar panggung:** tidak ada tampilan catatan pembicara, timer, atau presenter view.
+- **Tanpa pintasan keyboard tambahan** untuk Take, Freeze, atau pindah tab. Pintasan yang sudah ada dan pemetaan clicker tidak berubah.
+- **Video dalam slide:** ikut codec yang didukung PowerPoint; tidak ada peringatan format tambahan. Peringatan media tertaut yang sudah direncanakan tetap.
+- **Kursor mouse harus benar-benar tidak muncul di output.** Penangkapan jendela PowerPoint mematikan kursor seperti penangkapan halaman web yang sekarang (`IsCursorCaptureEnabled = false`), dan ini diuji sungguhan: gerakkan mouse di atas jendela show, lalu periksa frame output. Termasuk periksa toolbar kecil PowerPoint yang bisa muncul saat mouse bergerak di jendela show dan menu klik kanan; keduanya tidak boleh tampil di output. Cara menyembunyikan toolbar itu lewat COM belum diketahui.
+
+**Usulan saya, belum dijawab pemilik**
+- **Jangan menutup PowerPoint milik pengguna.** Kalau PowerPoint sudah terbuka, Stagecast memakai instance itu; saat selesai hanya presentasi kita yang ditutup, dan PowerPoint hanya ditutup bila Stagecast sendiri yang menjalankannya. Perlu diuji saat PowerPoint juga dipakai mengedit deck lain.
+- **Peringatan font tidak terpasang** saat persiapan: periksa font yang dipakai deck terhadap font di PC acara, tampilkan peringatan seperti peringatan media tertaut.
+
+**Berlaku global (bukan hanya PPTX), belum dijawab pemilik**
+- **Tahan tidur:** selama ada output yang menyala, cegah PC tidur atau layar mati. Di kode tidak ditemukan penahan tidur.
+- **Konfirmasi saat menutup aplikasi** ketika ada output menyala. Di kode tidak ditemukan konfirmasi keluar; risikonya naik setelah tombol tutup pindah ke top bar.
+
 ### Clicker (presentation remote)
 Status: rancangan, belum dibuat, belum diuji dengan clicker sungguhan.
 
@@ -128,7 +148,7 @@ Semua fase di bawah baru rencana. Tidak ada yang boleh ditandai lulus sebelum di
 
 | Fase | Isi | Cara menyatakan lulus |
 |---|---|---|
-| P0 Spike | Skrip kecil: buka PPTX dengan COM, mulai slide show windowed, tangkap `HWND` dengan WGC, simpan beberapa frame ke PNG; ukur ukuran piksel jendela, FPS, dan apakah video mp4 dan animasi muncul. Juga uji slide tersembunyi (di awal, tengah, akhir; lompatan dan ekspor thumbnail) dan fokus: apakah jendela slide show bisa dibuka tanpa mengambil fokus dan tombol clicker tidak membuat slide maju dua kali | Frame berisi animasi dan video; ukuran jendela sesuai target pada DPI 100/150%; satu klik clicker = satu slide |
+| P0 Spike | Skrip kecil: buka PPTX dengan COM, mulai slide show windowed, tangkap `HWND` dengan WGC, simpan beberapa frame ke PNG; ukur ukuran piksel jendela, FPS, dan apakah video mp4 dan animasi muncul. Juga uji: pengaturan maju manual (waktu otomatis diabaikan, animasi "setelah sebelumnya" dan video otomatis tetap jalan), kursor dan toolbar PowerPoint tidak ikut tertangkap, dan slide tersembunyi (di awal, tengah, akhir; lompatan dan ekspor thumbnail) dan fokus: apakah jendela slide show bisa dibuka tanpa mengambil fokus dan tombol clicker tidak membuat slide maju dua kali | Frame berisi animasi dan video; ukuran jendela sesuai target pada DPI 100/150%; satu klik clicker = satu slide |
 | P1 Audio | Tangkap suara `POWERPNT.EXE` lewat process loopback | Suara dari video di slide terdengar di NDI dan perangkat audio pilihan |
 | P2 Sumber PPTX | Jenis tab baru, `PowerPointSource` (COM) dan capture jendela, masuk ke `FrameHub` | Tab PPTX tampil di layar penuh, NDI, dan OMT |
 | P3 Kontrol dan UI | Tombol next/prev/goto, status slide, strip thumbnail slide di bawah pratinjau, dialog pilih file, pesan jelas kalau PowerPoint tidak ada | Operator bisa menjalankan seluruh deck tanpa menyentuh jendela PowerPoint |
