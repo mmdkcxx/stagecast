@@ -24,7 +24,7 @@ namespace Stagecast.App;
 /// Scripted check of the render engine, run with <c>--selftest a2</c>: steady 60 fps, switching to 30 fps while running, changing
 /// the resolution while running, and a page that never changes (the hub must keep the output rate by repeating the last frame).
 /// </summary>
-internal sealed class SelfTest
+internal sealed partial class SelfTest
 {
     private readonly RenderEngine _engine;
     private readonly ILogger _logger;
@@ -38,6 +38,7 @@ internal sealed class SelfTest
 
     public async Task RunAsync(string name, MainWindow window)
     {
+        if (name == "d5") { await RunPdfAsync(window); return; }
         if (name == "d1a") { await RunDocumentTabsAsync(window); return; }
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }

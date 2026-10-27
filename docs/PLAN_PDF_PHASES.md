@@ -124,6 +124,8 @@ Belum diuji: soak ratusan pindah halaman dengan output menyala (memori dan FPS),
 
 ## D5 - Pengujian akhir dan rilis di branch
 
+**Status (2026-10-27): self test ditulis, typecheck lulus, belum dijalankan.** `--selftest d5` (`SelfTest.Pdf.cs`, ditambahkan ke `check.sh smoke` setelah `d1a`) menulis PDF sendiri (satu warna penuh per halaman: 16:9 merah, 4:3 hijau, 16:9 biru, dan satu halaman 4:3 oranye) lalu memeriksa piksel di keluaran: bar 300 px untuk 16:9 dan 540 px untuk 4:3 pada 2520×1080, halaman penuh pada 1920×1080 dan bar kembali setelah ukuran dikembalikan; berikutnya/sebelumnya/loncat dengan nomor (masukan di luar rentang tidak mengubah apa pun); dua klik cepat = dua halaman; perintah clicker; halaman tab program berpindah saat preview adalah tab lain; berkas rusak atau hilang ditolak dan dokumen lama tetap tampil; Muat ulang kembali ke halaman yang sama; 60 pindah halaman beruntun berakhir konsisten dengan keluaran; ganti berkas; berkas pengaturan; menutup tab saat halaman digambar. Bila variabel lingkungan `STAGECAST_TEST_PDF` menunjuk ke sebuah PDF, tes juga membuka dan mencatat waktu halaman terakhirnya. Tidak tercakup (tidak bisa dibuat tanpa enkripsi): PDF berkata sandi, rotasi, ukuran campuran, ratusan halaman.
+
 - `scripts/check.sh all` dijalankan saat pemilik meminta; hasil dilaporkan apa adanya.
 - Pengujian manual pemilik: layar penuh dan videotron (bar dan ketajaman), NDI dan OMT di vMix/Resolume, clicker sungguhan.
 - Naikkan versi dengan nomor khusus (mis. `1.2.0-custom.1`), tulis `CHANGELOG.md`, bangun installer uji. Tidak ada tag, rilis, atau penggabungan ke `main` tanpa permintaan pemilik.
