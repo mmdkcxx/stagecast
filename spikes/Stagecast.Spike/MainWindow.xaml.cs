@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 
     private async Task StartAsync()
     {
-        if (_mode == "s9") await StartTabsAsync();
+        if (_mode is "s9" or "s12") await StartTabsAsync();
         else if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i" or "s8" or "s10" or "s11") await StartCompositionAsync();
         else await StartPlainAsync();
     }
@@ -41,8 +41,19 @@ public partial class MainWindow : Window
             bool hide = Environment.GetCommandLineArgs().Contains("--hide");
             _tabs = new TabsSpike();
             Status.Text = $"S9: two tabs, switching (inactive tab hidden: {hide})";
-            bool ok = await _tabs.RunAsync(hwnd, dataRoot, hide, Path.Combine(AppContext.BaseDirectory, "assets", "tab.html"));
-            SpikeLog.Write(ok ? $"S9 ok hide={hide}" : $"S9 FAILED hide={hide}");
+            string html = Path.Combine(AppContext.BaseDirectory, "assets", "tab.html");
+            if (_mode == "s12")
+            {
+                bool shared = Environment.GetCommandLineArgs().Contains("--shared");
+                int seconds = int.TryParse(ArgValue("--seconds"), out var sec) ? sec : 15;
+                bool ok12 = await _tabs.RunDualAsync(hwnd, dataRoot, shared, html, seconds, double.TryParse(ArgValue("--previewms"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var pm) ? pm : 1);
+                SpikeLog.Write(ok12 ? $"S12 ok shared={shared}" : $"S12 FAILED shared={shared}");
+            }
+            else
+            {
+                bool ok = await _tabs.RunAsync(hwnd, dataRoot, hide, html);
+                SpikeLog.Write(ok ? $"S9 ok hide={hide}" : $"S9 FAILED hide={hide}");
+            }
         }
         catch (Exception ex)
         {

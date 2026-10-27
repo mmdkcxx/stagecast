@@ -157,6 +157,19 @@ Tujuan: memastikan gambar 2520x1080 yang diperas ke 1920x1080 masih tajam setela
 - **Lulus:** ada filter yang hasil akhirnya dinilai cukup tajam oleh Anda di layar/LED target, dan faktor skala yang ditampilkan UI cocok dengan angka di vMix/Resolume. [Anda untuk ketajaman, Saya untuk angka]
 
 ### S12 - Preview dan program bersamaan
+- **Status: lulus untuk bagian [Saya] (2026-10-27); kesan visual [Anda] belum.** Dua tab terlihat dan di-capture bersamaan, masing-masing di visual sendiri dan sesi capture sendiri. Program: tiap frame disalin penuh (2520x1080) ke CPU; preview: diperkecil di GPU (mipmap, 630x270) lalu disalin. Take hanya memindahkan peran program/preview, tidak ada sesi yang dimulai ulang. Dijalankan dengan dua proses browser terpisah dan dengan satu proses browser bersama (`--shared`), 15 dtk per fase:
+
+  | Kondisi | fps program | frame masuk | interval >25 ms (dari ~900) | salinan penuh | CPU host + browser | GPU (iGPU AMD / GTX 1650) |
+  |---|---|---|---|---|---|---|
+  | satu tab (program saja) | 60,0 | 123-138/dtk | 5-11 | 5,9-6,6 ms | 4,4-4,6% + 3,4-3,7% | AMD 3D 21-23%; NVIDIA 3D 10-11%, copy 21-23% |
+  | program + preview dioperasikan | 59,9-60,0 | 65-98/dtk | 85-128 | 5,3-7,0 ms | 4,2-5,4% + 5,3-7,8% | AMD 3D ~23%; NVIDIA 3D ~11%, copy ~25% |
+
+  - **Preview diperkecil di GPU:** salinan CPU preview 1,4-1,6 ms rata-rata (maks 5-9 ms) dibanding 5,3-7 ms untuk salinan penuh; preview 15-60 fps tergantung `MinUpdateInterval` (tetap 60 fps bila tidak dibatasi).
+  - **60 fps program bertahan saat preview aktif dan dioperasikan** (rata-rata 59,9-60,0), tetapi **kerataan turun**: laju frame compositor yang masuk jatuh dari ~130/dtk menjadi 65-98/dtk saat dua tab dirender, sehingga ~10% interval melebihi 25 ms (maks 34,7 ms) dibanding ~1% untuk satu tab. Membatasi capture preview ke 15 atau 30 fps tidak memperbaikinya jelas (jumlah frame masuk bervariasi antar run). Rata-rata aman, margin tipis. Sink output yang berdetak pada timer 60 Hz dan mengulang frame terakhir akan menyembunyikan ini; belum dibuktikan di LED.
+  - **Audio tidak bocor, di kedua susunan:** program menangkap nada tab program 440 Hz = -20,0 dBFS dan nada tab preview 880 Hz (dimute) = -93,5 dBFS (proses terpisah) dan -92,4 dBFS (satu proses browser bersama). Artinya `IsMuted` per tab cukup; tab tidak perlu proses browser atau profil sendiri hanya demi audio. Mendengar audio preview (cue) tetap di luar v1.
+  - **Take:** 6 kali bolak-balik di tiap susunan; frame baru pertama muncul di program dalam 6-26 ms, 0 frame hitam atau warna lain, tab lama tidak muncul lagi setelah pindah. Waktu itu tidak termasuk jalur kirim ke NDI/OMT/layar.
+  - **GPU bawaan (tanpa paksaan):** aplikasi memakai kedua GPU, dengan salinan lintas-GPU (NVIDIA copy 21-25%). Konsisten dengan S7: paksa iGPU lewat Windows Graphics Settings.
+  - **Belum:** halaman berat (Canva), dua tab dengan video H.264 sekaligus, konten >60 fps, beban saat NDI/OMT/layar penuh ikut berjalan, kesan visual Take [Anda].
 Tujuan: membuktikan dua tab bisa dirender dan di-capture bersamaan untuk Preview + Take.
 - Dua WebView2 di resolusi yang sama (misalnya 2520x1080), keduanya terlihat oleh compositor; satu sebagai program (ke FrameHub dan semua output), satu sebagai preview (hanya ke UI).
 - Preview diperkecil di GPU sebelum disalin ke CPU, supaya salinan CPU hanya untuk jalur program. Ukur CPU, GPU, dan fps dibanding satu tab saja (S5).
@@ -165,6 +178,7 @@ Tujuan: membuktikan dua tab bisa dirender dan di-capture bersamaan untuk Preview
 - **Lulus:** 60 fps tetap stabil di program saat preview aktif dan dioperasikan; audio tab preview tidak bocor; Take terasa instan tanpa kedip. Bila beban terlalu besar, turunkan frame rate preview (misalnya 30 fps) dan catat sebagai batasan. [Saya untuk angka, Anda untuk kesan visual]
 
 ### GATE - Keputusan spike
+- **Laporan:** `docs/SPIKE_REPORT.md` (2026-10-27). Rekomendasi saya: lulus dengan batasan, lanjut ke Bagian 2. Keputusan di tangan Anda.
 Kumpulkan hasil S3-S12 jadi satu laporan pendek (angka fps, CPU/GPU, masalah). Keputusan:
 - **Lulus:** lanjut ke Bagian 2.
 - **Gagal sebagian:** catat batasan (misal maksimal 30 fps pada resolusi tertentu) dan putuskan menerima atau pindah jalur.

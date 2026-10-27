@@ -56,7 +56,7 @@ internal sealed class ContinuousCapture : IDisposable
         _pool.FrameArrived += OnFrameArrived;
         _session = _pool.CreateCaptureSession(item);
         // Without this WGC paces itself to about 48 fps here; ask for every compositor frame and pace in OnFrameArrived.
-        _session.MinUpdateInterval = TimeSpan.FromMilliseconds(1);
+        _session.MinUpdateInterval = TimeSpan.FromMilliseconds(MinUpdateMs);
         _started = DateTime.UtcNow;
         _cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
         _session.StartCapture();
@@ -119,40 +119,112 @@ internal sealed class ContinuousCapture : IDisposable
             }
         }
 
-        // A few times per second, read the frame back for the preview window. This is the slow path, so it is
-        // kept out of the statistics above.
+        if (!deliver) return;
+
+        // Program role: every delivered frame is copied to the CPU at full size (this is what NDI/OMT/screen output will need).
+        // Preview role: a few times per second, optionally shrunk on the GPU first so the CPU copy is small.
         long now = Stopwatch.GetTimestamp();
-        if (deliver && _onPreview is not null && Stopwatch.GetElapsedTime(_lastPreviewTicks, now).TotalMilliseconds >= _previewIntervalMs)
+        if (_programEnabled && OnProgramFrame is not null)
+        {
+            ReadBack(frame, 0, OnProgramFrame);
+        }
+        else if (PreviewEnabled && _onPreview is not null && Stopwatch.GetElapsedTime(_lastPreviewTicks, now).TotalMilliseconds >= _previewIntervalMs)
         {
             _lastPreviewTicks = now;
-            ReadBack(frame);
+            ReadBack(frame, PreviewMipLevel, _onPreview);
         }
     }
 
-    private void ReadBack(Direct3D11CaptureFrame frame)
+    /// <summary>When true, every delivered frame is read back at full size and handed to <see cref="OnProgramFrame"/>.</summary>
+    private volatile bool _programEnabled;
+    public bool ProgramEnabled { get => _programEnabled; set => _programEnabled = value; }
+    public Action<byte[], int, int, int>? OnProgramFrame { get; set; }
+    public volatile bool PreviewEnabled = true;
+
+    /// <summary>0 reads the preview at full size; 2 shrinks it to a quarter of each side with GPU mipmaps before the CPU copy.</summary>
+    public int PreviewMipLevel { get; set; }
+
+    /// <summary>Shortest time between frames asked of Windows Graphics Capture (1 = every compositor frame). Set before Start.</summary>
+    public double MinUpdateMs { get; set; } = 1;
+
+    private long _readbackTicks, _readbackCount, _readbackMaxTicks;
+    private ID3D11Texture2D? _mipTexture;
+    private ID3D11ShaderResourceView? _mipView;
+    private readonly Dictionary<int, ID3D11Texture2D> _staging = new();
+
+    /// <summary>Average and maximum time of the GPU-to-CPU copy since the last <see cref="ResetStats"/>, in milliseconds.</summary>
+    public (double AvgMs, double MaxMs, long Count) ReadbackStats()
     {
+        long n = Interlocked.Read(ref _readbackCount);
+        return (n == 0 ? 0 : Stopwatch.GetElapsedTime(0, Interlocked.Read(ref _readbackTicks)).TotalMilliseconds / n,
+            Stopwatch.GetElapsedTime(0, Interlocked.Read(ref _readbackMaxTicks)).TotalMilliseconds, n);
+    }
+
+    public void ResetStats()
+    {
+        lock (_gate) ResetLocked();
+        Interlocked.Exchange(ref _readbackTicks, 0);
+        Interlocked.Exchange(ref _readbackCount, 0);
+        Interlocked.Exchange(ref _readbackMaxTicks, 0);
+    }
+
+    private void ReadBack(Direct3D11CaptureFrame frame, int mipLevel, Action<byte[], int, int, int> sink)
+    {
+        long t0 = Stopwatch.GetTimestamp();
         using var texture = FrameCapture.TextureOf(frame.Surface);
         var desc = texture.Description;
-        var stagingDesc = desc with
+        ID3D11Texture2D source = texture;
+        uint subresource = 0;
+        int width = (int)desc.Width, height = (int)desc.Height;
+        if (mipLevel > 0)
         {
-            Usage = ResourceUsage.Staging,
-            BindFlags = BindFlags.None,
-            CPUAccessFlags = CpuAccessFlags.Read,
-            MiscFlags = ResourceOptionFlags.None,
-        };
-        using var staging = _device!.CreateTexture2D(stagingDesc);
-        _context!.CopyResource(staging, texture);
+            if (_mipTexture is null)
+            {
+                _mipTexture = _device!.CreateTexture2D(desc with
+                {
+                    MipLevels = (uint)mipLevel + 1,
+                    Usage = ResourceUsage.Default,
+                    BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+                    CPUAccessFlags = CpuAccessFlags.None,
+                    MiscFlags = ResourceOptionFlags.GenerateMips,
+                });
+                _mipView = _device.CreateShaderResourceView(_mipTexture);
+            }
+            _context!.CopySubresourceRegion(_mipTexture, 0, 0, 0, 0, texture, 0);
+            _context.GenerateMips(_mipView!);
+            source = _mipTexture;
+            subresource = (uint)mipLevel;
+            width >>= mipLevel;
+            height >>= mipLevel;
+        }
+
+        if (!_staging.TryGetValue(mipLevel, out var staging))
+        {
+            staging = _device!.CreateTexture2D(desc with
+            {
+                Width = (uint)width, Height = (uint)height, MipLevels = 1,
+                Usage = ResourceUsage.Staging, BindFlags = BindFlags.None, CPUAccessFlags = CpuAccessFlags.Read, MiscFlags = ResourceOptionFlags.None,
+            });
+            _staging[mipLevel] = staging;
+        }
+        _context!.CopySubresourceRegion(staging, 0, 0, 0, 0, source, subresource);
         var map = _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+        byte[] pixels;
         try
         {
-            var pixels = new byte[(int)(desc.Height * map.RowPitch)];
+            pixels = new byte[(int)(height * map.RowPitch)];
             Marshal.Copy(map.DataPointer, pixels, 0, pixels.Length);
-            _onPreview!(pixels, (int)desc.Width, (int)desc.Height, (int)map.RowPitch);
         }
         finally
         {
             _context.Unmap(staging, 0);
         }
+        long took = Stopwatch.GetTimestamp() - t0;
+        Interlocked.Add(ref _readbackTicks, took);
+        Interlocked.Increment(ref _readbackCount);
+        long seen;
+        while (took > (seen = Interlocked.Read(ref _readbackMaxTicks)) && Interlocked.CompareExchange(ref _readbackMaxTicks, took, seen) != seen) { }
+        sink(pixels, width, height, (int)map.RowPitch);
     }
 
     private void LogSecond()
@@ -187,6 +259,9 @@ internal sealed class ContinuousCapture : IDisposable
         if (_pool is not null) _pool.FrameArrived -= OnFrameArrived;
         _session?.Dispose();
         _pool?.Dispose();
+        foreach (var t in _staging.Values) t.Dispose();
+        _mipView?.Dispose();
+        _mipTexture?.Dispose();
         _context?.Dispose();
         _device?.Dispose();
     }

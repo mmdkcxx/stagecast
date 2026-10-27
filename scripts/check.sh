@@ -41,7 +41,8 @@ smoke() {
   smoke_mode s8 "WebView2 browser process" "S8 ok" || return 1
   smoke_mode s9 "tab B loaded" "S9 ok" || return 1
   smoke_mode s10 "S10 accuracy Fit" "S10 keyboard" "S10 ok" || return 1
-  smoke_mode s11 "restore width 131,25%\|restore width 131.25%" "S11 ok"
+  smoke_mode s11 "restore width 131,25%\|restore width 131.25%" "S11 ok" || return 1
+  smoke_mode s12 "S12 take" "S12 ok"
 }
 
 sync_sources

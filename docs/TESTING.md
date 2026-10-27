@@ -20,7 +20,7 @@ Tujuan: menangkap kesalahan lewat otomatis sebanyak mungkin, tetapi **dijalankan
 | 0 | S0-S1 (skeleton, WebView2 biasa) | **sudah, 2026-10-27**: typecheck lulus, 35 tes unit lulus, smoke lulus |
 | 1 | S2-S5 (composition hosting, viewport, capture, 30/60 fps) | setelah S5 (S2 dan S3 sudah dicoba sekali saat ditulis: lulus) | **Dijalankan 2026-10-27: typecheck lulus, 45 unit test lulus, smoke s1-s5 lulus.**
 | 2 | S6-S9 (konten nyata, GPU, audio loopback, dua WebView) | setelah S9 | **Dijalankan 2026-10-27 (sekaligus S10): typecheck lulus, 60 unit test lulus, smoke s1-s6, s8-s10 lulus (S7 tanpa smoke: ukur manual via scripts/gpu-compare.ps1).**
-| 3 | S10-S12 + GATE (kontrol halaman, skala anamorfik, preview bersamaan) | sebelum GATE |
+| 3 | S10-S12 + GATE (kontrol halaman, skala anamorfik, preview bersamaan) | sebelum GATE | **Dijalankan 2026-10-27 (S10-S12): typecheck lulus, 60 unit test lulus, smoke s1-s6, s8-s12 lulus.**
 | 4 | A1-A2d (fondasi, render, kontrol halaman, konfirmasi, preset) | setelah A2d |
 | 5 | A3, A3c, A3b (tab, sesi login, Preview + Take) | setelah A3b |
 | 6 | A4-A5 (layar penuh, audio, test tone) | setelah A5 |
