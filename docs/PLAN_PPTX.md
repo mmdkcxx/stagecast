@@ -84,6 +84,17 @@ Status: rancangan, belum dibuat. Mockup ada di artifact storyboard.
 - Belum ada di tab web dan MP4. Di Preview + Take, strip tampil untuk tab PowerPoint yang dioperasikan.
 - Hal yang harus dibuktikan: lama ekspor seluruh slide pada deck besar, dan apakah `Slide.Export` aman dipanggil selagi show berjalan. Dimasukkan ke spike P0 dan fase P3.
 
+### Slide tersembunyi (hidden)
+Status: rancangan, belum dibuat, belum diuji. Perilaku PowerPoint di bawah ini adalah yang saya ketahui dari PowerPoint biasa dan harus dibuktikan di spike P0 lewat COM.
+
+- Slide dijalankan oleh PowerPoint sendiri, jadi slide yang disembunyikan di file ikut dilewati oleh Berikutnya, Sebelumnya, dan clicker.
+- **Mulai dan akhir show (keputusan pemilik):** kalau slide pertama atau terakhir tersembunyi, show mulai di slide tampil pertama dan berakhir di slide tampil terakhir. Slide tersembunyi pertama tidak pernah ditayangkan saat show dimulai. "Mulai dari awal" mengikuti aturan yang sama.
+- **Strip thumbnail:** slide tersembunyi tetap ditampilkan dengan bingkai putus-putus, redup, dan label TERSEMBUNYI.
+- **Loncat ke slide tersembunyi (keputusan pemilik):** boleh, dengan satu konfirmasi kecil di dalam aplikasi ("Slide ini disembunyikan. Tayangkan?"), karena slide itu mungkin sengaja disembunyikan. Apakah `GotoSlide` lewat COM bisa menuju slide tersembunyi belum dipastikan.
+- **Penomoran:** "Slide 3 / 12" memakai nomor asli di file dan menghitung slide tersembunyi.
+- **Belum diketahui:** apakah `Slide.Export` menghasilkan thumbnail untuk slide tersembunyi sama seperti slide biasa (pemilik belum mencoba; diuji di P0). Kalau gagal, thumbnail slide tersembunyi diganti kotak abu-abu bertuliskan nomor dan TERSEMBUNYI.
+- **Tambahan uji P0:** deck uji berisi slide tersembunyi di awal, di tengah, dan di akhir; periksa Berikutnya/Sebelumnya, mulai dari awal, akhir show, loncat ke slide tersembunyi, dan ekspor thumbnail-nya.
+
 ### Clicker (presentation remote)
 Status: rancangan, belum dibuat, belum diuji dengan clicker sungguhan.
 
@@ -117,7 +128,7 @@ Semua fase di bawah baru rencana. Tidak ada yang boleh ditandai lulus sebelum di
 
 | Fase | Isi | Cara menyatakan lulus |
 |---|---|---|
-| P0 Spike | Skrip kecil: buka PPTX dengan COM, mulai slide show windowed, tangkap `HWND` dengan WGC, simpan beberapa frame ke PNG; ukur ukuran piksel jendela, FPS, dan apakah video mp4 dan animasi muncul. Juga uji fokus: apakah jendela slide show bisa dibuka tanpa mengambil fokus dan tombol clicker tidak membuat slide maju dua kali | Frame berisi animasi dan video; ukuran jendela sesuai target pada DPI 100/150%; satu klik clicker = satu slide |
+| P0 Spike | Skrip kecil: buka PPTX dengan COM, mulai slide show windowed, tangkap `HWND` dengan WGC, simpan beberapa frame ke PNG; ukur ukuran piksel jendela, FPS, dan apakah video mp4 dan animasi muncul. Juga uji slide tersembunyi (di awal, tengah, akhir; lompatan dan ekspor thumbnail) dan fokus: apakah jendela slide show bisa dibuka tanpa mengambil fokus dan tombol clicker tidak membuat slide maju dua kali | Frame berisi animasi dan video; ukuran jendela sesuai target pada DPI 100/150%; satu klik clicker = satu slide |
 | P1 Audio | Tangkap suara `POWERPNT.EXE` lewat process loopback | Suara dari video di slide terdengar di NDI dan perangkat audio pilihan |
 | P2 Sumber PPTX | Jenis tab baru, `PowerPointSource` (COM) dan capture jendela, masuk ke `FrameHub` | Tab PPTX tampil di layar penuh, NDI, dan OMT |
 | P3 Kontrol dan UI | Tombol next/prev/goto, status slide, strip thumbnail slide di bawah pratinjau, dialog pilih file, pesan jelas kalau PowerPoint tidak ada | Operator bisa menjalankan seluruh deck tanpa menyentuh jendela PowerPoint |
