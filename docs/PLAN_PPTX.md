@@ -107,13 +107,19 @@ Status: rancangan, belum dibuat, belum diuji.
 - **Video dalam slide:** ikut codec yang didukung PowerPoint; tidak ada peringatan format tambahan. Peringatan media tertaut yang sudah direncanakan tetap.
 - **Kursor mouse harus benar-benar tidak muncul di output.** Penangkapan jendela PowerPoint mematikan kursor seperti penangkapan halaman web yang sekarang (`IsCursorCaptureEnabled = false`), dan ini diuji sungguhan: gerakkan mouse di atas jendela show, lalu periksa frame output. Termasuk periksa toolbar kecil PowerPoint yang bisa muncul saat mouse bergerak di jendela show dan menu klik kanan; keduanya tidak boleh tampil di output. Cara menyembunyikan toolbar itu lewat COM belum diketahui.
 
-**Usulan saya, belum dijawab pemilik**
-- **Jangan menutup PowerPoint milik pengguna.** Kalau PowerPoint sudah terbuka, Stagecast memakai instance itu; saat selesai hanya presentasi kita yang ditutup, dan PowerPoint hanya ditutup bila Stagecast sendiri yang menjalankannya. Perlu diuji saat PowerPoint juga dipakai mengedit deck lain.
-- **Peringatan font tidak terpasang** saat persiapan: periksa font yang dipakai deck terhadap font di PC acara, tampilkan peringatan seperti peringatan media tertaut.
+**Usulan saya yang disetujui pemilik**
+- **Jangan menutup PowerPoint milik pengguna.**
+  - Sebelum menjalankan PowerPoint, periksa apakah sudah ada instance yang berjalan (`GetActiveObject`). Kalau ada, Stagecast memakainya (dicatat sebagai "dipinjam") dan tidak pernah memanggil `Quit` pada instance itu.
+  - Yang ditutup saat selesai atau saat tab ditutup hanya presentasi (salinan sementara) milik Stagecast. Window show lain dan dokumen lain di instance itu tidak disentuh.
+  - Kalau Stagecast sendiri yang menjalankan PowerPoint, instance ditutup setelah presentasi terakhir milik Stagecast ditutup dan tidak ada dokumen lain terbuka.
+  - Uji di P0 dan P4: PowerPoint sudah terbuka dengan dokumen lain yang belum disimpan; jalankan dan akhiri show; dokumen lain harus tetap terbuka dan tidak berubah. Uji juga saat PowerPoint ditutup pengguna di tengah show.
+- **Peringatan font tidak terpasang** saat persiapan.
+  - Ambil daftar font yang dipakai deck (`Presentation.Fonts`, dengan status tertanam atau tidak), bandingkan dengan font yang terpasang di Windows, dan tampilkan daftar font yang hilang bersama peringatan media tertaut.
+  - Font yang tertanam di file dianggap aman. Peringatan tidak memblokir pemutaran.
+  - Belum diketahui: apakah font tema (judul/isi) muncul sebagai nama sebenarnya di daftar itu; dicoba di P0.
 
-**Berlaku global (bukan hanya PPTX), belum dijawab pemilik**
-- **Tahan tidur:** selama ada output yang menyala, cegah PC tidur atau layar mati. Di kode tidak ditemukan penahan tidur.
-- **Konfirmasi saat menutup aplikasi** ketika ada output menyala. Di kode tidak ditemukan konfirmasi keluar; risikonya naik setelah tombol tutup pindah ke top bar.
+**Berlaku global (bukan hanya PPTX), disetujui pemilik**
+- Tahan tidur selama ada output menyala dan konfirmasi saat menutup aplikasi ketika output menyala. Rencananya ada di `docs/PLAN_SAFETY_GUARDS.md`.
 
 ### Clicker (presentation remote)
 Status: rancangan, belum dibuat, belum diuji dengan clicker sungguhan.
@@ -150,8 +156,8 @@ Semua fase di bawah baru rencana. Tidak ada yang boleh ditandai lulus sebelum di
 |---|---|---|
 | P0 Spike | Skrip kecil: buka PPTX dengan COM, mulai slide show windowed, tangkap `HWND` dengan WGC, simpan beberapa frame ke PNG; ukur ukuran piksel jendela, FPS, dan apakah video mp4 dan animasi muncul. Juga uji: pengaturan maju manual (waktu otomatis diabaikan, animasi "setelah sebelumnya" dan video otomatis tetap jalan), kursor dan toolbar PowerPoint tidak ikut tertangkap, dan slide tersembunyi (di awal, tengah, akhir; lompatan dan ekspor thumbnail) dan fokus: apakah jendela slide show bisa dibuka tanpa mengambil fokus dan tombol clicker tidak membuat slide maju dua kali | Frame berisi animasi dan video; ukuran jendela sesuai target pada DPI 100/150%; satu klik clicker = satu slide |
 | P1 Audio | Tangkap suara `POWERPNT.EXE` lewat process loopback | Suara dari video di slide terdengar di NDI dan perangkat audio pilihan |
-| P2 Sumber PPTX | Jenis tab baru, `PowerPointSource` (COM) dan capture jendela, masuk ke `FrameHub` | Tab PPTX tampil di layar penuh, NDI, dan OMT |
-| P3 Kontrol dan UI | Tombol next/prev/goto, status slide, strip thumbnail slide di bawah pratinjau, dialog pilih file, pesan jelas kalau PowerPoint tidak ada | Operator bisa menjalankan seluruh deck tanpa menyentuh jendela PowerPoint |
+| P2 Sumber PPTX | Jenis tab baru, `PowerPointSource` (COM, termasuk aturan tidak menutup PowerPoint milik pengguna) dan capture jendela, masuk ke `FrameHub` | Tab PPTX tampil di layar penuh, NDI, dan OMT; dokumen lain di PowerPoint yang sama tidak terganggu |
+| P3 Kontrol dan UI | Tombol next/prev/goto, status slide, strip thumbnail slide di bawah pratinjau, dialog pilih file, peringatan font yang hilang, tombol Muat ulang, pesan jelas kalau PowerPoint tidak ada | Operator bisa menjalankan seluruh deck tanpa menyentuh jendela PowerPoint |
 | P2b Alpha | Opsi "Kirim alpha" NDI dan OMT, kanvas fit dengan bar transparan | Bar tembus di vMix/Resolume, tanpa halo; opsi mati menghasilkan keluaran sama seperti sekarang |
 | P3c Preview + Take | Tab PowerPoint sebagai preview dan program, Take tanpa memulai ulang show, audio dilepas saat preview, uji dua show sekaligus | Take dari preview ke program mulus; audio PowerPoint tidak bocor ke output saat preview; perilaku dua tab PowerPoint terdokumentasi |
 | P3b Clicker | Pemetaan tombol, mode fokus, mode global opsional dengan lencana, pengaturan pemetaan | Deck 12 slide dijalankan penuh dengan clicker pada mode fokus dan mode global; tidak ada loncatan dua slide |
