@@ -19,8 +19,10 @@ winps() {
   powershell.exe -NoProfile -Command "Set-Location '$WIN_DIR'; $1"
 }
 
-# Run the spike exe for a few seconds (it closes itself) and leave its log in $SPIKE_LOG.
+# Run the spike exe in the given mode (s1|s2, default s2) for a few seconds (it closes itself)
+# and leave its log in $SPIKE_LOG.
 run_spike() {
+  local mode="${1:-s2}"
   rm -f "$SPIKE_LOG"
-  winps "Start-Process -Wait -FilePath '.\\spikes\\Stagecast.Spike\\bin\\Debug\\$TFM\\Stagecast.Spike.exe' -ArgumentList '--autoclose'"
+  winps "Start-Process -Wait -FilePath '.\\spikes\\Stagecast.Spike\\bin\\Debug\\$TFM\\Stagecast.Spike.exe' -ArgumentList '--autoclose','--mode','$mode'"
 }

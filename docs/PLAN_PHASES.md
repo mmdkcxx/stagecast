@@ -33,6 +33,7 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - Teruskan mouse dengan `SendMouseInput`.
 - Visual belum ditampilkan ke layar; cukup pastikan WebView terbuat dan memuat halaman.
 - **Lulus:** event navigasi selesai (`NavigationCompleted`) tercatat di log tanpa jendela web yang terlihat. [Saya]
+- **Status: lulus (2026-10-27).** `CreateCoreWebView2CompositionControllerAsync` dengan `RootVisualTarget` berupa `ContainerVisual` (Windows.UI.Composition, tidak dipasang ke jendela mana pun) berhasil; `NavigationCompleted success=True`; halaman melaporkan `window.innerWidth/innerHeight` = 2520x1080 pada skala 100% (S3 masih menguji skala 150% dan resolusi lain). Tidak ada kontrol WebView2 di jendela. DispatcherQueue dibuat lewat `CoreMessaging.dll` (`CreateDispatcherQueueController`). Catatan: belum terbukti bahwa halaman benar-benar dirender ke visual itu; itu diuji di S4 (capture).
 - **Risiko:** hosting visual butuh DispatcherQueue dan Compositor di thread yang tepat.
 
 ### S3 - Viewport 2520x1080

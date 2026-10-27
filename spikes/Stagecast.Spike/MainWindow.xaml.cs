@@ -11,6 +11,8 @@ public partial class MainWindow : Window
     private const string DefaultUrl = "https://example.com/";
 
     private readonly string _url = ArgValue("--url") ?? DefaultUrl;
+    private readonly string _mode = ArgValue("--mode") ?? "s2";
+    private CompositionSpike? _composition;
     private readonly bool _autoClose = Environment.GetCommandLineArgs().Contains("--autoclose");
 
     public MainWindow()
@@ -20,6 +22,48 @@ public partial class MainWindow : Window
     }
 
     private async Task StartAsync()
+    {
+        if (_mode == "s2") await StartCompositionAsync();
+        else await StartPlainAsync();
+    }
+
+    private async Task StartCompositionAsync()
+    {
+        try
+        {
+            SpikeLog.Write("S2 start");
+            Title = "Stagecast spike S2";
+            Web.Visibility = Visibility.Collapsed; // no WebView2 control: the page lives only in a composition visual
+            var dataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Stagecast", "Spike", "WebView2-composition");
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
+            _composition = new CompositionSpike();
+            Status.Text = "S2: page is loading inside an off-screen composition visual...";
+            await _composition.RunAsync(hwnd, dataDir, _url, 2520, 1080);
+            Status.Text = "S2 ok: page loaded in a composition visual (nothing is shown on screen by design)";
+            SpikeLog.Write("S2 ok");
+        }
+        catch (Exception ex)
+        {
+            SpikeLog.Write($"S2 FAILED {ex.GetType().Name}: {ex.Message}");
+            Status.Text = $"S2 failed: {ex.Message}";
+        }
+        if (_autoClose)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            SpikeLog.Write("S2 autoclose");
+            Close();
+        }
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _composition?.Dispose();
+        base.OnClosed(e);
+    }
+
+    private async Task StartPlainAsync()
     {
         try
         {

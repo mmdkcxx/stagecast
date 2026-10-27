@@ -18,13 +18,22 @@ step() { # name, command...
 
 typecheck() { winps "dotnet build Stagecast.sln -c Debug --no-incremental -nologo -v minimal -warnaserror"; }
 unit() { winps "dotnet test Stagecast.sln -c Debug -nologo -v minimal"; }
+# Run one spike mode, print its log and assert that each given pattern appears and nothing FAILED.
+smoke_mode() { # mode, pattern...
+  local mode="$1"; shift
+  run_spike "$mode" || return 1
+  [ -f "$SPIKE_LOG" ] || { echo "no spike log produced ($mode)"; return 1; }
+  echo "--- $mode ---"; cat "$SPIKE_LOG"
+  local p
+  for p in "$@"; do
+    grep -q "$p" "$SPIKE_LOG" || { echo "missing in $mode log: $p"; return 1; }
+  done
+  ! grep -q "FAILED" "$SPIKE_LOG" || { echo "$mode log contains FAILED"; return 1; }
+}
+
 smoke() {
-  run_spike || return 1
-  [ -f "$SPIKE_LOG" ] || { echo "no spike log produced"; return 1; }
-  cat "$SPIKE_LOG"
-  grep -q "webview2 runtime " "$SPIKE_LOG" || { echo "missing: webview2 runtime"; return 1; }
-  grep -q "navigation completed success=True" "$SPIKE_LOG" || { echo "missing: successful navigation"; return 1; }
-  ! grep -q "FAILED" "$SPIKE_LOG" || { echo "log contains FAILED"; return 1; }
+  smoke_mode s1 "webview2 runtime " "navigation completed success=True" || return 1
+  smoke_mode s2 "composition controller created" "root visual target set" "navigation completed success=True" "page viewport 2520x1080" "S2 ok"
 }
 
 sync_sources
