@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
 using Vortice.Direct3D11;
 using Windows.Graphics.DirectX;
 using Windows.UI.Composition;
@@ -17,17 +18,27 @@ internal sealed class DocumentSurfaces : IDisposable
     private ID3D11DeviceContext? _context;
     private CompositionGraphicsDevice? _graphics;
 
-    public DocumentSurfaces(Compositor compositor) => _compositor = compositor;
+    private readonly ILogger _logger;
+
+    public DocumentSurfaces(Compositor compositor, ILogger logger)
+    {
+        _compositor = compositor;
+        _logger = logger;
+    }
+
+    private void Step(string what) => _logger.LogDebug("surfaces: {Step}", what);
 
     public Compositor Compositor => _compositor;
 
     private void EnsureDevice()
     {
         if (_graphics is not null) return;
+        Step("create device");
         var (device, context, _) = Direct3D.CreateDevice();
         using (var multithread = device.QueryInterface<ID3D11Multithread>()) multithread.SetMultithreadProtected(true);
         _device = device;
         _context = context;
+        _logger.LogInformation("Document surfaces: Direct3D device ready");
 
         IntPtr compositorPtr = ((IWinRTObject)_compositor).NativeObject.ThisPtr;
         Guid iid = typeof(ICompositorInterop).GUID;
@@ -35,7 +46,9 @@ internal sealed class DocumentSurfaces : IDisposable
         try
         {
             var interop = (ICompositorInterop)Marshal.GetObjectForIUnknown(interopPtr);
+            Step("CreateGraphicsDevice");
             interop.CreateGraphicsDevice(device.NativePointer, out IntPtr graphicsPtr);
+            Step("wrap graphics device");
             try { _graphics = MarshalInspectable<CompositionGraphicsDevice>.FromAbi(graphicsPtr); }
             finally { Marshal.Release(graphicsPtr); }
         }
@@ -48,6 +61,7 @@ internal sealed class DocumentSurfaces : IDisposable
     public CompositionDrawingSurface CreateSurface(int width, int height)
     {
         EnsureDevice();
+        Step($"CreateDrawingSurface {width}x{height}");
         return _graphics!.CreateDrawingSurface(new Windows.Foundation.Size(width, height),
             DirectXPixelFormat.B8G8R8A8UIntNormalized, DirectXAlphaMode.Premultiplied);
     }
@@ -63,15 +77,29 @@ internal sealed class DocumentSurfaces : IDisposable
         {
             var interop = (ICompositionDrawingSurfaceInterop)Marshal.GetObjectForIUnknown(interopPtr);
             Guid textureIid = typeof(ID3D11Texture2D).GUID;
+            Step("BeginDraw");
             interop.BeginDraw(IntPtr.Zero, ref textureIid, out IntPtr texturePtr, out Point offset);
             try
             {
+                Step($"texture at {offset.X},{offset.Y}");
                 using var texture = new ID3D11Texture2D(texturePtr);
+                // UpdateSubresource crashed the process on this texture (an atlas that belongs to the compositor), so the pixels go
+                // up in a texture of our own and are copied into the surface.
                 GCHandle handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
                 try
                 {
-                    var box = new Vortice.Mathematics.Box(offset.X, offset.Y, 0, offset.X + width, offset.Y + height, 1);
-                    _context!.UpdateSubresource(handle.AddrOfPinnedObject(), texture, 0, (uint)stride, 0, box);
+                    var description = new Texture2DDescription
+                    {
+                        Width = (uint)width, Height = (uint)height, MipLevels = 1, ArraySize = 1, Format = Vortice.DXGI.Format.B8G8R8A8_UNorm,
+                        SampleDescription = new Vortice.DXGI.SampleDescription(1, 0), Usage = ResourceUsage.Default, BindFlags = BindFlags.ShaderResource,
+                        CPUAccessFlags = CpuAccessFlags.None, MiscFlags = ResourceOptionFlags.None,
+                    };
+                    Step("create upload texture");
+                    using ID3D11Texture2D upload = _device!.CreateTexture2D(description, new SubresourceData(handle.AddrOfPinnedObject(), (uint)stride));
+                    Step("CopySubresourceRegion");
+                    _context!.CopySubresourceRegion(texture, 0, (uint)offset.X, (uint)offset.Y, 0, upload, 0);
+                    // The compositor reads the surface on its own schedule: the copy has to be on its way to the GPU before EndDraw.
+                    _context.Flush();
                 }
                 finally
                 {
@@ -80,6 +108,7 @@ internal sealed class DocumentSurfaces : IDisposable
             }
             finally
             {
+                Step("EndDraw");
                 interop.EndDraw();
             }
         }

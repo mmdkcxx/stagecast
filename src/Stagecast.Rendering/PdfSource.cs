@@ -194,6 +194,7 @@ public sealed class PdfSource : IDisposable
     internal void Resize(int canvasWidth, int canvasHeight)
     {
         if (_disposed) return;
+        _logger.LogDebug("pdf: resize to {W}x{H} (page index {Index})", canvasWidth, canvasHeight, PageIndex);
         _canvasWidth = canvasWidth;
         _canvasHeight = canvasHeight;
         _cache.Clear();
@@ -298,6 +299,7 @@ public sealed class PdfSource : IDisposable
 
     private void Show(Rendered rendered)
     {
+        _logger.LogDebug("pdf: show page {Page} {W}x{H} at x={X} for canvas {CW}x{CH}", rendered.Index + 1, rendered.Width, rendered.Height, rendered.Layout.X, rendered.CanvasWidth, rendered.CanvasHeight);
         if (_surface is null || _surfaceWidth != rendered.Width || _surfaceHeight != rendered.Height)
         {
             _surface?.Dispose();

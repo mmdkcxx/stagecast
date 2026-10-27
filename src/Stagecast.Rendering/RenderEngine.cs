@@ -294,7 +294,7 @@ public sealed partial class RenderEngine : IDisposable
         if (tab.Kind != TabKind.Pdf) throw new ArgumentException("Only a PDF tab shows pages.", nameof(tab));
         if (tab.Pdf is not null) return tab.Pdf;
         PdfSource.CleanOldTempFiles();
-        _documentSurfaces ??= new DocumentSurfaces(_compositor);
+        _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
         tab.Content.Brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
         tab.Pdf = new PdfSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
         return tab.Pdf;
