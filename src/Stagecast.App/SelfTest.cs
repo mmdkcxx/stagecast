@@ -3,6 +3,9 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using Stagecast.Core.Audio;
+using Stagecast.Core.Output;
+using Stagecast.Rendering.Audio;
 using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
@@ -35,6 +38,7 @@ internal sealed class SelfTest
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
+        if (name == "a5") { await RunGateAndAudioAsync(window); return; }
         if (name == "a4") { await RunScreenOutputAsync(window); return; }
         if (name == "a3b") { await RunPreviewTakeAsync(window); return; }
         if (name == "a3") { await RunTabsAsync(window); return; }
@@ -408,6 +412,99 @@ internal sealed class SelfTest
         Expect(saved.Output.Scale == ScaleMode.Squeeze && saved.Output.AlwaysOnTop, "the screen settings are saved");
         _logger.LogInformation(_failures.Count == 0 ? "A4 selftest ok" : "A4 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
+
+    /// <summary>Freeze and Blackout on the picture, then the audio path: capture of the browser, meter, mute, Freeze silence, tab muting, tone.</summary>
+    private async Task RunGateAndAudioAsync(MainWindow window)
+    {
+        string[] colours = ["E03030", "3050E0"];
+        var sink = new ColourSink();
+        _engine.Hub.AddSink(sink);
+        await _engine.NavigateAsync(Page(colours[0]), TimeSpan.FromSeconds(10));
+        await Task.Delay(800);
+        Expect(sink.Seen == colours[0], $"the page is live (saw {sink.Seen})");
+
+        window.SetGate(GateMode.Freeze);
+        await _engine.NavigateAsync(Page(colours[1]), TimeSpan.FromSeconds(10));
+        await Task.Delay(800);
+        Expect(sink.Seen == colours[0], $"Freeze holds the picture while the page changes (saw {sink.Seen})");
+        window.SetGate(GateMode.Blackout);
+        await Task.Delay(400);
+        Expect(sink.Seen == "000000", $"Blackout sends black (saw {sink.Seen})");
+        window.SetGate(GateMode.Live);
+        await Task.Delay(400);
+        Expect(sink.Seen == colours[1], $"releasing shows the newest picture at once (saw {sink.Seen})");
+        _engine.Hub.RemoveSink(sink);
+
+        // Audio.
+        string tone = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-tone.html")).AbsoluteUri;
+        await _engine.NavigateAsync(tone, TimeSpan.FromSeconds(20));
+        await Task.Delay(1500);
+        window.SyncAudioSources();
+        var audio = window.Audio!;
+        Expect(window.AudioCapture!.Count >= 1, $"a browser process is being captured ({window.AudioCapture.Count}, failed {window.AudioCapture.FailedCount})");
+
+        double Peak() => Math.Max(audio.Levels.LeftDb, audio.Levels.RightDb);
+        async Task<double> MaxPeakAsync(int ms)
+        {
+            double best = LevelMeterFloor;
+            for (int waited = 0; waited < ms; waited += 50)
+            {
+                best = Math.Max(best, Peak());
+                await Task.Delay(50);
+            }
+            return best;
+        }
+        double heard = await MaxPeakAsync(1000);
+        Expect(heard is > -23 and < -17, $"the page tone is heard at about -20 dBFS ({heard:0.0})");
+
+        window.SetGate(GateMode.Freeze);
+        await Task.Delay(300);
+        Expect(audio.IsSilenced && Peak() < -60, $"Freeze makes the audio silent ({Peak():0.0})");
+        window.SetGate(GateMode.Blackout);
+        double during = await MaxPeakAsync(600);
+        Expect(during is > -23 and < -17, $"Blackout does not touch the audio ({during:0.0})");
+        window.SetGate(GateMode.Live);
+        window.SetMuted(true);
+        await Task.Delay(400);
+        Expect(Peak() < -60, $"Mute silences the output ({Peak():0.0})");
+        window.SetMuted(false);
+        Expect(await MaxPeakAsync(800) is > -23 and < -17, "unmuting brings the audio back");
+
+        window.SetVolume(0.5);
+        double half = await MaxPeakAsync(800);
+        Expect(half is > -29 and < -23, $"half volume is about 6 dB lower ({half:0.0})");
+        window.SetVolume(1);
+
+        // Only the tab on air is heard.
+        var toneTab = window.Tabs.Active.Id;
+        await window.AddTabAsync(Page(colours[0]));
+        await Task.Delay(1500);
+        double other = await MaxPeakAsync(800);
+        Expect(other < -60, $"the tone tab is muted when another tab is on air ({other:0.0})");
+        await window.SelectTabAsync(toneTab);
+        await Task.Delay(800);
+        Expect(await MaxPeakAsync(800) is > -23 and < -17, "and heard again when it is back on air");
+
+        // Test tone.
+        window.StartTone(ToneChannel.Left);
+        double toneLevel = await MaxPeakAsync(600);
+        Expect(audio.ToneActive && toneLevel is > -21.5 and < -18.5, $"the test tone is -20 dBFS ({toneLevel:0.0})");
+        window.StopTone();
+        Expect(!audio.ToneActive, "the tone can be stopped");
+
+        // The local device.
+        var devices = LocalAudioOutput.Devices();
+        _logger.LogInformation("A5 audio devices: {Devices}", string.Join(" | ", devices.Select(d => $"{d.Name}{(d.IsDefault ? " (default)" : string.Empty)}")));
+        if (devices.Count > 0) Expect(window.ChooseAudioDevice(devices[0].Id) && window.LocalAudio!.IsPlaying, "a chosen device plays");
+        else _logger.LogInformation("A5 no audio device on this machine; local playback not checked");
+        window.ChooseAudioDevice(null);
+        await Task.Delay(1500);
+        var saved = window.ReadConfigFromDisk();
+        Expect(saved.Audio.Volume == 1 && !saved.Audio.Muted, "the audio settings are saved");
+        _logger.LogInformation(_failures.Count == 0 ? "A5 selftest ok" : "A5 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    private const double LevelMeterFloor = -90;
 
     private bool _tabsAudioOk(MainWindow window)
         => _engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Active));

@@ -15,6 +15,8 @@ public sealed class AppConfig
     /// <summary>How the picture goes to the screen. Whether the output is on is never saved: the application always starts with it off.</summary>
     public OutputConfig Output { get; init; } = new();
 
+    public AudioConfig Audio { get; init; } = new();
+
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
@@ -59,6 +61,17 @@ public sealed class OutputConfig
 
     /// <summary>The output window covers other windows, including the taskbar.</summary>
     public bool AlwaysOnTop { get; init; } = true;
+}
+
+public sealed class AudioConfig
+{
+    /// <summary>Windows id of the local output device; null follows the Windows default device.</summary>
+    public string? DeviceId { get; init; }
+
+    /// <summary>0 to 1.</summary>
+    public double Volume { get; init; } = 1;
+
+    public bool Muted { get; init; }
 }
 
 public sealed class PresetEntry

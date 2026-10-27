@@ -79,6 +79,10 @@
                         <Button x:Name="TakeButton" Content="TAKE" Visibility="Collapsed" Margin="6,0,0,0" Padding="16,5" Background="{StaticResource Live}" Foreground="White"
                                 BorderBrush="{StaticResource Live}" FontFamily="Segoe UI" FontSize="13" FontWeight="Bold" Click="OnTake" ToolTip="Tayangkan tab preview (Spasi)"/>
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <ToggleButton x:Name="BlackoutButton" Content="BLACKOUT" Style="{StaticResource ToolToggle}" Click="OnBlackout" ToolTip="Layar penonton jadi hitam; halaman tetap berjalan (Ctrl+Shift+B)"/>
+                        <ToggleButton x:Name="FreezeButton" Content="FREEZE" Style="{StaticResource ToolToggle}" Click="OnFreeze" ToolTip="Layar penonton menahan gambar terakhir; halaman tetap berjalan dan bisa dioperasikan (Ctrl+Shift+F)"/>
+                    </StackPanel>
                     <StackPanel x:Name="TabListPanel"/>
                     <TextBlock x:Name="TabError" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>
@@ -133,6 +137,29 @@
                     <Button x:Name="OutputButton" Content="Nyalakan output" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleOutput"/>
                     <TextBlock x:Name="OutputNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
                                Text="Matikan darurat dari mana saja: Ctrl+Alt+H."/>
+
+                    <TextBlock Text="AUDIO" Style="{StaticResource Label}" Margin="0,24,0,6"/>
+                    <Button x:Name="AudioDeviceButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnAudioDeviceMenu" ToolTip="Perangkat keluaran audio lokal"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" ValueChanged="OnVolumeChanged" ToolTip="Volume keluaran"/>
+                        <ToggleButton x:Name="MuteButton" Grid.Column="1" Content="Bisu" Style="{StaticResource ToolToggle}" Margin="10,0,0,0" Click="OnMuteClick" ToolTip="Bisukan semua keluaran audio"/>
+                    </Grid>
+                    <Grid Margin="0,10,0,0" Height="14">
+                        <Border Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+                            <Grid>
+                                <Rectangle x:Name="MeterLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Height="5" Width="0" Fill="{StaticResource Ok}" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="MeterRight" HorizontalAlignment="Left" VerticalAlignment="Bottom" Height="5" Width="0" Fill="{StaticResource Ok}" Margin="0,0,0,0"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <TextBlock x:Name="AudioStatus" Foreground="{StaticResource Text}" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
+                    <Button x:Name="ToneButton" Content="Nada uji" Style="{StaticResource ToolButton}" Margin="0,8,0,0" HorizontalAlignment="Left" Click="OnToneMenu" ToolTip="Nada 1 kHz -20 dBFS menggantikan audio halaman, berhenti sendiri setelah 30 detik"/>
+                    <TextBlock x:Name="AudioNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Text="Hanya tab yang tayang yang terdengar. Saat Freeze audio senyap; Blackout tidak memengaruhi audio."/>
 
                     <TextBlock Text="STATISTIK" Style="{StaticResource Label}" Margin="0,24,0,6"/>
                     <TextBlock x:Name="StatsText" Foreground="{StaticResource Text}" FontFamily="Consolas" FontSize="12" LineHeight="18"/>

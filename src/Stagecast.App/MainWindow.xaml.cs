@@ -51,6 +51,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             ShutdownOutput();
+            ShutdownAudio();
             _detached?.Close();
             _engine?.Dispose();
         };
@@ -67,6 +68,7 @@ public partial class MainWindow : Window
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
             await StartTabsAsync();
             UpdateModeButtons();
+            StartAudio();
             PagePreviewView.Attach(_engine);
             ShowControls();
             _engine.NavigationStateChanged += UpdateNavigationState;
@@ -512,6 +514,7 @@ public partial class MainWindow : Window
         {
             Render = render,
             Output = _outputConfig,
+            Audio = _audioConfig,
             Presets = _presets.ToEntries(),
             Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
             ActiveTab = _tabs.LiveIndex,

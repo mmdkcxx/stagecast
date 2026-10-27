@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
+using Stagecast.Core.Output;
 using Stagecast.Core.Rendering;
 
 namespace Stagecast.App;
@@ -148,6 +149,25 @@ public partial class MainWindow
         if (_output is null) return;
         if (TargetMonitor is { } target) _output.Configure(target, _outputConfig.Scale, _outputConfig.AlwaysOnTop);
     }
+
+    // ---- Freeze / Blackout ----
+
+    internal GateMode Gate => _engine?.Hub.Gate ?? GateMode.Live;
+
+    /// <summary>Holds what leaves the application (screen, later NDI and OMT). The page, the preview and the clicks keep working.</summary>
+    internal void SetGate(GateMode mode)
+    {
+        if (_engine is null) return;
+        _engine.Hub.Gate = mode;
+        FreezeButton.IsChecked = mode == GateMode.Freeze;
+        BlackoutButton.IsChecked = mode == GateMode.Blackout;
+        PagePreviewView.Gate = mode;
+        _logger.LogInformation("Output gate: {Mode}", mode);
+    }
+
+    private void OnFreeze(object sender, RoutedEventArgs e) => SetGate(Gate == GateMode.Freeze ? GateMode.Live : GateMode.Freeze);
+
+    private void OnBlackout(object sender, RoutedEventArgs e) => SetGate(Gate == GateMode.Blackout ? GateMode.Live : GateMode.Blackout);
 
     private void OnToggleOutput(object sender, RoutedEventArgs e)
     {

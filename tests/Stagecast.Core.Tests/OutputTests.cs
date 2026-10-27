@@ -95,3 +95,46 @@ public sealed class ConfigOutputTests : IDisposable
         Assert.Null(result.Config.Output.MonitorId);
     }
 }
+
+public sealed class ConfigAudioTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "stagecast-tests-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+    }
+
+    private ConfigStore Store() => new(Path.Combine(_dir, "config.json"), NullLogger.Instance);
+
+    [Fact]
+    public void Defaults_AreDefaultDeviceFullVolume()
+    {
+        var audio = Store().Load().Config.Audio;
+        Assert.Null(audio.DeviceId);
+        Assert.Equal(1, audio.Volume);
+        Assert.False(audio.Muted);
+    }
+
+    [Fact]
+    public void RoundTrip_KeepsAudioSettings()
+    {
+        var store = Store();
+        store.Load();
+        store.Save(new AppConfig { Audio = new AudioConfig { DeviceId = "{0.0.0.00000000}.{abc}", Volume = 0.4, Muted = true } });
+        var audio = Store().Load().Config.Audio;
+        Assert.Equal("{0.0.0.00000000}.{abc}", audio.DeviceId);
+        Assert.Equal(0.4, audio.Volume);
+        Assert.True(audio.Muted);
+    }
+
+    [Fact]
+    public void VolumeOutOfRange_IsClamped()
+    {
+        Store().Load();
+        File.WriteAllText(Path.Combine(_dir, "config.json"), "{\"audio\":{\"volume\":7}}");
+        var result = Store().Load();
+        Assert.Equal(ConfigLoadStatus.Repaired, result.Status);
+        Assert.Equal(1, result.Config.Audio.Volume);
+    }
+}

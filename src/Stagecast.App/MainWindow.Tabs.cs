@@ -297,6 +297,7 @@ public partial class MainWindow
 
     private void RebuildTabList()
     {
+        SyncAudioSources();
         TabListPanel.Children.Clear();
         for (int i = 0; i < _tabs.Items.Count; i++)
         {
@@ -422,8 +423,11 @@ public partial class MainWindow
         base.OnPreviewKeyDown(e);
         if (e.Handled || Keyboard.FocusedElement is TextBox) return;
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         if (e.Key == Key.F2 && _renamingId is null) StartRename(_tabs.Active.Id);
         else if (e.Key == Key.Space && _tabs.PreviewMode && !PagePreviewView.CanPanNow) _ = TakeAsync();
+        else if (ctrl && shift && e.Key == Key.F) { OnFreeze(this, e); e.Handled = true; }
+        else if (ctrl && shift && e.Key == Key.B) { OnBlackout(this, e); e.Handled = true; }
         else if (ctrl && e.Key == Key.T) _ = AddTabAsync();
         else if (ctrl && e.Key == Key.W) _ = CloseTabAsync(_tabs.Active.Id);
         else if (ctrl && e.Key is >= Key.D1 and <= Key.D9)

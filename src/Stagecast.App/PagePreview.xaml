@@ -17,9 +17,13 @@
         <Border x:Name="ProgramBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10,44,10,10" Visibility="Collapsed" IsHitTestVisible="False"
                 BorderBrush="#E5484D" BorderThickness="2" Background="Black">
             <StackPanel>
-                <TextBlock Text="PROGRAM (TAYANG)" Foreground="White" Background="#E5484D" FontFamily="Segoe UI" FontSize="10" FontWeight="Bold" Padding="4,1"/>
-                <Image x:Name="ProgramImage" Width="168" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock x:Name="ProgramTitle" Text="PROGRAM (TAYANG)" Foreground="White" Background="#E5484D" FontFamily="Segoe UI" FontSize="10" FontWeight="Bold" Padding="4,1"/>
+                <Image x:Name="ProgramImage" Width="168" MinHeight="70" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
             </StackPanel>
+        </Border>
+
+        <Border x:Name="GateBanner" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="10,10,10,14" Padding="12,4" CornerRadius="2" IsHitTestVisible="False" Visibility="Collapsed" Background="#F7C243">
+            <TextBlock x:Name="GateText" Foreground="#0C0B09" FontFamily="Segoe UI" FontSize="13" FontWeight="Bold"/>
         </Border>
 
         <Border x:Name="Badge" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,3" Background="#F7C243" CornerRadius="2" Visibility="Collapsed" IsHitTestVisible="False">

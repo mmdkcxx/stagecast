@@ -167,9 +167,15 @@ public sealed class ConfigStore
         }
         string? monitorId = string.IsNullOrWhiteSpace(output.MonitorId) || output.MonitorId.Length > 64 ? null : output.MonitorId.Trim();
 
+        var audio = input.Audio ?? new AudioConfig();
+        double volume = double.IsNaN(audio.Volume) ? 1 : Math.Clamp(audio.Volume, 0, 1);
+        if (volume != audio.Volume) notes.Add($"audio volume {audio.Volume} is outside 0-1; using {volume}");
+        string? deviceId = string.IsNullOrWhiteSpace(audio.DeviceId) || audio.DeviceId.Length > 200 ? null : audio.DeviceId.Trim();
+
         return new AppConfig
         {
             SchemaVersion = AppConfig.CurrentSchemaVersion,
+            Audio = new AudioConfig { DeviceId = deviceId, Volume = volume, Muted = audio.Muted },
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
             Output = new OutputConfig { MonitorId = monitorId, Scale = scale, AlwaysOnTop = output.AlwaysOnTop },
             Presets = presets,

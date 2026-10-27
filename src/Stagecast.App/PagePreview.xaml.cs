@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using Stagecast.Core.Display;
+using Stagecast.Core.Output;
 using Stagecast.Core.Rendering;
 using Stagecast.Rendering;
 using Stagecast.Rendering.Capture;
@@ -66,9 +67,34 @@ public partial class PagePreview : UserControl
             ModePill.Background = (Brush)FindResource(value ? "Ok" : "Live");
             ModeText.Text = value ? "PREVIEW" : "LIVE";
             ModeText.Foreground = value ? new SolidColorBrush(Color.FromRgb(0x0C, 0x0B, 0x09)) : Brushes.White;
-            ModeFrame.BorderBrush = value ? (Brush)FindResource("Ok") : Brushes.Transparent;
-            ProgramBox.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            Gate = _gate; // redraws the frame and the box for the new mode
             if (!value) ProgramImage.Source = null;
+        }
+    }
+
+    private GateMode _gate = GateMode.Live;
+
+    /// <summary>Freeze and Blackout: the page here keeps running, only the output is held. Yellow frame, banner, and the output box show it.</summary>
+    public GateMode Gate
+    {
+        get => _gate;
+        set
+        {
+            _gate = value;
+            bool held = value != GateMode.Live;
+            var live = (Brush)FindResource("Live");
+            var warn = (Brush)FindResource("Warn");
+            ModeFrame.BorderBrush = held ? warn : _previewMode ? (Brush)FindResource("Ok") : Brushes.Transparent;
+            GateBanner.Visibility = held ? Visibility.Visible : Visibility.Collapsed;
+            GateText.Text = value == GateMode.Freeze
+                ? "OUTPUT BEKU · halaman tetap berjalan, penonton melihat gambar terakhir"
+                : "OUTPUT HITAM · halaman tetap berjalan, penonton melihat layar hitam";
+            ProgramBox.Visibility = held || _previewMode ? Visibility.Visible : Visibility.Collapsed;
+            ProgramBox.BorderBrush = held ? warn : live;
+            ProgramTitle.Background = held ? warn : live;
+            ProgramTitle.Foreground = held ? new SolidColorBrush(Color.FromRgb(0x0C, 0x0B, 0x09)) : Brushes.White;
+            ProgramTitle.Text = value == GateMode.Freeze ? "KELUARAN (BEKU)" : value == GateMode.Blackout ? "KELUARAN (HITAM)" : _previewMode ? "PROGRAM (TAYANG)" : "KELUARAN";
+            if (value == GateMode.Blackout) ProgramImage.Source = null;
         }
     }
 
@@ -79,7 +105,8 @@ public partial class PagePreview : UserControl
     {
         var bitmap = BitmapSource.Create(image.Width, image.Height, 96, 96, PixelFormats.Bgra32, null, image.Pixels, image.Stride);
         bitmap.Freeze();
-        Dispatcher.BeginInvoke(() => ProgramImage.Source = _previewMode ? bitmap : null, System.Windows.Threading.DispatcherPriority.Background);
+        if (_gate != GateMode.Live) return; // frozen: the box keeps the picture the audience has; black: it stays black
+        Dispatcher.BeginInvoke(() => ProgramImage.Source = _previewMode && _gate == GateMode.Live ? bitmap : ProgramImage.Source, System.Windows.Threading.DispatcherPriority.Background);
     }
 
     public void Attach(RenderEngine engine)

@@ -329,6 +329,9 @@ public sealed class RenderEngine : IDisposable
     // ---- Preview + Take ----
 
     /// <summary>True while the tab on air (<see cref="Program"/>) and the operator's tab (<see cref="Active"/>) are different tabs.</summary>
+    /// <summary>The WebView2 browser processes in use (one per profile); the audio capture follows these. UI thread only.</summary>
+    public IReadOnlyList<int> BrowserProcessIds => _tabs.Select(t => (int)t.Browser.BrowserProcessId).Distinct().ToList();
+
     public bool PreviewMode { get; private set; }
 
     /// <summary>The tab on air. Same as <see cref="Active"/> in Direct mode.</summary>

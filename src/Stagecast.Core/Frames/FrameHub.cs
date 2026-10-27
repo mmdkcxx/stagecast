@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Stagecast.Core.Output;
 
 namespace Stagecast.Core.Frames;
 
@@ -44,8 +45,14 @@ public sealed class FrameHub
     private readonly object _gate = new();
     private readonly List<double> _tickIntervalsMs = new();
 
+    private readonly FramePool _blackPool = new();
     private Frame? _pending;
     private Frame? _last;
+    private Frame? _held;
+    private Frame? _liveSent;
+    private Frame? _black;
+    private GateMode _gateMode = GateMode.Live;
+    private GateMode _sentMode = GateMode.Live;
     private IFrameSink[] _sinks = [];
     private long _published, _delivered, _repeated, _dropped, _idle, _sinkErrors;
     private double _ageSumMs, _ageMaxMs;
@@ -70,6 +77,16 @@ public sealed class FrameHub
             }
             _pending = frame;
         }
+    }
+
+    /// <summary>
+    /// What leaves the application. Freeze repeats the frame that was live when it was switched on, Blackout sends black; the
+    /// page, the capture and the preview are not affected. Switching back sends the newest picture on the very next tick.
+    /// </summary>
+    public GateMode Gate
+    {
+        get { lock (_gate) return _gateMode; }
+        set { lock (_gate) _gateMode = value; }
     }
 
     public void AddSink(IFrameSink sink)
@@ -116,7 +133,7 @@ public sealed class FrameHub
                 _idle++;
                 return false;
             }
-            frame = _last;
+            frame = ApplyGate(_last, ref repeated, now);
             frame.Retain();
             sinks = _sinks;
         }
@@ -141,6 +158,54 @@ public sealed class FrameHub
             frame.Release();
         }
         return true;
+    }
+
+    /// <summary>Called under the lock: the frame the sinks get for <paramref name="live"/> in the current gate mode.</summary>
+    private Frame ApplyGate(Frame live, ref bool repeated, long now)
+    {
+        var mode = _gateMode;
+        if (mode != GateMode.Freeze && _held is not null)
+        {
+            _held.Release();
+            _held = null;
+        }
+        Frame chosen;
+        switch (mode)
+        {
+            case GateMode.Freeze:
+                if (_held is null)
+                {
+                    _held = _liveSent ?? live; // what the audience saw last, not a frame that arrived after the button
+                    _held.Retain();
+                }
+                chosen = _held;
+                repeated = true;
+                break;
+            case GateMode.Blackout:
+                if (_black is null || _black.Width != live.Width || _black.Height != live.Height)
+                {
+                    _black?.Release();
+                    _black = _blackPool.Rent(live.Width, live.Height, live.Width * 4);
+                    Array.Fill(_black.Pixels, (byte)0);
+                    for (int i = 3; i < _black.Pixels.Length; i += 4) _black.Pixels[i] = 255;
+                }
+                chosen = _black;
+                repeated = true;
+                break;
+            default:
+                chosen = live;
+                if (!ReferenceEquals(_liveSent, live))
+                {
+                    _liveSent?.Release();
+                    _liveSent = live;
+                    live.Retain();
+                }
+                break;
+        }
+        // A sink that skips repeated frames must still see the first picture after the mode changed.
+        if (mode != _sentMode && mode != GateMode.Freeze) repeated = false; // freezing sends the picture they already have
+        _sentMode = mode;
+        return chosen;
     }
 
     public FrameHubStats Snapshot()
@@ -175,7 +240,9 @@ public sealed class FrameHub
         {
             _pending?.Release();
             _last?.Release();
-            _pending = _last = null;
+            _held?.Release();
+            _liveSent?.Release();
+            _pending = _last = _held = _liveSent = null;
         }
     }
 }
