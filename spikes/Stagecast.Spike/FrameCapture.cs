@@ -88,6 +88,25 @@ internal static class FrameCapture
         }
     }
 
+    /// <summary>Creates the Direct3D 11 device and its WinRT wrapper that the capture frame pool needs.</summary>
+    internal static (ID3D11Device Device, ID3D11DeviceContext Context, IDirect3DDevice WinRtDevice) CreateDevice()
+    {
+        D3D11.D3D11CreateDevice((IDXGIAdapter?)null, DriverType.Hardware, DeviceCreationFlags.BgraSupport, Array.Empty<FeatureLevel>(), out ID3D11Device? device, out ID3D11DeviceContext? context).CheckError();
+        using var dxgi = device!.QueryInterface<IDXGIDevice>();
+        Marshal.ThrowExceptionForHR(CreateDirect3D11DeviceFromDXGIDevice(dxgi.NativePointer, out IntPtr inspectable));
+        var winrtDevice = MarshalInterface<IDirect3DDevice>.FromAbi(inspectable);
+        Marshal.Release(inspectable);
+        return (device, context!, winrtDevice);
+    }
+
+    /// <summary>The Direct3D texture behind a captured frame surface.</summary>
+    internal static ID3D11Texture2D TextureOf(IDirect3DSurface surface)
+    {
+        var access = (IDirect3DDxgiInterfaceAccess)GetComObject(surface);
+        Guid texIid = typeof(ID3D11Texture2D).GUID;
+        return new ID3D11Texture2D(access.GetInterface(ref texIid));
+    }
+
     private static object GetComObject(object winrtObject)
     {
         var native = ((IWinRTObject)winrtObject).NativeObject;

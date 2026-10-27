@@ -54,6 +54,13 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Titik keputusan awal:** Jika `CreateFromVisual` tidak mau bekerja untuk visual ini atau yang melebihi layar, berhenti di sini dan evaluasi jalur cadangan.
 
 ### S5 - Capture berkelanjutan + preview + statistik
+- **Status: lulus pada angka rata-rata, dengan catatan (2026-10-27).** Hasil [Saya]:
+  - 5 menit, target 60 fps, tanpa preview: 17.999 frame terkirim = 60,0/dtk, tidak ada satu detik pun di bawah 58 fps, CPU proses 0,3%. Target 30 fps: 30,0/dtk.
+  - **Temuan 1:** WGC secara bawaan hanya mengirim ~48 frame/dtk untuk visual ini (layar 144 Hz). `GraphicsCaptureSession.MinUpdateInterval = 1 ms` membuatnya mengirim tiap frame compositor (90-140/dtk), lalu kita mengatur laju sendiri dengan jadwal tetap. Properti ini butuh proyeksi SDK 10.0.26100 (`WindowsSdkPackageVersion`) dan Windows 11; fallback di Windows lama belum diuji.
+  - **Temuan 2:** laju compositor tidak tetap (tercatat 88-143/dtk antar run), sehingga jarak antar frame yang dikirim kadang 28-49 ms. Pada run 5 menit, 409 dari 17.999 interval (2,3%) lebih dari 25 ms; maks 48,6 ms. Rata-rata tepat, kerataannya belum sempurna. Output nyata (S6+) harus memakai timer tetap yang mengambil frame terbaru, bukan meneruskan frame mentah.
+  - Pembacaan frame untuk jendela preview (CPU readback, 4x/dtk) menambah stutter dan hanya cocok untuk spike; jalur output asli memakai GPU.
+  - GPU % belum diukur (hanya CPU).
+  - **[Anda]:** lihat jendela preview dan nilai kelancarannya (`scripts/run-spike.sh run` lalu pilih mode s5 bila perlu).
 - Ambil frame terus-menerus, tampilkan di jendela preview yang diskalakan.
 - Tampilkan: fps masuk, waktu antar frame, frame yang dibuang, pemakaian CPU/GPU.
 - Toggle target 30 dan 60 fps.

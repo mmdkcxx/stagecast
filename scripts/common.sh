@@ -2,7 +2,7 @@
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WIN_DIR='C:\dev\stagecast'
 WSL_DIR='/mnt/c/dev/stagecast'
-TFM='net8.0-windows10.0.19041.0'
+TFM='net8.0-windows10.0.22621.0'
 SPIKE_LOG="$WSL_DIR/spikes/Stagecast.Spike/bin/Debug/$TFM/logs/spike.log"
 
 # Copy the buildable parts of the repo to the Windows folder (the repo itself stays on the Linux side).

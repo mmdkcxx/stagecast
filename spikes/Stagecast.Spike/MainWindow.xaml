@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <wv2:WebView2 x:Name="Web" Grid.Row="0"/>
+        <Image x:Name="Preview" Grid.Row="0" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
         <TextBlock x:Name="Status" Grid.Row="1" Margin="12,8" Foreground="#AEAAA4"
                    FontFamily="Consolas" FontSize="13" Text="starting..."/>
     </Grid>

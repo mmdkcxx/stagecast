@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stagecast animation test</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; color: #fff; font: 700 64px 'Segoe UI', sans-serif; }
+  #bar { position: absolute; top: 0; bottom: 0; width: 180px; background: repeating-linear-gradient(90deg, #f7c243 0 30px, #c50516 30px 60px); }
+  #info { position: absolute; left: 40px; top: 40px; }
+</style>
+<div id="bar"></div>
+<div id="info"></div>
+<script>
+  const bar = document.getElementById('bar'), info = document.getElementById('info');
+  let frames = 0, last = performance.now(), rate = 0;
+  function tick(now) {
+    bar.style.transform = 'translateX(' + ((now / 4) % (innerWidth - 180)) + 'px)';
+    frames++;
+    if (now - last >= 1000) { rate = Math.round(frames * 1000 / (now - last)); frames = 0; last = now; }
+    info.textContent = innerWidth + 'x' + innerHeight + '  page rAF ' + rate + '/s';
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>

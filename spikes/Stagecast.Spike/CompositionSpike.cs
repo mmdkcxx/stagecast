@@ -132,6 +132,26 @@ internal sealed class CompositionSpike : IDisposable
         return await FrameCapture.CaptureOnceAsync(_root!, pngPath);
     }
 
+    /// <summary>S5: keep capturing for <paramref name="seconds"/>, optionally switching 60 -> 30 fps halfway, and return the statistics.</summary>
+    public async Task<(CaptureSummary First, CaptureSummary? Second)> RunContinuousAsync(
+        int seconds, bool switchHalfway, Action<byte[], int, int, int>? onPreview)
+    {
+        await Task.Delay(1500);
+        using var capture = new ContinuousCapture(_root!, 60, onPreview);
+        capture.Start();
+        if (!switchHalfway)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(seconds));
+            return (capture.Summarize(), null);
+        }
+        await Task.Delay(TimeSpan.FromSeconds(seconds / 2.0));
+        SpikeLog.Write($"page says {await Core.ExecuteScriptAsync("document.getElementById('info') ? document.getElementById('info').textContent : 'n/a'")}");
+        var first = capture.Summarize();
+        capture.SetTargetFps(30);
+        await Task.Delay(TimeSpan.FromSeconds(seconds / 2.0));
+        return (first, capture.Summarize());
+    }
+
     public void Dispose()
     {
         _controller?.Close();
