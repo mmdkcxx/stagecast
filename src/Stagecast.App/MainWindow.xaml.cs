@@ -53,6 +53,7 @@ public partial class MainWindow : Window
         PagePreviewView.ViewChanged += UpdateViewButtons;
         Closed += (_, _) =>
         {
+            _clickerHook?.Dispose();
             ShutdownOutput();
             StopNdi(null);
             StopOmt(null);

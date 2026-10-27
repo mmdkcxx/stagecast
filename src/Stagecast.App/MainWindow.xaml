@@ -110,6 +110,7 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- Controls of a document tab (PDF); shown instead of the address bar. -->
@@ -150,6 +151,8 @@
                     <TextBlock x:Name="ZoomLabel" Foreground="{StaticResource Warn}" FontFamily="{StaticResource FontSemi}" FontSize="13" VerticalAlignment="Center"
                                ToolTip="Zoom halaman mengubah isi halaman yang keluar, bukan hanya preview"/>
                     <Button x:Name="DetachButton" DockPanel.Dock="Right" Content="Jendela terpisah" Style="{StaticResource ToolButton}" Margin="0" Click="OnDetach" ToolTip="Pindahkan preview ke jendela sendiri (untuk monitor lain)"/>
+                    <ToggleButton x:Name="ClickerGlobalButton" DockPanel.Dock="Right" Content="Clicker global" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnClickerGlobal"
+                                  ToolTip="Clicker (Page Down/Up, panah kiri/kanan) bekerja juga saat program lain yang aktif. Hanya selama dinyalakan; tidak tersimpan."/>
                     <ToggleButton x:Name="EnlargeButton" DockPanel.Dock="Right" Content="Perbesar" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnEnlarge" ToolTip="Sembunyikan panel kanan"/>
                     <ToggleButton x:Name="InteractButton" DockPanel.Dock="Right" Content="Interaksi" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnInteract" ToolTip="Teruskan klik, gulir, dan ketik ke halaman. Esc melepas keyboard dari halaman."/>
                 </DockPanel>
@@ -172,7 +175,21 @@
                     </ScrollViewer>
                 </Border>
 
-                <Grid Grid.Row="4" Margin="0,16,0,0">
+                <!-- Page control of the tab on air while the preview shows another tab (Preview + Take). -->
+                <Border x:Name="ProgramDocBar" Grid.Row="4" Margin="0,12,0,0" Padding="10,6" Visibility="Collapsed" Background="{StaticResource Panel}" BorderBrush="{StaticResource Live}" BorderThickness="1" CornerRadius="3">
+                    <DockPanel>
+                        <TextBlock x:Name="ProgramTitleText" DockPanel.Dock="Left" Foreground="{StaticResource Live}" FontFamily="{StaticResource FontSemi}" FontSize="13" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <Button x:Name="ProgramFirstButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏮" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnProgFirst" ToolTip="Halaman pertama (tab program)" AutomationProperties.Name="Program: halaman pertama"/>
+                        <Button x:Name="ProgramPrevButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="◀" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnProgPrev" ToolTip="Halaman sebelumnya (tab program)" AutomationProperties.Name="Program: halaman sebelumnya"/>
+                        <TextBox x:Name="ProgramPageBox" Style="{StaticResource Field}" Width="64" MinHeight="34" Margin="4,0,0,0" HorizontalContentAlignment="Center" MaxLength="9"
+                                 KeyDown="OnProgPageKeyDown" LostKeyboardFocus="OnProgPageLostFocus" ToolTip="Ketik nomor halaman lalu Enter" AutomationProperties.Name="Program: nomor halaman"/>
+                        <TextBlock x:Name="ProgramCountText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center" Margin="8,0,8,0"/>
+                        <Button x:Name="ProgramNextButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="▶" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnProgNext" ToolTip="Halaman berikutnya (tab program)" AutomationProperties.Name="Program: halaman berikutnya"/>
+                        <Button x:Name="ProgramLastButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏭" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnProgLast" ToolTip="Halaman terakhir (tab program)" AutomationProperties.Name="Program: halaman terakhir"/>
+                    </DockPanel>
+                </Border>
+
+                <Grid Grid.Row="5" Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>

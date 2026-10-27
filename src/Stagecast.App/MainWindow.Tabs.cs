@@ -561,6 +561,7 @@ public partial class MainWindow
     {
         base.OnPreviewKeyDown(e);
         if (e.Handled || Keyboard.FocusedElement is TextBox) return;
+        if (_engine is not null && TryClickerKey(e)) { e.Handled = true; return; }
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         if (e.Key == Key.F2 && _renamingId is null) StartRename(_tabs.Active.Id);

@@ -205,11 +205,13 @@ public partial class MainWindow
     {
         UpdateDocumentControls();
         UpdateStripHighlight();
+        UpdateProgramBar();
     }
 
     /// <summary>Shows the document bar and the page strip for a document tab, the address bar for a web page.</summary>
     private void UpdateDocumentControls()
     {
+        UpdateProgramBar();
         var tab = ActiveDocument;
         bool document = tab is not null;
         AddressRow.Visibility = document ? Visibility.Collapsed : Visibility.Visible;
