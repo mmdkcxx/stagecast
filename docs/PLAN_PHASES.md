@@ -2,6 +2,8 @@
 
 Prinsip: setiap langkah kecil, bisa dijalankan, dan punya kriteria lulus yang jelas. Jangan lanjut ke langkah berikutnya sebelum yang sebelumnya lulus.
 
+Pengujian dijalankan per kelompok fase, bukan tiap fase; lihat `TESTING.md`.
+
 Penanda verifikasi: **[Saya]** = saya cek lewat build/log/angka; **[Anda]** = hanya bisa dinilai dengan melihat/mendengar di layar Anda.
 
 Lingkungan: Windows 11 (build 26300), .NET SDK 8.0.301, WebView2 Runtime 155, GPU AMD iGPU + NVIDIA GTX 1650.
@@ -24,6 +26,7 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - Tampilkan satu WebView2 standar yang memuat URL.
 - Tujuan: memastikan runtime, jaringan, dan penyalinan folder berfungsi sebelum menambah kerumitan.
 - **Lulus:** halaman web tampil. [Anda]
+- **Status:** [Saya] lulus (2026-10-27): runtime WebView2 155.0.4283.62, `https://example.com/` selesai dimuat (`success=True`, judul 'Example Domain'), folder data permanen di `%LocalAppData%\Stagecast\Spike\WebView2`. [Anda] menunggu: lihat jendela saat `scripts/run-spike.sh run` (tampil 8 detik).
 
 ### S2 - Composition hosting
 - Ganti ke `CreateCoreWebView2CompositionController` dengan `RootVisualTarget` berupa ContainerVisual.

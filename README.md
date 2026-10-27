@@ -6,9 +6,10 @@ Windows 11 tool that renders a web page at a custom resolution (e.g. 2520x1080 f
 
 ```
 .
-├── src/                      application code (empty until phase A1)
-│   └── (planned) Stagecast.App, Stagecast.Core, Stagecast.Outputs
-├── tests/                    test projects (empty for now)
+├── src/                      application code
+│   └── Stagecast.Core/       pure logic (scale math, resolution, presets); App and Outputs come in A1
+├── tests/
+│   └── Stagecast.Core.Tests/ xUnit
 ├── spikes/                   throwaway spikes proving the WebView2 + capture path
 │   └── Stagecast.Spike/
 ├── docs/
@@ -16,6 +17,7 @@ Windows 11 tool that renders a web page at a custom resolution (e.g. 2520x1080 f
 │   ├── PLAN_CROSSCHECK.md    per-stage feasibility and licensing
 │   ├── PLAN_PHASES.md        spikes S0-S12 and app phases A1-A9
 │   ├── PLAN_UI.md            UI/UX plan
+│   ├── TESTING.md            test layers and when each batch runs
 │   └── design/               Design canvas sources (ui mockup, operator storyboard)
 ├── scripts/                  helper scripts (run-spike.sh builds and runs from WSL)
 ├── Stagecast.sln
@@ -34,6 +36,17 @@ scripts/run-spike.sh build    # build only
 
 Requires the Windows .NET 8 SDK and the WebView2 runtime.
 
+## Checks
+
+```
+scripts/check.sh typecheck    # full build, nullable analysis, warnings as errors
+scripts/check.sh unit         # xUnit tests in tests/
+scripts/check.sh smoke        # runs the spike and asserts its log
+scripts/check.sh all
+```
+
+Run them once per batch of phases, not after every change; see `docs/TESTING.md`.
+
 ## Status
 
-Spike S0 passes (WPF skeleton builds and opens). Next: S1.
+Spikes S0 and S1 pass (skeleton builds; one WebView2 loads a page). Next: S2.
