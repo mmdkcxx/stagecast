@@ -41,7 +41,7 @@ public partial class App : Application
         if (e.Args.Contains("--autoclose"))
         {
             // With a self test the window closes once the test is done (a few seconds after it starts logging).
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(e.Args.Contains("--selftest") ? 90 : 4) };
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(e.Args.Contains("--selftest") ? 180 : 4) };
             timer.Tick += (_, _) => { timer.Stop(); _logger.LogInformation("Autoclose"); window.Close(); };
             timer.Start();
         }

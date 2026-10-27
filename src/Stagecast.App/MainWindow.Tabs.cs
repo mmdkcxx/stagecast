@@ -125,6 +125,28 @@ public partial class MainWindow
 
     private void OnClearLogins(object sender, RoutedEventArgs e) => _ = ClearLoginDataAsync();
 
+    // ---- problems and recovery (A8) ----
+
+    private string NameOf(Stagecast.Rendering.PageTab tab)
+        => _tabs.Items.FirstOrDefault(t => t.Id == tab.Id)?.Name ?? "Tab";
+
+    private void ShowTabProblem(Stagecast.Rendering.PageTab tab, string message)
+    {
+        StatusText.Foreground = (Brush)FindResource("Warn");
+        StatusText.Text = $"{NameOf(tab)}: {message}";
+        RebuildTabList();
+    }
+
+    private void ShowTabRecovered(Stagecast.Rendering.PageTab tab)
+    {
+        if (_engine!.Tabs.All(t => t.Problem is null))
+        {
+            StatusText.Foreground = (Brush)FindResource("Muted");
+            StatusText.Text = $"{NameOf(tab)}: pulih.";
+        }
+        RebuildTabList();
+    }
+
     // ---- Langsung / Preview + Take ----
 
     private void UpdateModeButtons()
@@ -380,6 +402,8 @@ public partial class MainWindow
                 };
                 buttons.Children.Add(Badge(text, tip, brush));
             }
+            if (_engine?.TabById(tab.Id)?.Problem is { } problem)
+                buttons.Children.Add(Badge("MASALAH", problem, "Live"));
             bool onAir = _tabs.PreviewMode ? tab.Id == _tabs.ProgramId : active;
             bool previewing = _tabs.PreviewMode && active;
             if (onAir || previewing)

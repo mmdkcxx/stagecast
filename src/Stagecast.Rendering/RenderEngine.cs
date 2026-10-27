@@ -28,7 +28,7 @@ public sealed record RenderEngineStats(FrameHubStats Hub, CaptureStats Capture);
 /// restarts the capture. The <see cref="FrameCapturer"/> picks frames and the <see cref="FrameHub"/> repeats and fans them out at
 /// the chosen rate. Resolution, rate and tabs can be changed while running. Create and use it on the UI thread.
 /// </summary>
-public sealed class RenderEngine : IDisposable
+public sealed partial class RenderEngine : IDisposable
 {
     private const string SharedProfileKey = "default";
 
@@ -140,7 +140,7 @@ public sealed class RenderEngine : IDisposable
         int position = _tabs.IndexOf(old);
         if (position < 0) throw new ArgumentException("The tab is not part of this engine.", nameof(old));
         bool wasActive = ReferenceEquals(old, _active);
-        var fresh = await AddTabAsync(Guid.NewGuid(), old.Browser.Source, profileId);
+        var fresh = await AddTabAsync(Guid.NewGuid(), old.FailedUrl ?? old.LastUrl, profileId);
         _tabs.Remove(fresh);
         _tabs.Insert(position, fresh);
         if (wasActive) await SelectAsync(fresh);
@@ -250,7 +250,7 @@ public sealed class RenderEngine : IDisposable
         controller.RasterizationScale = 1.0;
         controller.Bounds = new System.Drawing.Rectangle(0, 0, Resolution.Width, Resolution.Height);
 
-        var tab = new PageTab(id, visual, controller, profileId);
+        var tab = new PageTab(id, visual, controller, profileId) { Environment = environment, LastUrl = url };
         Hook(tab);
         _tabs.Add(tab);
         // Every tab's visual stays on the stage for good and only one is switched on: adding or removing visuals while capturing
@@ -267,7 +267,7 @@ public sealed class RenderEngine : IDisposable
             // Not on the output yet: its visual is off and the tab is muted. The browser itself keeps running and drawing,
             // because a page that was hidden does not repaint when shown again if it did not change (see docs/PLAN_PHASES.md A3).
             visual.IsVisible = false;
-            tab.Browser.IsMuted = true;
+            SetMuted(tab, true);
         }
         tab.IsLoading = true;
         tab.Browser.Navigate(url);
@@ -297,11 +297,11 @@ public sealed class RenderEngine : IDisposable
 
             if (previous is not null)
             {
-                previous.Browser.IsMuted = true;
+                SetMuted(previous, true);
                 previous.HasKeyboardFocus = false;
             }
             // Only the tab on air is heard: in Direct mode that is this one, in Preview + Take it is another.
-            tab.Browser.IsMuted = PreviewMode;
+            SetMuted(tab, PreviewMode);
             tab.Visual.Offset = position;
             // Overlap: switch the new visual on underneath the old one, give the compositor a few frames to draw it, and only then
             // raise it and drop the old one. The output never sees a visual that has not been composed yet.
@@ -365,7 +365,7 @@ public sealed class RenderEngine : IDisposable
             }
             _program = program;
             PreviewMode = true;
-            preview.Browser.IsMuted = true;
+            SetMuted(preview, true);
             preview.Visual.IsVisible = true;
             _active = preview;
             preview.HasBeenShown = true;
@@ -392,7 +392,7 @@ public sealed class RenderEngine : IDisposable
             var preview = _active!;
             var program = _program!;
             preview.Visual.IsVisible = false;
-            preview.Browser.IsMuted = true;
+            SetMuted(preview, true);
             preview.HasKeyboardFocus = false;
             PreviewMode = false;
             _program = null;
@@ -408,6 +408,7 @@ public sealed class RenderEngine : IDisposable
         ActiveTabChanged?.Invoke();
         NavigationStateChanged?.Invoke();
         CursorChanged?.Invoke();
+        RecoverDeferredTabs();
     }
 
     /// <summary>
@@ -424,8 +425,8 @@ public sealed class RenderEngine : IDisposable
             var next = _active!;
             next.Visual.Offset = Vector3.Zero;
             onAir.Visual.Offset = new Vector3(PreviewOriginX, 0, 0);
-            onAir.Browser.IsMuted = true;
-            next.Browser.IsMuted = false;
+            SetMuted(onAir, true);
+            SetMuted(next, false);
             onAir.HasKeyboardFocus = false;
             _program = next;
             _active = onAir;
@@ -478,7 +479,14 @@ public sealed class RenderEngine : IDisposable
         if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab before closing this one (and take another first if it is on air).");
         if (!_tabs.Remove(tab)) return;
         _stage.Children.Remove(tab.Visual);
-        tab.Controller.Close();
+        try
+        {
+            tab.Controller.Close();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            // The browser behind the tab was already gone.
+        }
         tab.Visual.Dispose();
         _logger.LogInformation("Tab {Id} closed ({Count} tabs)", tab.Id, _tabs.Count);
         if (tab.ProfileId is { } profile && !_tabs.Any(t => t.ProfileId == profile))
@@ -521,7 +529,8 @@ public sealed class RenderEngine : IDisposable
         }
         tab.Browser.NavigationStarting += (_, _) => tab.IsLoading = true;
         tab.Browser.NavigationCompleted += (_, _) => tab.IsLoading = false;
-        tab.Browser.SourceChanged += (_, _) => Navigated();
+        tab.Browser.SourceChanged += (_, _) => { tab.LastUrl = tab.Browser.Source; Navigated(); };
+        HookRecovery(tab);
         tab.Browser.HistoryChanged += (_, _) => Navigated();
         tab.Browser.DocumentTitleChanged += (_, _) => Navigated();
         // A page that asks for a new window (a login popup, a link with target=_blank) is shown in the same tab instead of
@@ -653,6 +662,7 @@ public sealed class RenderEngine : IDisposable
 
     public void Dispose()
     {
+        DisposeRecovery();
         _pump.Dispose();
         _capturer.Dispose();
         Hub.Clear();

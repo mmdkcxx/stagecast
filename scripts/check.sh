@@ -53,6 +53,7 @@ smoke() {
   APP_EXTRA=",'--selftest','a5'" smoke_app "A5 selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a6'" smoke_app "A6 selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a7'" smoke_app "A7 selftest ok" "exiting with code 0" || return 1
+  APP_EXTRA=",'--selftest','a8'" smoke_app "A8 selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a3c-set'" smoke_app "A3c set selftest ok" "exiting with code 0" || return 1
   KEEP_DATA=1 APP_EXTRA=",'--selftest','a3c-check'" smoke_app "A3c check selftest ok" "exiting with code 0" || return 1
   smoke_mode s1 "webview2 runtime " "navigation completed success=True" || return 1

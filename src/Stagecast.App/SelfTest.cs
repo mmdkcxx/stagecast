@@ -40,6 +40,8 @@ internal sealed class SelfTest
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
+        if (name == "a8") { await RunRecoveryAsync(window); return; }
+        if (name == "soak") { await RunSoakAsync(window); return; }
         if (name == "a7") { await RunOmtAsync(window); return; }
         if (name == "a6") { await RunNdiAsync(window); return; }
         if (name == "a5") { await RunGateAndAudioAsync(window); return; }
@@ -676,6 +678,170 @@ internal sealed class SelfTest
         var saved = window.ReadConfigFromDisk();
         Expect(saved.Omt.Name == "Stagecast Dua", "the OMT name is saved");
         _logger.LogInformation(_failures.Count == 0 ? "A7 selftest ok" : "A7 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>A site that goes away and comes back, and browser processes that are killed: the pages must come back by themselves.</summary>
+    private async Task RunRecoveryAsync(MainWindow window)
+    {
+        const int port = 47832;
+        string url = $"http://localhost:{port}/";
+        var problems = new List<string>();
+        int recovered = 0;
+        _engine.TabProblem += (_, message) => problems.Add(message);
+        _engine.TabRecovered += _ => recovered++;
+        var sink = new ColourSink();
+        _engine.Hub.AddSink(sink);
+
+        System.Net.HttpListener StartSite()
+        {
+            var listener = new System.Net.HttpListener();
+            listener.Prefixes.Add(url);
+            listener.Start();
+            _ = Task.Run(async () =>
+            {
+                while (listener.IsListening)
+                {
+                    try
+                    {
+                        var context = await listener.GetContextAsync();
+                        var body = System.Text.Encoding.UTF8.GetBytes("<!doctype html><body style='margin:0;background:#30B050'></body>");
+                        context.Response.ContentType = "text/html";
+                        context.Response.OutputStream.Write(body, 0, body.Length);
+                        context.Response.Close();
+                    }
+                    catch (Exception ex) when (ex is System.Net.HttpListenerException or ObjectDisposedException or InvalidOperationException)
+                    {
+                        break;
+                    }
+                }
+            });
+            return listener;
+        }
+
+        async Task<bool> WaitAsync(Func<bool> condition, int seconds)
+        {
+            for (int i = 0; i < seconds * 10 && !condition(); i++) await Task.Delay(100);
+            return condition();
+        }
+
+        var site = StartSite();
+        Expect(await _engine.NavigateAsync(url, TimeSpan.FromSeconds(15)), "the local site loads");
+        await Task.Delay(800);
+        Expect(sink.Seen == "30B050", $"the site's page is on the output (saw {sink.Seen})");
+
+        // The network (the site) goes away: the tab says so and keeps trying, then the page comes back by itself.
+        site.Stop();
+        site.Close();
+        Expect(!await _engine.NavigateAsync(url, TimeSpan.FromSeconds(15)), "loading fails while the site is away");
+        Expect(await WaitAsync(() => _engine.Active.Problem is not null, 5), "the tab reports a problem");
+        _logger.LogInformation("A8 problem message: {Message}", _engine.Active.Problem);
+        await Task.Delay(6000); // at least two failed retries
+        Expect(_engine.Active.Problem is not null, "it is still reported while the site is away");
+        site = StartSite();
+        Expect(await WaitAsync(() => _engine.Active.Problem is null, 40), "the page loads again by itself once the site is back");
+        await Task.Delay(800);
+        Expect(sink.Seen == "30B050", $"and shows on the output (saw {sink.Seen})");
+        Expect(recovered >= 1, "a recovery was announced");
+
+        // A browser process dies (a tab with its own profile, not on air).
+        await window.AddTabAsync(url);
+        var otherId = window.Tabs.Items[^1].Id;
+        Expect(await window.SetSeparateProfileAsync(otherId, true), "a second tab gets its own profile");
+        await Task.Delay(2500);
+        int before = recovered;
+        int deadPid = (int)_engine.TabById(otherId)!.Browser.BrowserProcessId;
+        System.Diagnostics.Process.GetProcessById(deadPid).Kill(entireProcessTree: true);
+        Expect(await WaitAsync(() => recovered > before, 30), "the tab whose browser died is recovered");
+        var again = _engine.TabById(otherId);
+        Expect(again is not null && (int)again.Browser.BrowserProcessId != deadPid && again.Problem is null, "it has a new browser process and no problem");
+        Expect(_engine.Tabs.Count == window.Tabs.Items.Count, "the engine and the list still agree");
+
+        // The shared browser dies while its tab is on air.
+        int sharedPid = (int)_engine.Active.Browser.BrowserProcessId;
+        before = recovered;
+        System.Diagnostics.Process.GetProcessById(sharedPid).Kill(entireProcessTree: true);
+        Expect(await WaitAsync(() => recovered > before, 30), "the tab on air is recovered after its browser died");
+        await Task.Delay(1500);
+        Expect((int)_engine.Active.Browser.BrowserProcessId != sharedPid && _engine.Active.Id == window.Tabs.Active.Id, "the tab on air has a new browser and is still the active one");
+        Expect(sink.Seen == "30B050", $"the output shows the page again (saw {sink.Seen})");
+        window.SyncAudioSources();
+
+        site.Stop();
+        site.Close();
+        _engine.Hub.RemoveSink(sink);
+        _logger.LogInformation(_failures.Count == 0 ? "A8 selftest ok" : "A8 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>
+    /// A long run with the outputs on: samples memory and the frame counters every 10 seconds into a CSV in the log folder and logs a summary.
+    /// STAGECAST_SOAK_MINUTES sets the length (default 3). It has no pass or fail except that nothing may crash; a person reads the trend.
+    /// </summary>
+    private async Task RunSoakAsync(MainWindow window)
+    {
+        int minutes = int.TryParse(Environment.GetEnvironmentVariable("STAGECAST_SOAK_MINUTES"), out int m) && m > 0 ? m : 3;
+        window.Confirm = _ => true;
+        window.ApplyFromCode(new Resolution(2520, 1080), 60);
+        string page = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-soak.html")).AbsoluteUri;
+        await _engine.NavigateAsync(page, TimeSpan.FromSeconds(20));
+        await window.AddTabAsync(page);
+        await Task.Delay(2000);
+        window.SyncAudioSources();
+        bool ndi = window.StartNdi();
+        bool omt = window.StartOmt();
+        bool screen = window.Monitors.Count > 1 && window.StartOutput();
+        _logger.LogInformation("SOAK start: {Minutes} min, 2520x1080@60, NDI {Ndi} ({NdiMsg}), OMT {Omt} ({OmtMsg}), screen {Screen} ({Monitors} monitors)",
+            minutes, ndi, window.NdiMessage, omt, window.OmtMessage, screen, window.Monitors.Count);
+
+        string csv = Path.Combine(window.LogDirectory, $"soak-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+        Directory.CreateDirectory(window.LogDirectory);
+        await File.WriteAllTextAsync(csv, "seconds,app_private_mb,app_working_set_mb,app_handles,gc_heap_mb,browser_private_mb,browser_processes,hub_delivered,hub_repeated,hub_dropped,sink_errors,ndi_sent,ndi_skipped,omt_sent,omt_skipped,tick_p99_ms,cpu_percent\n");
+        var me = System.Diagnostics.Process.GetCurrentProcess();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var samples = new List<(double Seconds, double App, double Browser)>();
+        var lastCpu = me.TotalProcessorTime;
+        var lastClock = clock.Elapsed;
+        _engine.ResetStats();
+        int tabFlip = 0;
+        while (clock.Elapsed < TimeSpan.FromMinutes(minutes))
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            me.Refresh();
+            var browsers = System.Diagnostics.Process.GetProcessesByName("msedgewebview2");
+            double browserMb = browsers.Sum(p => { try { return p.PrivateMemorySize64; } catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { return 0; } }) / 1048576.0;
+            foreach (var p in browsers) p.Dispose();
+            var stats = _engine.Stats().Hub;
+            double cpu = (me.TotalProcessorTime - lastCpu).TotalSeconds / Math.Max(0.001, (clock.Elapsed - lastClock).TotalSeconds) / Environment.ProcessorCount * 100;
+            lastCpu = me.TotalProcessorTime;
+            lastClock = clock.Elapsed;
+            double appMb = me.PrivateMemorySize64 / 1048576.0;
+            samples.Add((clock.Elapsed.TotalSeconds, appMb, browserMb));
+            await File.AppendAllTextAsync(csv, FormattableString.Invariant(
+                $"{clock.Elapsed.TotalSeconds:0},{appMb:0.0},{me.WorkingSet64 / 1048576.0:0.0},{me.HandleCount},{GC.GetTotalMemory(false) / 1048576.0:0.0},{browserMb:0.0},{browsers.Length},{stats.Delivered},{stats.Repeated},{stats.Dropped},{stats.SinkErrors},{window.Ndi?.VideoSent ?? 0},{window.Ndi?.VideoSkipped ?? 0},{window.Omt?.VideoSent ?? 0},{window.Omt?.VideoSkipped ?? 0},{stats.TickP99Ms:0.0},{cpu:0.0}\n"));
+            // Every minute the other tab goes on air, as an operator would.
+            if (samples.Count % 6 == 0) await window.SelectTabAsync(window.Tabs.Items[++tabFlip % 2].Id);
+        }
+
+        static double Slope(IEnumerable<(double X, double Y)> points)
+        {
+            var list = points.ToList();
+            if (list.Count < 3) return 0;
+            double mx = list.Average(p => p.X), my = list.Average(p => p.Y);
+            double denominator = list.Sum(p => (p.X - mx) * (p.X - mx));
+            return denominator == 0 ? 0 : list.Sum(p => (p.X - mx) * (p.Y - my)) / denominator;
+        }
+        // The first minute is warm-up (caches, JIT); the trend is measured after it.
+        var settled = samples.Where(s => s.Seconds >= 60).ToList();
+        double appPerHour = Slope(settled.Select(s => (s.Seconds, s.App))) * 3600;
+        double browserPerHour = Slope(settled.Select(s => (s.Seconds, s.Browser))) * 3600;
+        var final = _engine.Stats().Hub;
+        _logger.LogInformation("SOAK summary: {Seconds:0} s, app memory {AppFirst:0}->{AppLast:0} MB (trend {AppTrend:+0;-0} MB/h), browsers {BrFirst:0}->{BrLast:0} MB (trend {BrTrend:+0;-0} MB/h), hub delivered {Delivered} repeated {Repeated} dropped {Dropped} sink errors {Errors}, NDI skipped {NdiSkipped}, OMT skipped {OmtSkipped}, csv {Csv}",
+            clock.Elapsed.TotalSeconds, samples[0].App, samples[^1].App, appPerHour, samples[0].Browser, samples[^1].Browser, browserPerHour,
+            final.Delivered, final.Repeated, final.Dropped, final.SinkErrors, window.Ndi?.VideoSkipped ?? 0, window.Omt?.VideoSkipped ?? 0, csv);
+        Expect(final.SinkErrors == 0, $"no sink errors ({final.SinkErrors})");
+        window.StopNdi(null);
+        window.StopOmt(null);
+        window.StopOutput(null);
+        _logger.LogInformation(_failures.Count == 0 ? "SOAK finished ok" : "SOAK finished with problems: {Failures}", string.Join("; ", _failures));
     }
 
     private const double LevelMeterFloor = -90;

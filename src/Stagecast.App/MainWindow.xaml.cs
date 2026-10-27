@@ -76,6 +76,8 @@ public partial class MainWindow : Window
             PagePreviewView.Attach(_engine);
             ShowControls();
             _engine.NavigationStateChanged += UpdateNavigationState;
+            _engine.TabProblem += (tab, message) => Dispatcher.BeginInvoke(() => ShowTabProblem(tab, message));
+            _engine.TabRecovered += tab => Dispatcher.BeginInvoke(() => ShowTabRecovered(tab));
             UpdateNavigationState();
             UpdateViewButtons();
 
@@ -389,6 +391,10 @@ public partial class MainWindow : Window
     internal PagePreview Preview => PagePreviewView;
 
     internal string ProfilesDirectory => _context.Paths.ProfilesDirectory;
+
+    internal string LogDirectory => _context.Paths.LogDirectory;
+
+    internal string StatusMessage => StatusText.Text;
 
     internal RenderEngine? Engine => _engine;
 

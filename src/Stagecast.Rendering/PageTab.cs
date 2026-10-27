@@ -39,5 +39,26 @@ public sealed class PageTab
 
     public string Url => Browser.Source;
 
+    internal CoreWebView2Environment? Environment { get; set; }
+
+    /// <summary>The last address the tab was on; still known when the browser behind it has died.</summary>
+    internal string LastUrl { get; set; } = "about:blank";
+
+    internal string? NavigatingTo { get; set; }
+
+    /// <summary>The address that failed to load because of the network; the engine retries it until it loads.</summary>
+    internal string? FailedUrl { get; set; }
+
+    internal int RetryAttempt { get; set; }
+
+    internal bool RetryPending { get; set; }
+
+    internal bool Recovering { get; set; }
+
+    internal List<DateTimeOffset> Crashes { get; } = [];
+
+    /// <summary>What is wrong with this tab right now, in words for the operator; null when it is fine.</summary>
+    public string? Problem { get; internal set; }
+
     public string Title => Browser.DocumentTitle;
 }
