@@ -51,3 +51,5 @@ Aturan commit: commit tiap fase selesai; hasil kelompok uji dicatat di `PLAN_PHA
 - Uji yang mengirim ketukan keyboard sungguhan (S10, `--selftest a2b`) hanya jalan bila jendelanya aktif. Windows menolak `Activate()` bila program lain memegang fokus, jadi uji ini memaksa jendela ke depan (Topmost sesaat) dan menunggu sampai aktif. Jangan memakai komputer untuk hal lain selama `check.sh smoke` berjalan.
 - Uji laju bingkai (S5 dan sejenisnya) sesekali gagal bila mesin sedang tersendat sesaat; ulangi dulu sebelum mencari bug. Saat dijalankan sendiri hasilnya konsisten (59-60 bingkai/dtk).
 - `check.sh smoke` memakan beberapa menit; hasil "lulus" hanya bila seluruh langkah lulus (status keluar 0), bukan sekadar ada baris PASS.
+
+- **S10 dalam batch penuh:** pada 2026-10-27 dua kali berturut-turut mengukur 10/12 klik (dua klik tidak menghasilkan frame dalam 2 dtk) setelah A6 ditambahkan ke batch, tetapi lulus 12/12 tiga kali bila dijalankan sendiri. Sampel frame spike terlihat kekurangan frame saat mesin masih sibuk dari proses sebelumnya. Anggap flaky; jalankan ulang sendiri sebelum menyelidiki.

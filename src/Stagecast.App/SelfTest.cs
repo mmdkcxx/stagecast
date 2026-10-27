@@ -575,6 +575,8 @@ internal sealed class SelfTest
                 window.StopTone();
 
                 window.ApplyFromCode(new Resolution(1920, 1080), 60);
+                Expect(window.PendingChange is not null, "with NDI on, a resolution change asks for confirmation");
+                window.ConfirmPending();
                 await Task.Delay(1500);
                 var resized = probe.ReadLatestVideo(TimeSpan.FromSeconds(1));
                 Expect(resized is { Width: 1920, Height: 1080 }, $"a resolution change reaches the receiver ({resized?.Width}x{resized?.Height})");

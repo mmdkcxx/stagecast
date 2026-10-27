@@ -100,7 +100,7 @@ public sealed class NdiProbe : IDisposable
         }
     }
 
-    /// <summary>Waits for a video frame and reports its size and the colour of its centre pixel.</summary>
+    /// <summary>Waits for a video frame and reports its size and the colour of a pixel near the top-left corner (the centre of a test page often holds text).</summary>
     public NdiVideoSample? ReadVideo(TimeSpan timeout)
     {
         var clock = Stopwatch.StartNew();
@@ -113,7 +113,7 @@ public sealed class NdiProbe : IDisposable
             {
                 try
                 {
-                    long offset = (long)(video.Yres / 2) * video.LineStrideInBytes + (long)(video.Xres / 2) * 4;
+                    long offset = (long)(video.Yres / 20) * video.LineStrideInBytes + (long)(video.Xres / 20) * 4;
                     return new NdiVideoSample(video.Xres, video.Yres,
                         Marshal.ReadByte(video.Data, (int)offset + 2), Marshal.ReadByte(video.Data, (int)offset + 1), Marshal.ReadByte(video.Data, (int)offset));
                 }
