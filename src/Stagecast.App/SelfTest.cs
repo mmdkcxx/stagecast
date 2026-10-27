@@ -35,6 +35,7 @@ internal sealed class SelfTest
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
+        if (name == "a4") { await RunScreenOutputAsync(window); return; }
         if (name == "a3b") { await RunPreviewTakeAsync(window); return; }
         if (name == "a3") { await RunTabsAsync(window); return; }
         if (name == "a2c") { await RunChangesAndPresetsAsync(window); return; }
@@ -351,6 +352,61 @@ internal sealed class SelfTest
         Expect(Interlocked.Read(ref sink.Black) - black == 0, $"no black frame reached the output ({Interlocked.Read(ref sink.Black) - black} did)");
         _engine.Hub.RemoveSink(sink);
         _logger.LogInformation(_failures.Count == 0 ? "A3b selftest ok" : "A3b selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>Screen output on the available monitor: the guard question, window placement, scale numbers, frames arriving, stopping.</summary>
+    private async Task RunScreenOutputAsync(MainWindow window)
+    {
+        await _engine.NavigateAsync(Page("3050E0"), TimeSpan.FromSeconds(10));
+        window.RefreshMonitors();
+        var monitors = window.Monitors;
+        Expect(monitors.Count >= 1, $"at least one monitor is listed ({monitors.Count})");
+        bool single = monitors.Count == 1;
+        _logger.LogInformation("A4 monitors: {Monitors}", string.Join(" | ", monitors.Select(m => $"{m.Id} {m.X},{m.Y} {m.Width}x{m.Height}")));
+
+        window.ApplyFromCode(new Resolution(2520, 1080), 60);
+        if (single)
+        {
+            bool asked = false;
+            window.Confirm = _ => { asked = true; return false; };
+            Expect(!window.StartOutput() && asked && window.Output is null, "with one monitor the operator is asked, and refusing keeps the output off");
+        }
+        window.Confirm = _ => true;
+        Expect(window.StartOutput() && window.Output is { } output, "the output can be switched on");
+        output = window.Output!;
+        await Task.Delay(1500);
+
+        var monitor = output.Monitor;
+        var bounds = output.PlacementInPixels();
+        Expect(bounds == (monitor.X, monitor.Y, monitor.Width, monitor.Height), $"the window covers the monitor exactly (window {bounds}, monitor {monitor.X},{monitor.Y} {monitor.Width}x{monitor.Height})");
+        Expect(output.FramesShown > 10, $"frames reach the window ({output.FramesShown})");
+        Expect(window.OutputsLive, "an output being on counts as live for the change confirmation");
+
+        var squeeze = output.Scale;
+        Expect(Math.Abs(squeeze.RestoreX - 2520.0 / monitor.Width) < 1e-9 && squeeze.Cropped == false, $"squeeze restores width by {squeeze.RestoreX:0.0000}");
+        window.SetScale(ScaleMode.Fit);
+        await Task.Delay(300);
+        Expect(Math.Abs(output.Scale.ScaleX - output.Scale.ScaleY) < 1e-9, "fit keeps the aspect ratio");
+        window.SetScale(ScaleMode.OneToOne);
+        await Task.Delay(300);
+        Expect(output.Scale.DestWidth == 2520 && output.Scale.DestHeight == 1080, "1:1 draws one pixel per pixel");
+        window.SetScale(ScaleMode.Squeeze);
+
+        window.ApplyFromCode(new Resolution(1920, 1080), 60);
+        await Task.Delay(1500);
+        Expect(output.Scale.DestWidth == monitor.Width, "a resolution change keeps the output covering the monitor");
+
+        window.SetAlwaysOnTop(false);
+        Expect(!output.Topmost, "always-on-top can be switched off while running");
+        window.SetAlwaysOnTop(true);
+        Expect(output.Topmost, "and on again");
+
+        window.StopOutput(null);
+        Expect(window.Output is null && !window.OutputsLive, "the output can be switched off");
+        await Task.Delay(500);
+        var saved = window.ReadConfigFromDisk();
+        Expect(saved.Output.Scale == ScaleMode.Squeeze && saved.Output.AlwaysOnTop, "the screen settings are saved");
+        _logger.LogInformation(_failures.Count == 0 ? "A4 selftest ok" : "A4 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
     private bool _tabsAudioOk(MainWindow window)

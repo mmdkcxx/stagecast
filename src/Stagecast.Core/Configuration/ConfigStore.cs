@@ -158,10 +158,20 @@ public sealed class ConfigStore
         if (input.SchemaVersion > AppConfig.CurrentSchemaVersion)
             notes.Add($"the file is from a newer version (schema {input.SchemaVersion}); unknown settings may be lost on the next save");
 
+        var output = input.Output ?? new OutputConfig();
+        var scale = output.Scale;
+        if (!Enum.IsDefined(scale))
+        {
+            notes.Add($"output scale mode {(int)scale} is unknown; using squeeze");
+            scale = Stagecast.Core.Display.ScaleMode.Squeeze;
+        }
+        string? monitorId = string.IsNullOrWhiteSpace(output.MonitorId) || output.MonitorId.Length > 64 ? null : output.MonitorId.Trim();
+
         return new AppConfig
         {
             SchemaVersion = AppConfig.CurrentSchemaVersion,
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
+            Output = new OutputConfig { MonitorId = monitorId, Scale = scale, AlwaysOnTop = output.AlwaysOnTop },
             Presets = presets,
             Tabs = tabs,
             ActiveTab = activeTab,

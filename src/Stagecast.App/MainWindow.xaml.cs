@@ -32,6 +32,7 @@ public partial class MainWindow : Window
         _logger = context.LoggerFactory.CreateLogger<MainWindow>();
         _presets = PresetCatalog.FromConfig(_config);
         _tabs = BuildTabList();
+        _outputConfig = _config.Output;
         Confirm = text => MessageBox.Show(this, text, "Stagecast", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
         VersionText.Text = $"v{context.Version}";
         WidthBox.Text = _config.Render.Width.ToString();
@@ -49,6 +50,7 @@ public partial class MainWindow : Window
         PagePreviewView.ViewChanged += UpdateViewButtons;
         Closed += (_, _) =>
         {
+            ShutdownOutput();
             _detached?.Close();
             _engine?.Dispose();
         };
@@ -152,8 +154,8 @@ public partial class MainWindow : Window
 
     private readonly RenderChangeGate _gate = new();
 
-    /// <summary>Until the outputs exist (A4) a checkbox stands in for "an output is on".</summary>
-    internal bool OutputsLive => LiveSimBox.IsChecked == true;
+    /// <summary>True when a real output is on, or the test checkbox says so (NDI and OMT will join in A6 and A7).</summary>
+    internal bool OutputsLive => LiveSimBox.IsChecked == true || _output is not null;
 
     internal Func<string, bool> Confirm { get; set; } = _ => false;
 
@@ -177,6 +179,8 @@ public partial class MainWindow : Window
         {
             _engine!.SetResolution(resolution);
             PagePreviewView.SetResolution(resolution);
+            _output?.SetRender(resolution);
+            ShowScaleInfo();
         }
         if (change.Fps is { } fps) _engine!.SetFps(fps);
         Persist();
@@ -507,6 +511,7 @@ public partial class MainWindow : Window
         _config = new AppConfig
         {
             Render = render,
+            Output = _outputConfig,
             Presets = _presets.ToEntries(),
             Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
             ActiveTab = _tabs.LiveIndex,

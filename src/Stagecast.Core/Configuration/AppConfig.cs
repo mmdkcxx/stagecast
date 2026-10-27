@@ -12,6 +12,9 @@ public sealed class AppConfig
 
     public RenderConfig Render { get; init; } = new();
 
+    /// <summary>How the picture goes to the screen. Whether the output is on is never saved: the application always starts with it off.</summary>
+    public OutputConfig Output { get; init; } = new();
+
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
@@ -44,6 +47,18 @@ public sealed class RenderConfig
 
     /// <summary>Only 30 and 60 are offered by the application.</summary>
     public int Fps { get; init; } = DefaultFps;
+}
+
+public sealed class OutputConfig
+{
+    /// <summary>Windows device name of the chosen monitor; null until the operator picks one.</summary>
+    public string? MonitorId { get; init; }
+
+    [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
+    public Stagecast.Core.Display.ScaleMode Scale { get; init; } = Stagecast.Core.Display.ScaleMode.Squeeze;
+
+    /// <summary>The output window covers other windows, including the taskbar.</summary>
+    public bool AlwaysOnTop { get; init; } = true;
 }
 
 public sealed class PresetEntry

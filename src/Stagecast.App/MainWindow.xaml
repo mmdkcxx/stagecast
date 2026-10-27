@@ -120,11 +120,25 @@
                         <RadioButton x:Name="Fps60" Content="60" GroupName="fps" Style="{StaticResource Choice}" Checked="OnFpsChecked"/>
                     </StackPanel>
 
+                    <TextBlock Text="LAYAR PENUH" Style="{StaticResource Label}" Margin="0,24,0,6"/>
+                    <Button x:Name="MonitorButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnMonitorMenu" ToolTip="Pilih monitor tujuan output"/>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ScaleSqueeze" Content="Peras" GroupName="scale" Style="{StaticResource Choice}" Checked="OnScaleChecked" ToolTip="Anamorfik: seluruh gambar diperas ke monitor, dilebarkan kembali di Resolume/vMix"/>
+                        <RadioButton x:Name="ScaleFit" Content="Fit" GroupName="scale" Style="{StaticResource Choice}" Checked="OnScaleChecked" ToolTip="Skala seragam, sisa layar hitam"/>
+                        <RadioButton x:Name="ScaleOne" Content="1:1" GroupName="scale" Style="{StaticResource Choice}" Checked="OnScaleChecked" ToolTip="Satu piksel render = satu piksel monitor; yang lebih besar terpotong"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ScaleInfo" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    <CheckBox x:Name="OnTopBox" Content="Selalu di atas" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13" Margin="0,10,0,0" IsChecked="True"
+                              Checked="OnOnTopChanged" Unchecked="OnOnTopChanged" ToolTip="Output menutupi jendela lain di monitor itu, termasuk bar tugas"/>
+                    <Button x:Name="OutputButton" Content="Nyalakan output" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleOutput"/>
+                    <TextBlock x:Name="OutputNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Text="Matikan darurat dari mana saja: Ctrl+Alt+H."/>
+
                     <TextBlock Text="STATISTIK" Style="{StaticResource Label}" Margin="0,24,0,6"/>
                     <TextBlock x:Name="StatsText" Foreground="{StaticResource Text}" FontFamily="Consolas" FontSize="12" LineHeight="18"/>
 
                     <CheckBox x:Name="LiveSimBox" Content="Uji: anggap ada output yang nyala" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" Margin="0,24,0,0"
-                              ToolTip="Sementara, sampai output ada di A4: memperlihatkan spanduk konfirmasi ubah resolusi/FPS"/>
+                              ToolTip="Untuk uji: memperlihatkan spanduk konfirmasi ubah resolusi/FPS tanpa output nyata"/>
                 </StackPanel>
                 </ScrollViewer>
             </Border>
