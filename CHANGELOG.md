@@ -3,6 +3,11 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.1.6] - 2026-10-27
+
+Rilis publik pertama. Isinya sama dengan 0.1.6 (tidak ada perubahan kode); hanya nomor versi yang dinaikkan. Riwayat 0.1.0
+sampai 0.1.6 di bawah adalah versi pengembangan sebelum rilis ini.
+
 ## [0.1.6] - 2026-10-27
 
 ### Ditambahkan
