@@ -1,7 +1,7 @@
 STAGECAST - menayangkan halaman web pada resolusi sendiri ke layar, NDI, dan OMT (vMix)
 
 MENJALANKAN
-  Jalankan Stagecast.exe. Tidak perlu dipasang. Pengaturan dan login disimpan di %LocalAppData%\Stagecast
+  Versi portabel: jalankan Stagecast.exe dari folder ini, tidak perlu dipasang. (Ada juga Stagecast-Setup-<versi>.exe untuk pemasangan dengan Start Menu.) Pengaturan dan login disimpan di %LocalAppData%\Stagecast
   (atau di folder yang ditentukan dengan --data-dir "D:\folder").
 
 KEBUTUHAN

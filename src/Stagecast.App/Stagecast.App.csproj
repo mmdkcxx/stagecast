@@ -9,12 +9,17 @@
     <AssemblyName>Stagecast</AssemblyName>
     <Version>0.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>stagecast.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Serilog" Version="4.0.2" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="stagecast.ico" />
   </ItemGroup>
 
   <ItemGroup>
