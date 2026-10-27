@@ -42,7 +42,8 @@ public sealed partial class RenderEngine
     internal static bool IsNetworkError(CoreWebView2WebErrorStatus status) => status is
         CoreWebView2WebErrorStatus.Disconnected or CoreWebView2WebErrorStatus.CannotConnect or CoreWebView2WebErrorStatus.ConnectionAborted
         or CoreWebView2WebErrorStatus.ConnectionReset or CoreWebView2WebErrorStatus.HostNameNotResolved or CoreWebView2WebErrorStatus.ServerUnreachable
-        or CoreWebView2WebErrorStatus.Timeout or CoreWebView2WebErrorStatus.ErrorHttpInvalidServerResponse;
+        or CoreWebView2WebErrorStatus.Timeout or CoreWebView2WebErrorStatus.ErrorHttpInvalidServerResponse
+        or CoreWebView2WebErrorStatus.Unknown; // a refused connection to a local site is reported as Unknown the first time; retrying a web page is harmless
 
     private static bool IsWebAddress(string? url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 

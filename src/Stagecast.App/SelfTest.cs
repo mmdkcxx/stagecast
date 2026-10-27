@@ -743,27 +743,32 @@ internal sealed class SelfTest
         Expect(sink.Seen == "30B050", $"and shows on the output (saw {sink.Seen})");
         Expect(recovered >= 1, "a recovery was announced");
 
-        // A browser process dies (a tab with its own profile, not on air).
+        // A browser process dies while its tab is on air (a new tab goes on air at once, here with its own profile).
         await window.AddTabAsync(url);
         var otherId = window.Tabs.Items[^1].Id;
         Expect(await window.SetSeparateProfileAsync(otherId, true), "a second tab gets its own profile");
         await Task.Delay(2500);
+        Expect(window.Tabs.Active.Id == otherId, "the new tab is the one on air");
         int before = recovered;
         int deadPid = (int)_engine.TabById(otherId)!.Browser.BrowserProcessId;
         System.Diagnostics.Process.GetProcessById(deadPid).Kill(entireProcessTree: true);
-        Expect(await WaitAsync(() => recovered > before, 30), "the tab whose browser died is recovered");
-        var again = _engine.TabById(otherId);
-        Expect(again is not null && (int)again.Browser.BrowserProcessId != deadPid && again.Problem is null, "it has a new browser process and no problem");
-        Expect(_engine.Tabs.Count == window.Tabs.Items.Count, "the engine and the list still agree");
-
-        // The shared browser dies while its tab is on air.
-        int sharedPid = (int)_engine.Active.Browser.BrowserProcessId;
-        before = recovered;
-        System.Diagnostics.Process.GetProcessById(sharedPid).Kill(entireProcessTree: true);
         Expect(await WaitAsync(() => recovered > before, 30), "the tab on air is recovered after its browser died");
         await Task.Delay(1500);
-        Expect((int)_engine.Active.Browser.BrowserProcessId != sharedPid && _engine.Active.Id == window.Tabs.Active.Id, "the tab on air has a new browser and is still the active one");
+        var again = _engine.TabById(otherId);
+        Expect(again is not null && (int)again.Browser.BrowserProcessId != deadPid && again.Problem is null, "it has a new browser process and no problem");
+        Expect(_engine.Active.Id == otherId && window.Tabs.Active.Id == otherId, "and is still the active one");
         Expect(sink.Seen == "30B050", $"the output shows the page again (saw {sink.Seen})");
+        Expect(_engine.Tabs.Count == window.Tabs.Items.Count, "the engine and the list still agree");
+
+        // The shared browser dies while its tab is not on air.
+        var sharedId = window.Tabs.Items[0].Id;
+        int sharedPid = (int)_engine.TabById(sharedId)!.Browser.BrowserProcessId;
+        before = recovered;
+        System.Diagnostics.Process.GetProcessById(sharedPid).Kill(entireProcessTree: true);
+        Expect(await WaitAsync(() => recovered > before, 30), "the tab on the shared profile is recovered after its browser died");
+        await Task.Delay(1500);
+        Expect((int)_engine.TabById(sharedId)!.Browser.BrowserProcessId != sharedPid && _engine.Active.Id == otherId, "it has a new browser and the tab on air did not change");
+        Expect(sink.Seen == "30B050", $"the output was not disturbed (saw {sink.Seen})");
         window.SyncAudioSources();
 
         site.Stop();
