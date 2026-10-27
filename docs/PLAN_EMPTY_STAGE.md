@@ -40,9 +40,32 @@ Semua tab bisa ditutup sampai tidak ada yang terbuka. Saat tidak ada tab sama se
 - Self test A3 diubah: "tab terakhir tidak bisa ditutup" menjadi "menutup tab terakhir menampilkan test pattern".
 - Pengujian dan perubahan versi mengikuti kebiasaan proyek (typecheck selama membangun, batch penuh saat diminta, tidak ada fase ditandai lulus sebelum diuji).
 
-## Pertanyaan untuk pemilik
-1. Saat pertama kali dibuka (belum ada konfigurasi), mulai dengan nol tab dan test pattern, atau tetap satu tab kosong?
-2. Konfigurasi yang disimpan dengan nol tab: dibuka dengan nol tab, atau otomatis dibuatkan satu tab?
-3. Menutup tab program saat output menyala: cukup konfirmasi di dalam aplikasi, atau lebih ketat?
-4. Perlu tombol untuk menampilkan test pattern kapan saja walau ada tab (misalnya untuk kalibrasi sebelum acara), atau hanya saat tab nol?
-5. Perlu nada uji audio 1 kHz sebagai opsi?
+## Keputusan pemilik (2026-10-27)
+1. **Pertama kali dibuka:** nol tab dan test pattern.
+2. **Konfigurasi tersimpan:** daftar tab dipulihkan, tetapi tidak ada tab yang dipilih live saat aplikasi dibuka, jadi output (kalau dinyalakan) tetap menampilkan test pattern sampai operator memilih tab. Ini mengoreksi asumsi saya sebelumnya ("nol tab dipulihkan apa adanya").
+3. **Menutup tab program saat output menyala:** cukup konfirmasi di dalam aplikasi.
+4. **Test pattern kapan saja:** boleh, dengan tombol di jendela masing-masing unit: Display (Layar), NDI, dan OMT. Tiap unit berdiri sendiri.
+5. **Nada uji:** ada, dibunyikan saat test pattern tampil, berupa burst bertempo (bukan nada statis). Pengaturan audio tetap seperti sebelumnya.
+
+## Dampak rancangan dari keputusan itu
+
+### Keadaan "tidak ada tab live"
+Dibedakan dari "nol tab": tab bisa ada di daftar, tetapi belum ada yang live. Di mode Langsung, memilih tab membuatnya live. Pada awal aplikasi tidak ada tab yang dipilih, sehingga output menayangkan pola. Di Preview + Take, program kosong sampai ada Take pertama.
+
+### Test pattern per unit
+- Sekarang satu aliran bingkai dibagi ke semua output oleh `FrameHub`. Dengan saklar per unit, tiap output (Layar, NDI, OMT) perlu memilih sumbernya sendiri: aliran live atau pola.
+- Pola dihasilkan sekali per bingkai dan dipakai oleh semua unit yang memintanya.
+- Saat tidak ada tab live, semua output yang menyala otomatis menampilkan pola (tanpa menyentuh saklar unit).
+- Asumsi saya, perlu dikonfirmasi: Blackout tetap menang atas pola (hitam), supaya Blackout selalu aman. Freeze hanya membekukan aliran live; pola tetap bergerak.
+- Tombolnya: saklar "Test pattern" di jendela Layar, NDI, dan OMT. Penanda di tombol top bar menjadi "ON · TEST" saat pola aktif. Lihat mockup top bar.
+
+### Nada uji bertempo
+- Burst nada 1 kHz, 100 ms, sekali tiap detik, dengan level rendah (usulan: -18 dBFS), bukan nada terus-menerus.
+- Pola menyalakan kilatan atau penghitung pada bingkai yang sama dengan burst, jadi sekaligus bisa dipakai memeriksa sinkron suara dan gambar.
+- Bunyi mengikuti unit: NDI yang menampilkan pola mengirim burst di audio NDI, OMT yang menampilkan pola mengirim burst di audio OMT, sedangkan unit yang menayangkan live tetap mengirim audio live. Ini butuh `AudioHub` memilih sumber per unit juga.
+- Pengaturan audio (perangkat lokal, meter) tidak berubah.
+
+### Belum diputuskan
+- Perangkat audio lokal mengikuti apa saat unit berbeda sumbernya (misalnya Layar menampilkan pola dan NDI live)? Usul: perangkat lokal mengikuti unit Layar.
+- Level nada uji dan apakah burst bisa dimatikan terpisah dari pola.
+- Blackout dan Freeze terhadap pola (asumsi di atas).
