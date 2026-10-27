@@ -2,7 +2,7 @@
 ; Prerequisites: the app is self-contained (.NET 8 is inside), so only the WebView2 Runtime is required (downloaded when missing);
 ; the NDI Runtime (about 10 MB, official, signed by Vizrt) is downloaded and installed silently when it is missing.
 #ifndef AppVersion
-  #define AppVersion "0.1.4"
+  #define AppVersion "0.1.5"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\dist\publish"

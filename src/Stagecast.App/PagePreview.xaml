@@ -11,26 +11,26 @@
         <Border x:Name="ModeFrame" BorderThickness="3" BorderBrush="Transparent" IsHitTestVisible="False"/>
 
         <Border x:Name="ModePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="8,3" CornerRadius="2" IsHitTestVisible="False" Background="#E5484D">
-            <TextBlock x:Name="ModeText" Text="LIVE" Foreground="White" FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"/>
+            <TextBlock x:Name="ModeText" Text="LIVE" Foreground="White" FontFamily="{StaticResource FontBody}" FontSize="12" FontWeight="Bold"/>
         </Border>
 
         <Border x:Name="ProgramBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10,44,10,10" Visibility="Collapsed" IsHitTestVisible="False"
                 BorderBrush="#E5484D" BorderThickness="2" Background="Black">
             <StackPanel>
-                <TextBlock x:Name="ProgramTitle" Text="PROGRAM (TAYANG)" Foreground="White" Background="#E5484D" FontFamily="Segoe UI" FontSize="10" FontWeight="Bold" Padding="4,1"/>
+                <TextBlock x:Name="ProgramTitle" Text="PROGRAM (TAYANG)" Foreground="White" Background="#E5484D" FontFamily="{StaticResource FontBody}" FontSize="10" FontWeight="Bold" Padding="4,1"/>
                 <Image x:Name="ProgramImage" Width="168" MinHeight="70" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
             </StackPanel>
         </Border>
 
         <Border x:Name="GateBanner" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="10,10,10,14" Padding="12,4" CornerRadius="2" IsHitTestVisible="False" Visibility="Collapsed" Background="#F7C243">
-            <TextBlock x:Name="GateText" Foreground="#0C0B09" FontFamily="Segoe UI" FontSize="13" FontWeight="Bold"/>
+            <TextBlock x:Name="GateText" Foreground="#0C0B09" FontFamily="{StaticResource FontBody}" FontSize="13" FontWeight="Bold"/>
         </Border>
 
         <Border x:Name="Badge" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,3" Background="#F7C243" CornerRadius="2" Visibility="Collapsed" IsHitTestVisible="False">
-            <TextBlock x:Name="BadgeText" Foreground="#1C1505" FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"/>
+            <TextBlock x:Name="BadgeText" Foreground="#1C1505" FontFamily="{StaticResource FontBody}" FontSize="12" FontWeight="Bold"/>
         </Border>
 
-        <TextBlock x:Name="HintText" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10" Foreground="#AEAAA4" FontFamily="Segoe UI" FontSize="12" IsHitTestVisible="False" Visibility="Collapsed"/>
+        <TextBlock x:Name="HintText" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10" Foreground="#AEAAA4" FontFamily="{StaticResource FontBody}" FontSize="12" IsHitTestVisible="False" Visibility="Collapsed"/>
 
         <Border x:Name="MiniMap" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10" Background="#CC0C0B09" BorderBrush="#4A4743" BorderThickness="1" Visibility="Collapsed"
                 MouseDown="OnMiniMapMouse" MouseMove="OnMiniMapMouse" ToolTip="Posisi tampilan di halaman. Klik atau seret untuk pindah.">

@@ -300,8 +300,8 @@ public partial class MainWindow
     {
         var button = new Button
         {
-            Content = glyph, ToolTip = tip, Style = (Style)FindResource("ToolButton"), Padding = new Thickness(6, 2, 6, 2),
-            Margin = new Thickness(3, 0, 0, 0), FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = 12, IsEnabled = enabled, Focusable = false,
+            Content = glyph, ToolTip = tip, Style = (Style)FindResource("IconButton"), FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = 14,
+            IsEnabled = enabled, Focusable = false,
         };
         button.Click += (_, e) =>
         {
@@ -311,10 +311,17 @@ public partial class MainWindow
         return button;
     }
 
-    private TextBlock Badge(string text, string tip, string brush) => new()
+    /// <summary>Small status chip on a tab row. <paramref name="fill"/> null = outline only.</summary>
+    private Border Chip(string text, string tip, string foreground, string? fill = null) => new()
     {
-        Text = text, ToolTip = tip, Foreground = (Brush)FindResource(brush), FontFamily = new FontFamily("Segoe UI"), FontSize = 10, FontWeight = FontWeights.Bold,
-        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
+        ToolTip = tip, CornerRadius = new CornerRadius(2), Padding = new Thickness(6, 1, 6, 1), Margin = new Thickness(0, 0, 6, 0),
+        Background = fill is null ? Brushes.Transparent : (Brush)FindResource(fill),
+        BorderBrush = (Brush)FindResource(fill ?? foreground), BorderThickness = new Thickness(1),
+        Child = new TextBlock
+        {
+            Text = text, FontFamily = (FontFamily)FindResource("FontBody"), FontSize = 11, FontWeight = FontWeights.Bold,
+            Foreground = fill is null ? (Brush)FindResource(foreground) : fill == "Ok" ? (Brush)FindResource("Bg") : Brushes.White,
+        },
     };
 
     private void RebuildTabList()
@@ -327,21 +334,21 @@ public partial class MainWindow
             var tab = _tabs.Items[i];
             bool active = i == _tabs.ActiveIndex;
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var number = new TextBlock
             {
-                Text = i < 9 ? (i + 1).ToString() : "", Width = 16, Foreground = (Brush)FindResource("Muted"), FontFamily = new FontFamily("Consolas"),
-                FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+                Text = i < 9 ? (i + 1).ToString() : "", Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"),
+                FontSize = 12, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 0, 0),
             };
             grid.Children.Add(number);
 
-            FrameworkElement nameElement;
+            var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             if (_renamingId == tab.Id)
             {
-                var box = new TextBox { Text = tab.Name, Style = (Style)FindResource("Field"), FontFamily = new FontFamily("Segoe UI"), FontSize = 13, Padding = new Thickness(4, 2, 4, 2), MaxLength = TabRules.MaxNameLength + 20 };
+                var box = new TextBox { Text = tab.Name, Style = (Style)FindResource("Field"), FontFamily = (FontFamily)FindResource("FontBody"), FontSize = 14, MinHeight = 30, Padding = new Thickness(6, 0, 6, 0), MaxLength = TabRules.MaxNameLength + 20 };
                 box.Loaded += (_, _) =>
                 {
                     box.Focus();
@@ -376,23 +383,24 @@ public partial class MainWindow
                     _renamingId = null;
                     Dispatcher.BeginInvoke(RebuildTabList);
                 };
-                nameElement = box;
+                content.Children.Add(box);
             }
             else
             {
-                nameElement = new TextBlock
+                content.Children.Add(new TextBlock
                 {
-                    Text = tab.Name, Foreground = (Brush)FindResource("Text"), FontFamily = new FontFamily("Segoe UI"), FontSize = 13,
-                    FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis,
-                    VerticalAlignment = VerticalAlignment.Center, ToolTip = $"{tab.Name}\n{tab.Url}",
-                };
+                    Text = tab.Name, Foreground = (Brush)FindResource("Text"), FontFamily = (FontFamily)FindResource("FontSemi"), FontSize = 15,
+                    TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = $"{tab.Name}\n{tab.Url}",
+                });
             }
-            Grid.SetColumn(nameElement, 1);
-            grid.Children.Add(nameElement);
 
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            var chips = new WrapPanel { Margin = new Thickness(0, 5, 0, 0) };
+            bool onAir = _tabs.PreviewMode ? tab.Id == _tabs.ProgramId : active;
+            bool previewing = _tabs.PreviewMode && active;
+            if (previewing) chips.Children.Add(Chip("PREVIEW", "Tab yang sedang disiapkan di preview", "Ok", "Ok"));
+            else if (onAir) chips.Children.Add(Chip(_tabs.PreviewMode ? "PROGRAM" : "LIVE", "Tab ini yang sedang tayang", "Live", "LiveBg"));
             if (tab.ProfileId is not null)
-                buttons.Children.Add(Badge("PROFIL", "Memakai login sendiri (profil terpisah)", "Muted"));
+                chips.Children.Add(Chip("PROFIL", "Memakai login sendiri (profil terpisah)", "Muted"));
             if (_sessions.TryGetValue(tab.Id, out var session))
             {
                 var (text, brush, tip) = session switch
@@ -401,38 +409,41 @@ public partial class MainWindow
                     SessionState.NeedsLogin => ("PERLU LOGIN", "Warn", "Halaman login atau belum ada cookie sesi (perkiraan)"),
                     _ => ("TANPA LOGIN", "Muted", "Bukan situs web, tidak ada yang perlu login"),
                 };
-                buttons.Children.Add(Badge(text, tip, brush));
+                chips.Children.Add(Chip(text, tip, brush));
             }
             if (_engine?.TabById(tab.Id)?.Problem is { } problem)
-                buttons.Children.Add(Badge("MASALAH", problem, "Live"));
-            bool onAir = _tabs.PreviewMode ? tab.Id == _tabs.ProgramId : active;
-            bool previewing = _tabs.PreviewMode && active;
-            if (onAir || previewing)
-                buttons.Children.Add(new TextBlock
-                {
-                    Text = previewing ? "PREVIEW" : _tabs.PreviewMode ? "PROGRAM" : "TAYANG", Foreground = (Brush)FindResource(previewing ? "Ok" : _tabs.PreviewMode ? "Live" : "Warn"), FontFamily = new FontFamily("Segoe UI"), FontSize = 10, FontWeight = FontWeights.Bold,
-                    VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 4, 0),
-                });
+                chips.Children.Add(Chip("MASALAH", problem, "Live"));
+            if (chips.Children.Count > 0) content.Children.Add(chips);
+            Grid.SetColumn(content, 1);
+            grid.Children.Add(content);
+
             int index = i;
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
             buttons.Children.Add(SmallButton("✎", "Ganti nama (F2)", () => StartRename(tab.Id)));
-            buttons.Children.Add(SmallButton("▲", "Naikkan", () => MoveTab(tab.Id, -1), enabled: index > 0));
-            buttons.Children.Add(SmallButton("▼", "Turunkan", () => MoveTab(tab.Id, +1), enabled: index < _tabs.Items.Count - 1));
             buttons.Children.Add(SmallButton("✕", "Tutup tab (Ctrl+W)", () => _ = CloseTabAsync(tab.Id), enabled: _tabs.CanCloseTab(tab.Id)));
             Grid.SetColumn(buttons, 2);
             grid.Children.Add(buttons);
 
             var row = new Border
             {
-                Child = grid, Padding = new Thickness(8, 4, 4, 4), Margin = new Thickness(0, 0, 0, 4), Cursor = Cursors.Hand,
-                Background = (Brush)FindResource("Raised"), BorderBrush = (Brush)FindResource(previewing ? "Ok" : onAir ? (_tabs.PreviewMode ? "Live" : "Warn") : "LineStrong"), BorderThickness = new Thickness(1),
+                Child = grid, Padding = new Thickness(10, 8, 6, 8), Margin = new Thickness(0, 0, 0, 6), Cursor = Cursors.Hand, CornerRadius = new CornerRadius(3),
+                Background = (Brush)FindResource("Raised"), BorderBrush = (Brush)FindResource(previewing ? "Ok" : onAir ? (_tabs.PreviewMode ? "Live" : "Warn") : "Line"),
+                BorderThickness = new Thickness(previewing || onAir ? 2 : 1),
             };
             var menu = new ContextMenu();
             var rename = new MenuItem { Header = "Ganti nama (F2)" };
             rename.Click += (_, _) => StartRename(tab.Id);
             var separate = new MenuItem { Header = "Profil terpisah (login sendiri)", IsCheckable = true, IsChecked = tab.ProfileId is not null };
             separate.Click += (_, _) => _ = SetSeparateProfileAsync(tab.Id, separate.IsChecked);
+            var up = new MenuItem { Header = "Naikkan", IsEnabled = index > 0 };
+            up.Click += (_, _) => MoveTab(tab.Id, -1);
+            var down = new MenuItem { Header = "Turunkan", IsEnabled = index < _tabs.Items.Count - 1 };
+            down.Click += (_, _) => MoveTab(tab.Id, +1);
             menu.Items.Add(rename);
             menu.Items.Add(separate);
+            menu.Items.Add(new Separator());
+            menu.Items.Add(up);
+            menu.Items.Add(down);
             row.ContextMenu = menu;
             row.MouseLeftButtonUp += (_, e) =>
             {

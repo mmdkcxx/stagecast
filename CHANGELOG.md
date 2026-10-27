@@ -3,6 +3,24 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [0.1.5] - 2026-10-27
+
+### Diubah
+- Antarmuka disesuaikan dengan rancangan di artifact "Stagecast UI": tiga kolom (tab di kiri, preview di tengah, pengaturan
+  di kanan), bar atas dengan status LIVE / FREEZE / BLACKOUT, chip LAYAR / NDI / OMT, dan keterangan resolusi + fps.
+- Tombol TAKE, BLACKOUT, dan FREEZE sekarang besar dan berada tepat di bawah preview (sebelumnya di panel samping).
+- Kolom alamat dan tombol kembali/maju/muat ulang pindah ke atas preview.
+- Font Barlow dan IBM Plex Mono (lisensi OFL) disertakan; kontrol bergaya baru: tombol segmen (Langsung / Preview + Take,
+  Fit / 100%, FPS, Peras / Fit / 1:1), kolom isian, kotak centang, slider, scrollbar, tooltip, dan menu klik kanan yang gelap.
+- Baris tab dua baris dengan chip status (LIVE, PREVIEW, PROFIL, SESI, MASALAH). Tombol naik/turun pindah ke menu klik kanan.
+- Tombol nyalakan Output/NDI/OMT tampil sebagai tombol sekunder agar tidak terlalu mencolok.
+- Lebar minimum jendela naik menjadi 1180 px; panel kanan 360 px supaya teks tombol tidak terpotong.
+- Teks memakai mode tampilan yang dipetakan ke piksel (lebih rata dan jelas pada DPI 100%), ukuran teks kecil dinaikkan.
+- Uji A2b: toleransi klik pada tampilan Fit mengikuti skala preview (satu piksel preview = beberapa piksel halaman).
+
+### Belum ada dibanding rancangan
+- Thumbnail tab, outline tally di sekeliling preview, dan bagian Output yang bisa dilipat.
+
 ## [0.1.4] - 2026-10-27
 
 ### Diubah

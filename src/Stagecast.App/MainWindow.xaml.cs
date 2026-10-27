@@ -85,6 +85,12 @@ public partial class MainWindow : Window
             statsTimer.Tick += (_, _) => UpdateStats();
             statsTimer.Start();
 
+            var headerTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            headerTimer.Tick += (_, _) => RefreshHeader();
+            headerTimer.Start();
+            RefreshHeader();
+            _ = Dispatcher.BeginInvoke(() => SideScroll.ScrollToTop(), DispatcherPriority.ApplicationIdle);
+
             if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.Active, "about:blank", TimeSpan.FromSeconds(20));
 
             if (_context.SelfTest is not null) {
@@ -97,6 +103,33 @@ public partial class MainWindow : Window
             _logger.LogError(ex, "Starting the render engine failed");
             StatusText.Text = $"Gagal memulai mesin render: {ex.Message}";
         }
+    }
+
+    /// <summary>Top bar: on-air state (LIVE / FREEZE / BLACKOUT) and which outputs are running.</summary>
+    private void RefreshHeader()
+    {
+        if (_engine is null) return;
+        bool screen = _output is not null, ndi = _ndi is not null, omt = _omt is not null;
+        string label, fill, foreground;
+        if (!(screen || ndi || omt)) (label, fill, foreground) = ("OUTPUT MATI", "Raised", "Muted");
+        else if (BlackoutButton.IsChecked == true) (label, fill, foreground) = ("BLACKOUT", "Text", "Bg");
+        else if (FreezeButton.IsChecked == true) (label, fill, foreground) = ("FREEZE", "Warn", "WarnFg");
+        else (label, fill, foreground) = ("LIVE", "LiveBg", "Text");
+        StatusPill.Background = (Brush)FindResource(fill);
+        StatusPillText.Text = label;
+        StatusPillText.Foreground = (Brush)FindResource(label == "LIVE" ? "Text" : foreground);
+        StatusDot.Fill = (Brush)FindResource(label == "LIVE" ? "Text" : foreground);
+        SetChip(ChipScreenDot, ChipScreenState, screen);
+        SetChip(ChipNdiDot, ChipNdiState, ndi);
+        SetChip(ChipOmtDot, ChipOmtState, omt);
+        ResText.Text = $"{_engine.Resolution.Width} × {_engine.Resolution.Height} · {_engine.Fps} fps";
+    }
+
+    private void SetChip(System.Windows.Shapes.Shape dot, TextBlock state, bool on)
+    {
+        dot.Fill = (Brush)FindResource(on ? "Ok" : "LineStrong");
+        state.Text = on ? "nyala" : "mati";
+        state.Foreground = (Brush)FindResource(on ? "Text" : "Muted");
     }
 
     private void UpdateStats()
@@ -279,7 +312,7 @@ public partial class MainWindow : Window
 
     private TextBlock PanelText(string text, bool muted = false, double size = 13) => new()
     {
-        Text = text, TextWrapping = TextWrapping.Wrap, FontFamily = new FontFamily("Segoe UI"), FontSize = size,
+        Text = text, TextWrapping = TextWrapping.Wrap, FontFamily = (FontFamily)FindResource("FontBody"), FontSize = size,
         Foreground = (Brush)FindResource(muted ? "Muted" : "Text"),
     };
 
@@ -287,7 +320,7 @@ public partial class MainWindow : Window
     {
         if (_engine is null) return;
         var resolution = _engine.Resolution;
-        var name = new TextBox { Style = (Style)FindResource("Field"), MaxLength = PresetRules.MaxNameLength + 8, FontFamily = new FontFamily("Segoe UI"), FontSize = 14, Margin = new Thickness(0, 6, 0, 6) };
+        var name = new TextBox { Style = (Style)FindResource("Field"), MaxLength = PresetRules.MaxNameLength + 8, FontFamily = (FontFamily)FindResource("FontBody"), FontSize = 14, Margin = new Thickness(0, 6, 0, 6) };
         var error = PanelText("");
         error.Foreground = (Brush)FindResource("Warn");
         void Save()
@@ -440,7 +473,7 @@ public partial class MainWindow : Window
     {
         bool enlarged = EnlargeButton.IsChecked == true;
         SidePanel.Visibility = enlarged ? Visibility.Collapsed : Visibility.Visible;
-        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(340);
+        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(360);
     }
 
     private void OnMore(object sender, RoutedEventArgs e)

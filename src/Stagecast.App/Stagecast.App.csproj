@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>Stagecast.App</RootNamespace>
     <AssemblyName>Stagecast</AssemblyName>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>stagecast.ico</ApplicationIcon>
   </PropertyGroup>
@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <Resource Include="stagecast.ico" />
+    <Resource Include="Fonts\*.ttf" />
+    <None Include="Fonts\*-OFL.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

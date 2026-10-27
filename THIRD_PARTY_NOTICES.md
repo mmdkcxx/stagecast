@@ -10,6 +10,7 @@ Stagecast is an internal tool. It uses the components below; their licenses stay
 | NAudio.Wasapi | playing audio on a local device | MIT |
 | Serilog, Serilog.Extensions.Logging, Serilog.Sinks.File | logging | Apache-2.0 |
 | Open Media Transport: `libomtnet.dll`, `libvmx.dll` (in `third_party/omt`) | OMT output for vMix | MIT, copyright Open Media Transport Contributors (`third_party/omt/LICENSE.txt`) |
-| NDI® runtime (not included; installed by the user from https://ndi.video) | NDI output | NDI® is a registered trademark of Vizrt NDI AB. Stagecast loads the NDI runtime installed on the machine and does not redistribute it. |
+| Barlow, IBM Plex Mono (fonts in `src/Stagecast.App/Fonts`, bundled in the app) | interface typefaces | SIL Open Font License 1.1 (`Barlow-OFL.txt`, `IBMPlexMono-OFL.txt`, also in `licenses/` of the install) |
+| NDI® runtime (not included; the installer downloads it from NDI at install time, or it is installed by the user from https://ndi.video) | NDI output | NDI® is a registered trademark of Vizrt NDI AB. Stagecast loads the NDI runtime installed on the machine and does not redistribute it. |
 
 Exact package versions are in the `.csproj` files.

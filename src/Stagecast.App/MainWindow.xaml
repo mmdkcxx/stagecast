@@ -2,205 +2,292 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Stagecast.App"
-        Title="Stagecast" Icon="stagecast.ico" Width="1280" Height="760" MinWidth="900" MinHeight="560"
-        Background="{StaticResource Bg}" WindowStartupLocation="CenterScreen">
+        Title="Stagecast" Icon="stagecast.ico" Width="1440" Height="860" MinWidth="1180" MinHeight="640"
+        Background="{StaticResource Bg}" FontFamily="{StaticResource FontBody}" FontSize="15" Foreground="{StaticResource Text}" TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType" UseLayoutRounding="True" WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52"/>
+            <RowDefinition Height="64"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
-            <DockPanel Margin="16,0">
-                <TextBlock Text="STAGECAST" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,24,0"/>
-                <TextBlock x:Name="VersionText" DockPanel.Dock="Right" Foreground="{StaticResource Muted}" FontFamily="Consolas" FontSize="13" VerticalAlignment="Center" Margin="16,0,0,0"/>
-                <TextBox x:Name="UrlBox" Style="{StaticResource Field}" VerticalAlignment="Center" ToolTip="Alamat halaman. Tekan Enter untuk memuat." KeyDown="OnUrlKeyDown"/>
+            <DockPanel Margin="20,0">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="ResText" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VersionText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Stagecast" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontBody}" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Border Width="1" Height="28" Background="{StaticResource Line}" Margin="16,0,14,0"/>
+                    <Border x:Name="StatusPill" Height="38" CornerRadius="3" Background="{StaticResource Raised}" Padding="14,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{StaticResource Muted}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="StatusPillText" Text="OUTPUT MATI" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontBody}" FontSize="16" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Height="38" CornerRadius="3" Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12,0" Margin="8,0,0,0" ToolTip="Output layar penuh">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="ChipScreenDot" Width="8" Height="8" Fill="{StaticResource LineStrong}" VerticalAlignment="Center"/>
+                            <TextBlock Text="LAYAR" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ChipScreenState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Height="38" CornerRadius="3" Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12,0" Margin="8,0,0,0" ToolTip="Keluaran NDI">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="ChipNdiDot" Width="8" Height="8" Fill="{StaticResource LineStrong}" VerticalAlignment="Center"/>
+                            <TextBlock Text="NDI" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ChipNdiState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Height="38" CornerRadius="3" Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12,0" Margin="8,0,0,0" ToolTip="Keluaran OMT (vMix)">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="ChipOmtDot" Width="8" Height="8" Fill="{StaticResource LineStrong}" VerticalAlignment="Center"/>
+                            <TextBlock Text="OMT" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ChipOmtState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </DockPanel>
         </Border>
 
-        <Border x:Name="Banner" Grid.Row="1" Visibility="Collapsed" Background="#2A2415" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="16,10">
+        <Border x:Name="Banner" Grid.Row="1" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Terapkan" Style="{StaticResource ActionButton}" Margin="8,0,0,0" Click="OnBannerApply"/>
-                <Button DockPanel.Dock="Right" Content="Batal" Style="{StaticResource ActionButton}" Click="OnBannerCancel"/>
+                <Button DockPanel.Dock="Right" Content="Batal" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnBannerCancel"/>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="BannerTitle" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="14" FontWeight="Bold"/>
-                    <TextBlock x:Name="BannerDetail" Foreground="{StaticResource Text}" FontFamily="Consolas" FontSize="13" Margin="0,2,0,0"/>
+                    <TextBlock x:Name="BannerTitle" Foreground="{StaticResource Warn}" FontSize="14" FontWeight="Bold"/>
+                    <TextBlock x:Name="BannerDetail" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="13" Margin="0,2,0,0"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="TabColumn" Width="300"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="SideColumn" Width="340"/>
+                <ColumnDefinition x:Name="SideColumn" Width="360"/>
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0" Margin="16">
+            <!-- Left: tabs and logins -->
+            <Border Grid.Column="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <DockPanel Margin="2,0,0,10">
+                            <Button DockPanel.Dock="Right" Content="+ Tab" Style="{StaticResource ToolButton}" Margin="0" Padding="12,0" MinHeight="34" Click="OnAddTab" ToolTip="Tab baru (Ctrl+T)"/>
+                            <TextBlock Text="TAB" Style="{StaticResource Label}" Margin="0" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Border BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="3" ClipToBounds="True" Margin="0,0,0,10">
+                            <UniformGrid Rows="1">
+                                <ToggleButton x:Name="ModeDirectButton" Content="Langsung" Style="{StaticResource SegToggle}" Click="OnModeDirect" ToolTip="Tab yang dipilih langsung tayang"/>
+                                <ToggleButton x:Name="ModePreviewButton" Content="Preview + Take" Style="{StaticResource SegToggle}" Click="OnModePreview"
+                                              ToolTip="Siapkan tab di preview, lalu TAKE untuk menayangkannya. Butuh minimal dua tab."/>
+                            </UniformGrid>
+                        </Border>
+                        <StackPanel x:Name="TabListPanel"/>
+                        <TextBlock x:Name="TabError" Style="{StaticResource Hint}" Foreground="{StaticResource Warn}" Margin="2,4,0,0"/>
+
+                        <Border Height="1" Background="{StaticResource Line}" Margin="0,16,0,16"/>
+
+                        <TextBlock Text="SESI LOGIN" Style="{StaticResource Label}" Margin="2,0,0,8"/>
+                        <UniformGrid Rows="1" Margin="0,0,0,8">
+                            <Button Content="Cek sesi" Style="{StaticResource ToolButton}" Margin="0,0,4,0" Click="OnCheckSessions" ToolTip="Tandai tiap tab: SESI AKTIF, PERLU LOGIN, atau TANPA LOGIN (perkiraan; tetap periksa di preview)"/>
+                            <Button Content="Hapus data login" Style="{StaticResource ToolButton}" Margin="4,0,0,0" Click="OnClearLogins" ToolTip="Keluar dari semua situs di semua tab"/>
+                        </UniformGrid>
+                        <TextBlock x:Name="SessionNote" Style="{StaticResource Hint}" Margin="2,0,0,0"
+                                   Text="Login di tab yang sedang tidak tayang supaya ketikan tidak terlihat penonton. Klik kanan tab untuk memberi login sendiri (profil terpisah)."/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Centre: address, view controls, preview, on-air controls -->
+            <Grid Grid.Column="1" Margin="20">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
-                    <Button x:Name="BackButton" Content="Kembali" Style="{StaticResource ToolButton}" Click="OnBack" ToolTip="Halaman sebelumnya"/>
-                    <Button x:Name="ForwardButton" Content="Maju" Style="{StaticResource ToolButton}" Click="OnForward" ToolTip="Halaman berikutnya"/>
-                    <Button x:Name="ReloadButton" Content="Muat ulang" Style="{StaticResource ToolButton}" Click="OnReload"/>
-                    <Border Width="1" Background="{StaticResource Line}" Margin="6,2,12,2"/>
-                    <ToggleButton x:Name="FitButton" Content="Fit" Style="{StaticResource ToolToggle}" Click="OnFit" ToolTip="Seluruh halaman muat di preview"/>
-                    <ToggleButton x:Name="ActualButton" Content="100%" Style="{StaticResource ToolToggle}" Click="OnActual" ToolTip="Ukuran asli; geser dengan seret atau Space + seret"/>
-                    <Button x:Name="MoreButton" Content="···" Style="{StaticResource ToolButton}" Click="OnMore" ToolTip="Zoom halaman"/>
-                    <TextBlock x:Name="ZoomLabel" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="2,0,0,0"
-                               ToolTip="Zoom halaman mengubah isi halaman yang keluar, bukan hanya preview"/>
-                    <Button x:Name="DetachButton" DockPanel.Dock="Right" Content="Jendela terpisah" Style="{StaticResource ToolButton}" Margin="0" Click="OnDetach" ToolTip="Pindahkan preview ke jendela sendiri (untuk monitor lain)"/>
-                    <ToggleButton x:Name="EnlargeButton" DockPanel.Dock="Right" Content="Perbesar" Style="{StaticResource ToolToggle}" Click="OnEnlarge" ToolTip="Sembunyikan panel kanan"/>
-                    <ToggleButton x:Name="InteractButton" DockPanel.Dock="Right" Content="Interaksi" Style="{StaticResource ToolToggle}" Click="OnInteract" ToolTip="Teruskan klik, gulir, dan ketik ke halaman. Esc melepas keyboard dari halaman."/>
+                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                    <Button x:Name="BackButton" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnBack" ToolTip="Halaman sebelumnya" AutomationProperties.Name="Kembali">
+                        <Path Data="M13,8 H3 M7,4 L3,8 L7,12" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ButtonBase}}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="None"/>
+                    </Button>
+                    <Button x:Name="ForwardButton" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnForward" ToolTip="Halaman berikutnya" AutomationProperties.Name="Maju">
+                        <Path Data="M3,8 H13 M9,4 L13,8 L9,12" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ButtonBase}}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="None"/>
+                    </Button>
+                    <Button x:Name="ReloadButton" DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="6,0,0,0" Click="OnReload" ToolTip="Muat ulang" AutomationProperties.Name="Muat ulang">
+                        <Path Data="M13,8 A5,5 0 1 1 11.4,4.3 M13,2 V5 H10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ButtonBase}}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="None"/>
+                    </Button>
+                    <TextBox x:Name="UrlBox" Style="{StaticResource Field}" MinHeight="38" Margin="4,0,0,0" ToolTip="Alamat halaman. Tekan Enter untuk memuat." KeyDown="OnUrlKeyDown"/>
                 </DockPanel>
 
-                <Border x:Name="PreviewHost" Grid.Row="1" Background="Black" BorderBrush="{StaticResource Line}" BorderThickness="1">
+                <DockPanel Grid.Row="1" Margin="0,0,0,12" LastChildFill="False">
+                    <Border BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="3" ClipToBounds="True" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton x:Name="FitButton" Content="Fit" Style="{StaticResource SegToggle}" MinWidth="56" Click="OnFit" ToolTip="Seluruh halaman muat di preview"/>
+                            <ToggleButton x:Name="ActualButton" Content="100%" Style="{StaticResource SegToggle}" MinWidth="56" Click="OnActual" ToolTip="Ukuran asli; geser dengan seret atau Space + seret"/>
+                        </StackPanel>
+                    </Border>
+                    <Button x:Name="MoreButton" Content="···" Style="{StaticResource ToolButton}" Margin="0,0,8,0" Click="OnMore" ToolTip="Zoom halaman"/>
+                    <TextBlock x:Name="ZoomLabel" Foreground="{StaticResource Warn}" FontFamily="{StaticResource FontSemi}" FontSize="13" VerticalAlignment="Center"
+                               ToolTip="Zoom halaman mengubah isi halaman yang keluar, bukan hanya preview"/>
+                    <Button x:Name="DetachButton" DockPanel.Dock="Right" Content="Jendela terpisah" Style="{StaticResource ToolButton}" Margin="0" Click="OnDetach" ToolTip="Pindahkan preview ke jendela sendiri (untuk monitor lain)"/>
+                    <ToggleButton x:Name="EnlargeButton" DockPanel.Dock="Right" Content="Perbesar" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnEnlarge" ToolTip="Sembunyikan panel kanan"/>
+                    <ToggleButton x:Name="InteractButton" DockPanel.Dock="Right" Content="Interaksi" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnInteract" ToolTip="Teruskan klik, gulir, dan ketik ke halaman. Esc melepas keyboard dari halaman."/>
+                </DockPanel>
+
+                <Border x:Name="PreviewHost" Grid.Row="2" Background="Black" BorderBrush="{StaticResource Line}" BorderThickness="1">
                     <local:PagePreview x:Name="PagePreviewView"/>
                 </Border>
-                <TextBlock x:Name="DetachedNote" Grid.Row="1" Text="Preview ada di jendela terpisah. Tutup jendelanya untuk mengembalikan ke sini." Visibility="Collapsed"
-                           Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="DetachedNote" Grid.Row="2" Text="Preview ada di jendela terpisah. Tutup jendelanya untuk mengembalikan ke sini." Visibility="Collapsed"
+                           Foreground="{StaticResource Muted}" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                <Grid Grid.Row="3" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="TakeButton" Grid.Column="0" Content="TAKE" Visibility="Collapsed" Style="{StaticResource TakeButton}" MinWidth="200" Margin="0,0,12,0" Click="OnTake" ToolTip="Tayangkan tab preview (Spasi)"/>
+                    <ToggleButton x:Name="BlackoutButton" Grid.Column="1" Content="BLACKOUT" Style="{StaticResource BigToggle}" Margin="0,0,6,0" Click="OnBlackout" ToolTip="Layar penonton jadi hitam; halaman tetap berjalan (Ctrl+Shift+B)"/>
+                    <ToggleButton x:Name="FreezeButton" Grid.Column="2" Content="FREEZE" Style="{StaticResource BigToggle}" Margin="6,0,0,0" Click="OnFreeze" ToolTip="Layar penonton menahan gambar terakhir; halaman tetap berjalan dan bisa dioperasikan (Ctrl+Shift+F)"/>
+                </Grid>
             </Grid>
 
-            <Border x:Name="SidePanel" Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="16">
-                    <DockPanel Margin="0,0,0,8">
-                        <Button DockPanel.Dock="Right" Content="+ Tab" Style="{StaticResource ToolButton}" Margin="0" Click="OnAddTab" ToolTip="Tab baru (Ctrl+T)"/>
-                        <TextBlock Text="TAB" Style="{StaticResource Label}" Margin="0" VerticalAlignment="Center"/>
-                    </DockPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <ToggleButton x:Name="ModeDirectButton" Content="Langsung" Style="{StaticResource ToolToggle}" Click="OnModeDirect" ToolTip="Tab yang dipilih langsung tayang"/>
-                        <ToggleButton x:Name="ModePreviewButton" Content="Preview + Take" Style="{StaticResource ToolToggle}" Click="OnModePreview"
-                                      ToolTip="Siapkan tab di preview, lalu TAKE untuk menayangkannya. Butuh minimal dua tab."/>
-                        <Button x:Name="TakeButton" Content="TAKE" Visibility="Collapsed" Margin="6,0,0,0" Padding="16,5" Background="{StaticResource Live}" Foreground="White"
-                                BorderBrush="{StaticResource Live}" FontFamily="Segoe UI" FontSize="13" FontWeight="Bold" Click="OnTake" ToolTip="Tayangkan tab preview (Spasi)"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <ToggleButton x:Name="BlackoutButton" Content="BLACKOUT" Style="{StaticResource ToolToggle}" Click="OnBlackout" ToolTip="Layar penonton jadi hitam; halaman tetap berjalan (Ctrl+Shift+B)"/>
-                        <ToggleButton x:Name="FreezeButton" Content="FREEZE" Style="{StaticResource ToolToggle}" Click="OnFreeze" ToolTip="Layar penonton menahan gambar terakhir; halaman tetap berjalan dan bisa dioperasikan (Ctrl+Shift+F)"/>
-                    </StackPanel>
-                    <StackPanel x:Name="TabListPanel"/>
-                    <TextBlock x:Name="TabError" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                    <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>
+            <!-- Right: render, outputs, audio -->
+            <Border x:Name="SidePanel" Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
+                <ScrollViewer x:Name="SideScroll" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- RENDER -->
+                    <StackPanel Margin="20">
+                        <TextBlock Text="RENDER · UNTUK SEMUA OUTPUT" Style="{StaticResource Label}"/>
+                        <Button x:Name="PresetButton" Style="{StaticResource ToolButton}" Margin="0,0,0,10" HorizontalContentAlignment="Left" Click="OnPresetMenu" ToolTip="Pilih resolusi tersimpan"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="WidthBox" Style="{StaticResource Field}" Grid.Column="0" FontSize="16" ToolTip="Lebar dalam piksel (100-8192)" KeyDown="OnResolutionKeyDown"/>
+                            <TextBlock Grid.Column="1" Text="×" Foreground="{StaticResource Muted}" FontSize="18" VerticalAlignment="Center" Margin="10,0"/>
+                            <TextBox x:Name="HeightBox" Style="{StaticResource Field}" Grid.Column="2" FontSize="16" ToolTip="Tinggi dalam piksel (100-8192)" KeyDown="OnResolutionKeyDown"/>
+                        </Grid>
+                        <Grid Margin="0,10,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="ApplyButton" Content="Terapkan" Style="{StaticResource ActionButton}" Margin="0,0,8,0" Click="OnApplyResolution"/>
+                            <Button Grid.Column="1" Content="Simpan preset" Style="{StaticResource ToolButton}" Margin="0,0,8,0" Click="OnSavePreset" ToolTip="Simpan resolusi yang sedang dipakai sebagai preset"/>
+                            <Button Grid.Column="2" Content="Kelola" Style="{StaticResource ToolButton}" Margin="0" Click="OnManagePresets"/>
+                        </Grid>
+                        <Border x:Name="PresetPanel" Visibility="Collapsed" Margin="0,2,0,0" Padding="12" CornerRadius="3" Background="{StaticResource Bg}" BorderBrush="{StaticResource LineStrong}" BorderThickness="1">
+                            <StackPanel x:Name="PresetPanelBody"/>
+                        </Border>
+                        <TextBlock x:Name="ResolutionError" Style="{StaticResource Hint}" Foreground="{StaticResource Warn}" FontSize="13" Margin="0,4,0,0"/>
 
-                    <TextBlock Text="SESI LOGIN" Style="{StaticResource Label}"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="Cek sesi" Style="{StaticResource ToolButton}" Click="OnCheckSessions" ToolTip="Tandai tiap tab: SESI AKTIF, PERLU LOGIN, atau TANPA LOGIN (perkiraan; tetap periksa di preview)"/>
-                        <Button Content="Hapus data login" Style="{StaticResource ToolButton}" Margin="0" Click="OnClearLogins" ToolTip="Keluar dari semua situs di semua tab"/>
-                    </StackPanel>
-                    <TextBlock x:Name="SessionNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
-                               Text="Login di tab yang sedang tidak tayang supaya ketikan tidak terlihat penonton. Klik kanan tab untuk memberi login sendiri (profil terpisah)."/>
-                    <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>
-
-                    <TextBlock Text="RESOLUSI" Style="{StaticResource Label}"/>
-                    <Button x:Name="PresetButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnPresetMenu" ToolTip="Pilih resolusi tersimpan"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="WidthBox" Style="{StaticResource Field}" Grid.Column="0" ToolTip="Lebar dalam piksel (100-8192)" KeyDown="OnResolutionKeyDown"/>
-                        <TextBlock Grid.Column="1" Text="×" Foreground="{StaticResource Muted}" FontSize="16" VerticalAlignment="Center" Margin="8,0"/>
-                        <TextBox x:Name="HeightBox" Style="{StaticResource Field}" Grid.Column="2" ToolTip="Tinggi dalam piksel (100-8192)" KeyDown="OnResolutionKeyDown"/>
-                    </Grid>
-                    <WrapPanel Margin="0,10,0,0">
-                        <Button x:Name="ApplyButton" Content="Terapkan" Style="{StaticResource ActionButton}" Margin="0,0,8,6" Click="OnApplyResolution"/>
-                        <Button Content="Simpan preset" Style="{StaticResource ToolButton}" Margin="0,0,8,6" Click="OnSavePreset" ToolTip="Simpan resolusi yang sedang dipakai sebagai preset"/>
-                        <Button Content="Kelola" Style="{StaticResource ToolButton}" Margin="0,0,0,6" Click="OnManagePresets"/>
-                    </WrapPanel>
-                    <Border x:Name="PresetPanel" Visibility="Collapsed" Margin="0,10,0,0" Padding="10" Background="{StaticResource Raised}" BorderBrush="{StaticResource LineStrong}" BorderThickness="1">
-                        <StackPanel x:Name="PresetPanelBody"/>
-                    </Border>
-                    <TextBlock x:Name="ResolutionError" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="13" TextWrapping="Wrap" Margin="0,8,0,0"/>
-
-                    <TextBlock Text="FPS" Style="{StaticResource Label}" Margin="0,24,0,6"/>
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton x:Name="Fps30" Content="30" GroupName="fps" Style="{StaticResource Choice}" Checked="OnFpsChecked"/>
-                        <RadioButton x:Name="Fps60" Content="60" GroupName="fps" Style="{StaticResource Choice}" Checked="OnFpsChecked"/>
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock Text="FPS" Style="{StaticResource Label}" Margin="0,0,14,0" VerticalAlignment="Center" Width="36"/>
+                            <Border BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="3" ClipToBounds="True">
+                                <UniformGrid Rows="1">
+                                    <RadioButton x:Name="Fps30" Content="30" GroupName="fps" Style="{StaticResource SegRadio}" FontSize="16" Checked="OnFpsChecked"/>
+                                    <RadioButton x:Name="Fps60" Content="60" GroupName="fps" Style="{StaticResource SegRadio}" FontSize="16" Checked="OnFpsChecked"/>
+                                </UniformGrid>
+                            </Border>
+                        </DockPanel>
                     </StackPanel>
 
-                    <TextBlock Text="LAYAR PENUH" Style="{StaticResource Label}" Margin="0,24,0,6"/>
-                    <Button x:Name="MonitorButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnMonitorMenu" ToolTip="Pilih monitor tujuan output"/>
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton x:Name="ScaleSqueeze" Content="Peras" GroupName="scale" Style="{StaticResource Choice}" Checked="OnScaleChecked" ToolTip="Anamorfik: seluruh gambar diperas ke monitor, dilebarkan kembali di Resolume/vMix"/>
-                        <RadioButton x:Name="ScaleFit" Content="Fit" GroupName="scale" Style="{StaticResource Choice}" Checked="OnScaleChecked" ToolTip="Skala seragam, sisa layar hitam"/>
-                        <RadioButton x:Name="ScaleOne" Content="1:1" GroupName="scale" Style="{StaticResource Choice}" Checked="OnScaleChecked" ToolTip="Satu piksel render = satu piksel monitor; yang lebih besar terpotong"/>
+                    <Border Height="1" Background="{StaticResource Line}"/>
+
+                    <!-- LAYAR PENUH -->
+                    <StackPanel Margin="20">
+                        <TextBlock Text="LAYAR PENUH" Style="{StaticResource Label}"/>
+                        <Button x:Name="MonitorButton" Style="{StaticResource ToolButton}" Margin="0,0,0,10" HorizontalContentAlignment="Left" Click="OnMonitorMenu" ToolTip="Pilih monitor tujuan output"/>
+                        <Border BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="3" ClipToBounds="True">
+                            <UniformGrid Rows="1">
+                                <RadioButton x:Name="ScaleSqueeze" Content="Peras" GroupName="scale" Style="{StaticResource SegRadio}" Checked="OnScaleChecked" ToolTip="Anamorfik: seluruh gambar diperas ke monitor, dilebarkan kembali di Resolume/vMix"/>
+                                <RadioButton x:Name="ScaleFit" Content="Fit" GroupName="scale" Style="{StaticResource SegRadio}" Checked="OnScaleChecked" ToolTip="Skala seragam, sisa layar hitam"/>
+                                <RadioButton x:Name="ScaleOne" Content="1:1" GroupName="scale" Style="{StaticResource SegRadio}" Checked="OnScaleChecked" ToolTip="Satu piksel render = satu piksel monitor; yang lebih besar terpotong"/>
+                            </UniformGrid>
+                        </Border>
+                        <TextBlock x:Name="ScaleInfo" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,10,0,0"/>
+                        <CheckBox x:Name="OnTopBox" Content="Selalu di atas" Margin="0,12,0,0" IsChecked="True"
+                                  Checked="OnOnTopChanged" Unchecked="OnOnTopChanged" ToolTip="Output menutupi jendela lain di monitor itu, termasuk bar tugas"/>
+                        <Button x:Name="OutputButton" Content="Nyalakan output" Style="{StaticResource ToolButton}" Margin="0,14,0,0" Click="OnToggleOutput"/>
+                        <TextBlock x:Name="OutputNote" Style="{StaticResource Hint}" Margin="0,8,0,0" Text="Matikan darurat dari mana saja: Ctrl+Alt+H."/>
                     </StackPanel>
-                    <TextBlock x:Name="ScaleInfo" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
-                    <CheckBox x:Name="OnTopBox" Content="Selalu di atas" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="13" Margin="0,10,0,0" IsChecked="True"
-                              Checked="OnOnTopChanged" Unchecked="OnOnTopChanged" ToolTip="Output menutupi jendela lain di monitor itu, termasuk bar tugas"/>
-                    <Button x:Name="OutputButton" Content="Nyalakan output" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleOutput"/>
-                    <TextBlock x:Name="OutputNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
-                               Text="Matikan darurat dari mana saja: Ctrl+Alt+H."/>
 
-                    <TextBlock Text="NDI" Style="{StaticResource Label}" Margin="0,24,0,6"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="NdiNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix / NDI Monitor" KeyDown="OnNdiNameKeyDown"/>
-                        <Button Grid.Column="1" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnNdiRename" ToolTip="Mengganti nama saat NDI nyala membuat sumber dibuat ulang"/>
-                    </Grid>
-                    <Button x:Name="NdiButton" Content="Nyalakan NDI" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleNdi"/>
-                    <TextBlock x:Name="NdiStatus" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                    <TextBlock Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
-                               Text="Mengirim ukuran render asli (tidak diperas) beserta audio. NDI® adalah merek dagang terdaftar dari Vizrt NDI AB. ndi.video"/>
+                    <Border Height="1" Background="{StaticResource Line}"/>
 
-                    <TextBlock Text="OMT (vMix)" Style="{StaticResource Label}" Margin="0,24,0,6"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox x:Name="OmtNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix (vMix 29+)" KeyDown="OnOmtNameKeyDown"/>
-                        <Button Grid.Column="1" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnOmtRename" ToolTip="Mengganti nama saat OMT nyala membuat sumber dibuat ulang"/>
-                    </Grid>
-                    <Button x:Name="OmtButton" Content="Nyalakan OMT" Style="{StaticResource ActionButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToggleOmt"/>
-                    <TextBlock x:Name="OmtStatus" Foreground="{StaticResource Text}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                    <TextBlock Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
-                               Text="Mengirim ukuran render asli (tidak diperas) beserta audio. Open Media Transport (MIT)."/>
+                    <!-- NDI -->
+                    <StackPanel Margin="20">
+                        <TextBlock Text="NDI" Style="{StaticResource Label}"/>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnNdiRename" ToolTip="Mengganti nama saat NDI nyala membuat sumber dibuat ulang"/>
+                            <TextBox x:Name="NdiNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix / NDI Monitor" KeyDown="OnNdiNameKeyDown"/>
+                        </DockPanel>
+                        <Button x:Name="NdiButton" Content="Nyalakan NDI" Style="{StaticResource ToolButton}" Margin="0,12,0,0" Click="OnToggleNdi"/>
+                        <TextBlock x:Name="NdiStatus" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,8,0,0"/>
+                        <TextBlock Style="{StaticResource Hint}" FontSize="12" Margin="0,4,0,0"
+                                   Text="Mengirim ukuran render asli (tidak diperas) beserta audio. NDI® adalah merek dagang terdaftar dari Vizrt NDI AB. ndi.video"/>
+                    </StackPanel>
 
-                    <TextBlock Text="AUDIO" Style="{StaticResource Label}" Margin="0,24,0,6"/>
-                    <Button x:Name="AudioDeviceButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnAudioDeviceMenu" ToolTip="Perangkat keluaran audio lokal"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" ValueChanged="OnVolumeChanged" ToolTip="Volume keluaran"/>
-                        <ToggleButton x:Name="MuteButton" Grid.Column="1" Content="Bisu" Style="{StaticResource ToolToggle}" Margin="10,0,0,0" Click="OnMuteClick" ToolTip="Bisukan semua keluaran audio"/>
-                    </Grid>
-                    <Grid Margin="0,10,0,0" Height="14">
-                        <Border Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1">
+                    <Border Height="1" Background="{StaticResource Line}"/>
+
+                    <!-- OMT -->
+                    <StackPanel Margin="20">
+                        <TextBlock Text="OMT (vMix)" Style="{StaticResource Label}"/>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnOmtRename" ToolTip="Mengganti nama saat OMT nyala membuat sumber dibuat ulang"/>
+                            <TextBox x:Name="OmtNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix (vMix 29+)" KeyDown="OnOmtNameKeyDown"/>
+                        </DockPanel>
+                        <Button x:Name="OmtButton" Content="Nyalakan OMT" Style="{StaticResource ToolButton}" Margin="0,12,0,0" Click="OnToggleOmt"/>
+                        <TextBlock x:Name="OmtStatus" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,8,0,0"/>
+                        <TextBlock Style="{StaticResource Hint}" FontSize="12" Margin="0,4,0,0"
+                                   Text="Mengirim ukuran render asli (tidak diperas) beserta audio. Open Media Transport (MIT)."/>
+                    </StackPanel>
+
+                    <Border Height="1" Background="{StaticResource Line}"/>
+
+                    <!-- AUDIO -->
+                    <StackPanel Margin="20">
+                        <TextBlock Text="AUDIO" Style="{StaticResource Label}"/>
+                        <Button x:Name="AudioDeviceButton" Style="{StaticResource ToolButton}" Margin="0,0,0,10" HorizontalContentAlignment="Left" Click="OnAudioDeviceMenu" ToolTip="Perangkat keluaran audio lokal"/>
+                        <DockPanel>
+                            <ToggleButton x:Name="MuteButton" DockPanel.Dock="Right" Content="Bisu" Style="{StaticResource ToolToggle}" Margin="12,0,0,0" MinWidth="64" Click="OnMuteClick" ToolTip="Bisukan semua keluaran audio"/>
+                            <Slider x:Name="VolumeSlider" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" ValueChanged="OnVolumeChanged" ToolTip="Volume keluaran"/>
+                        </DockPanel>
+                        <Border Margin="0,12,0,0" Height="14" CornerRadius="3" Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" ClipToBounds="True">
                             <Grid>
-                                <Rectangle x:Name="MeterLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Height="5" Width="0" Fill="{StaticResource Ok}" Margin="0,0,0,0"/>
-                                <Rectangle x:Name="MeterRight" HorizontalAlignment="Left" VerticalAlignment="Bottom" Height="5" Width="0" Fill="{StaticResource Ok}" Margin="0,0,0,0"/>
+                                <Rectangle x:Name="MeterLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Height="5" Width="0" Fill="{StaticResource Ok}"/>
+                                <Rectangle x:Name="MeterRight" HorizontalAlignment="Left" VerticalAlignment="Bottom" Height="5" Width="0" Fill="{StaticResource Ok}"/>
                             </Grid>
                         </Border>
-                    </Grid>
-                    <TextBlock x:Name="AudioStatus" Foreground="{StaticResource Text}" FontFamily="Consolas" FontSize="12" Margin="0,4,0,0"/>
-                    <Button x:Name="ToneButton" Content="Nada uji" Style="{StaticResource ToolButton}" Margin="0,8,0,0" HorizontalAlignment="Left" Click="OnToneMenu" ToolTip="Nada 1 kHz -20 dBFS menggantikan audio halaman, berhenti sendiri setelah 30 detik"/>
-                    <TextBlock x:Name="AudioNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
-                               Text="Hanya tab yang tayang yang terdengar. Saat Freeze audio senyap; Blackout tidak memengaruhi audio."/>
+                        <TextBlock x:Name="AudioStatus" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="12" Margin="0,6,0,0"/>
+                        <Button x:Name="ToneButton" Content="Nada uji" Style="{StaticResource ToolButton}" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnToneMenu" ToolTip="Nada 1 kHz -20 dBFS menggantikan audio halaman, berhenti sendiri setelah 30 detik"/>
+                        <TextBlock x:Name="AudioNote" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                   Text="Hanya tab yang tayang yang terdengar. Saat Freeze audio senyap; Blackout tidak memengaruhi audio."/>
+                    </StackPanel>
 
-                    <TextBlock Text="STATISTIK" Style="{StaticResource Label}" Margin="0,24,0,6"/>
-                    <TextBlock x:Name="StatsText" Foreground="{StaticResource Text}" FontFamily="Consolas" FontSize="12" LineHeight="18"/>
+                    <Border Height="1" Background="{StaticResource Line}"/>
 
-                    <CheckBox x:Name="LiveSimBox" Content="Uji: anggap ada output yang nyala" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" Margin="0,24,0,0"
-                              ToolTip="Untuk uji: memperlihatkan spanduk konfirmasi ubah resolusi/FPS tanpa output nyata"/>
+                    <!-- STATISTIK -->
+                    <StackPanel Margin="20">
+                        <TextBlock Text="STATISTIK" Style="{StaticResource Label}"/>
+                        <TextBlock x:Name="StatsText" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="12" LineHeight="18"/>
+                        <CheckBox x:Name="LiveSimBox" Content="Uji: anggap ada output yang nyala" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,18,0,0"
+                                  ToolTip="Untuk uji: memperlihatkan spanduk konfirmasi ubah resolusi/FPS tanpa output nyata"/>
+                    </StackPanel>
                 </StackPanel>
                 </ScrollViewer>
             </Border>
         </Grid>
 
-        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="16,8">
-            <TextBlock x:Name="StatusText" Foreground="{StaticResource Muted}" FontFamily="Consolas" FontSize="12"/>
+        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,8">
+            <TextBlock x:Name="StatusText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="12"/>
         </Border>
     </Grid>
 </Window>

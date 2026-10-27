@@ -957,7 +957,10 @@ internal sealed class SelfTest
             var wantedRegion = preview.View.Region(render, size.Width, size.Height);
             _logger.LogInformation("A2b {Label}: {Hits} clicks, worst error {Worst:F2} px, wrong buttons {Wrong}, missed {Missed}; picture {PW}x{PH} at ({PX},{PY}) mip {Mip}",
                 label, hits, worst, wrong, missed, shown.Width, shown.Height, shown.X, shown.Y, shown.Mip);
-            Expect(hits >= 2 && worst <= 2.0 && wrong == 0 && missed == 0, $"{label}: clicks land on the intended page point");
+            // A shrunk view cannot place a click closer than its own pixel size: when the page is drawn at 1/n, one control pixel is n page pixels.
+            double pagePixelsPerControlPixel = label == "Fit" && shown.Width > 0 ? (double)render.Width / shown.Width : 1.0;
+            double tolerance = Math.Max(2.0, 1.5 * pagePixelsPerControlPixel);
+            Expect(hits >= 2 && worst <= tolerance && wrong == 0 && missed == 0, $"{label}: clicks land on the intended page point (within {tolerance:F1} px)");
             Expect(shown.Mip == wantedRegion.Mip, $"{label}: preview picture uses the requested level (got {shown.Mip}, wanted {wantedRegion.Mip})");
             if (label != "Fit") Expect(shown.X == wantedRegion.X && shown.Y == wantedRegion.Y, $"{label}: preview picture starts at the requested corner");
         }
