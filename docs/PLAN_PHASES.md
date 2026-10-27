@@ -68,7 +68,8 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Lulus:** 60 fps stabil (misal minimal 55 rata-rata, tanpa stutter nyata) selama 5 menit. [Saya untuk angka, Anda untuk kelancaran visual]
 
 ### S6 - Konten nyata
-- **Status: setengah selesai (2026-10-27).**
+- **Status: lulus (2026-10-27).** [Anda] mencoba sesi interaktif dan melaporkan "aman" (login, sesi, konten); rincian butir yang dicoba tidak dilaporkan satu per satu, jadi keyboard dan dua profil tetap diperlakukan sebagai belum terbukti secara eksplisit di log.
+- (Catatan lama:) setengah selesai.
   - **[Saya] lulus:** video MP4 H.264 720p (Big Buck Bunny, uji publik; tidak disimpan di repo) terputar di visual composition: `canPlayType` = "probably", 330 frame, 0 frame dibuang, frame ditangkap berwarna wajar (PNG saya lihat sendiri). Kebijakan autoplay bawaan **memblokir** pemutaran bersuara tanpa klik (`NotAllowedError`); dengan argumen `--autoplay-policy=no-user-gesture-required` diizinkan. Jadi aplikasi asli perlu argumen itu untuk Kahoot/Canva yang berbunyi tanpa klik.
   - **Harness interaktif:** `scripts/run-spike.sh browse [profil] [url]` membuka jendela dengan preview, mouse diteruskan ke halaman lewat `SendMouseInput`, popup dibuka di tab yang sama (kebijakan yang diuji), profil WebView2 permanen per nama profil, dan log jumlah cookie Canva/Kahoot/Slido saat start (nilai cookie tidak dicatat). Cookie Canva sudah ada 8 di profil `main`... **catatan:** itu dari kunjungan uji otomatis saya, bukan login.
   - **Hasil sesi interaktif pertama (log 14:24-14:27, [Anda] memakai harness):** login Canva lewat Google **berhasil di browser tertanam**, tidak ditolak Google. Alurnya: popup `oauth/authorize/GOOGLE` dibuka di tab yang sama, lewat accounts.google.com (identifier, CheckCookie, SetSID, consent), kembali ke `canva.com/oauth/authorized/google`, lalu Canva terbuka. Membuka desain di editor (`NewWindowRequested`, IsUserInitiated=True) juga berjalan lewat kebijakan tab yang sama. Sekali `ConnectionAborted` saat halaman callback dimuat ulang (kemungkinan kode OAuth sekali pakai), tidak berdampak. Ketikan di halaman Google (waktu 70 dtk di halaman identifier) menunjukkan keyboard kemungkinan besar diteruskan, tetapi belum dikonfirmasi eksplisit [U]. Laju frame mengikuti isi halaman: 20-75 frame masuk/dtk saat Canva aktif.
@@ -82,6 +83,7 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Lulus:** video terputar halus dan warna benar di preview. [Anda]
 
 ### S7 - Pemilihan GPU
+- **Keputusan [Anda]:** pemilihan GPU diatur operator lewat Windows Graphics Settings (per aplikasi); aplikasi tidak menyediakan pilihan GPU sendiri. Aplikasi cukup menampilkan nama GPU yang dipakai di panel status/dokumentasi operator.
 - **Status: lulus dengan bukti tipis (2026-10-27).** `scripts/gpu-compare.ps1` memaksa spike dan `msedgewebview2.exe` ke tiap GPU lewat preferensi grafis Windows per aplikasi (dikembalikan setelah uji), lalu menghitung pemakaian mesin GPU nyata dari counter Windows. Satu laptop hybrid (AMD iGPU menggerakkan layar, GTX 1650 dGPU), 40 dtk per kasus:
 
   | GPU dipaksa | Konten | fps terkirim | interval >25 ms | CPU | GPU yang terpakai |
