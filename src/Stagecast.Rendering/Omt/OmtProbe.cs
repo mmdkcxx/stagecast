@@ -50,6 +50,11 @@ public sealed class OmtProbe : IDisposable
     /// <summary>Reads audio for <paramref name="duration"/> and returns the peak of each channel in dBFS (null when none arrived).</summary>
     public (double Left, double Right, int Samples)? ReadAudioPeaks(TimeSpan duration)
     {
+        // Audio that arrived while we were looking at pictures is still queued in the receiver; throw it away so only new sound is measured.
+        var stale = new OMTMediaFrame();
+        while (_receive.Receive(OMTFrameType.Audio, 0, ref stale) && stale.Type == OMTFrameType.Audio)
+        {
+        }
         var clock = Stopwatch.StartNew();
         float left = 0, right = 0;
         int samples = 0;

@@ -53,3 +53,5 @@ Aturan commit: commit tiap fase selesai; hasil kelompok uji dicatat di `PLAN_PHA
 - `check.sh smoke` memakan beberapa menit; hasil "lulus" hanya bila seluruh langkah lulus (status keluar 0), bukan sekadar ada baris PASS.
 
 - **S10 dalam batch penuh:** pada 2026-10-27 dua kali berturut-turut mengukur 10/12 klik (dua klik tidak menghasilkan frame dalam 2 dtk) setelah A6 ditambahkan ke batch, tetapi lulus 12/12 tiga kali bila dijalankan sendiri. Sampel frame spike terlihat kekurangan frame saat mesin masih sibuk dari proses sebelumnya. Anggap flaky; jalankan ulang sendiri sebelum menyelidiki.
+
+- **S10 keyboard:** gagal dengan `foreground=False` bila jendela lain sedang aktif (mis. Anda memakai PC saat batch jalan); lulus bila PC tidak disentuh. Tanda: `typed '' foreground=False`. Terjadi pada 2026-10-27 18:00 meski dijalankan sendirian. Bukan bug aplikasi.
