@@ -95,7 +95,13 @@ internal sealed class ControlSpike
 
     private async Task<bool> KeyboardAsync(System.Windows.Window window)
     {
-        window.Activate();
+        for (int attempt = 0; attempt < 5 && !window.IsActive; attempt++)
+        {
+            window.Topmost = true; // Activate alone is ignored when another program has the focus
+            window.Activate();
+            window.Topmost = false;
+            await Task.Delay(200);
+        }
         _page.FocusBrowser();
         var inputPoint = new System.Drawing.Point(500, 230);
         _page.SendMouse(CoreWebView2MouseEventKind.LeftButtonDown, CoreWebView2MouseEventVirtualKeys.LeftButton, 0, inputPoint);

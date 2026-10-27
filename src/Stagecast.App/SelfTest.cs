@@ -201,7 +201,7 @@ internal sealed class SelfTest
         // Keyboard to the page, then Esc takes it back.
         preview.ShowFit();
         await Task.Delay(500);
-        window.Activate();
+        Expect(await window.BringToFrontAsync(), "the window can be brought to the front for the keyboard test");
         preview.InjectClick(preview.ControlPointOf(500, 230));
         _engine.FocusPage();
         await Task.Delay(400);

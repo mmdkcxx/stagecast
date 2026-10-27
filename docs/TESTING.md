@@ -45,3 +45,9 @@ Aturan commit: commit tiap fase selesai; hasil kelompok uji dicatat di `PLAN_PHA
 
 - Tampilan UI di aplikasi nyata (belum ada). Mockup di `docs/design` tidak diuji otomatis.
 - Typecheck hanya untuk C#. Sumber mockup (`.dc.html`) tidak ikut diperiksa.
+
+## Catatan keandalan uji (2026-10-27)
+
+- Uji yang mengirim ketukan keyboard sungguhan (S10, `--selftest a2b`) hanya jalan bila jendelanya aktif. Windows menolak `Activate()` bila program lain memegang fokus, jadi uji ini memaksa jendela ke depan (Topmost sesaat) dan menunggu sampai aktif. Jangan memakai komputer untuk hal lain selama `check.sh smoke` berjalan.
+- Uji laju bingkai (S5 dan sejenisnya) sesekali gagal bila mesin sedang tersendat sesaat; ulangi dulu sebelum mencari bug. Saat dijalankan sendiri hasilnya konsisten (59-60 bingkai/dtk).
+- `check.sh smoke` memakan beberapa menit; hasil "lulus" hanya bila seluruh langkah lulus (status keluar 0), bukan sekadar ada baris PASS.

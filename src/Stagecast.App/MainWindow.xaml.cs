@@ -465,6 +465,19 @@ public partial class MainWindow : Window
         _detached.Show();
     }
 
+    /// <summary>Brings the window to the front even when another program has the focus; real keystrokes only reach the active window.</summary>
+    internal async Task<bool> BringToFrontAsync()
+    {
+        for (int attempt = 0; attempt < 5 && !IsActive; attempt++)
+        {
+            Topmost = true;
+            Activate();
+            Topmost = false;
+            await Task.Delay(200);
+        }
+        return IsActive;
+    }
+
     internal AppConfig ReadConfigFromDisk() => _context.ConfigStore.Load().Config;
 
     private void Persist()
