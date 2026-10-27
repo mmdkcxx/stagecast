@@ -36,7 +36,8 @@ smoke() {
   smoke_mode s2 "composition controller created" "root visual target set" "navigation completed success=True" "page viewport 2520x1080" "S2 ok" || return 1
   smoke_mode s3 "S3 summary pass=16 fail=0" "S3 ok" || return 1
   smoke_mode s4 "S4 ok 2520x1080" "S4 ok" || return 1
-  smoke_mode s5 "S5 summary 30 fps" "S5 ok"
+  smoke_mode s5 "S5 summary 30 fps" "S5 ok" || return 1
+  smoke_mode s8 "WebView2 browser process" "S8 ok"
 }
 
 sync_sources

@@ -163,6 +163,10 @@ internal sealed class CompositionSpike : IDisposable
 
     public void SetMuted(bool muted) => Core.IsMuted = muted;
 
+    public int BrowserProcessId => (int)Core.BrowserProcessId;
+
+    public Task<string> EvalAsync(string script) => Core.ExecuteScriptAsync(script);
+
     public string CurrentUrl => Core.Source;
 
     public void Navigate(string url) => Core.Navigate(url);

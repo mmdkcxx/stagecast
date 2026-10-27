@@ -99,6 +99,11 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Lulus:** ada rekomendasi GPU berdasarkan angka. [Saya]
 
 ### S8 - Audio loopback
+- **Status: lulus pada angka, [Anda] belum mendengar (2026-10-27).** `ProcessLoopbackCapture` (P/Invoke sendiri: `ActivateAudioInterfaceAsync` + `IAudioClient`, 48 kHz float stereo) menangkap audio WebView2. Sumber: nada sinus 440 Hz di halaman uji (`assets/tone.html`). Hasil: fase bersuara puncak -20,0 dBFS (sesuai gain), fase `IsMuted=true` benar-benar -120 dBFS (senyap), bersuara lagi setelah unmute. Meter per detik tercatat di log, WAV 10 dtk di `logs\s8-loopback.wav`.
+  - **Temuan penting:** menargetkan **proses host aplikasi** dengan mode "include process tree" menghasilkan **senyap total**, padahal proses anaknya ada. Menargetkan **proses browser WebView2** (`CoreWebView2.BrowserProcessId`) berhasil, begitu juga proses `audio.mojom.AudioService` langsung. Dugaan (belum dibuktikan): mode tree hanya menjangkau satu tingkat anak. Desain: capture dibuat per proses browser WebView2, bukan per proses aplikasi. Satu environment/profil = satu proses browser, jadi tab yang berbagi profil tidak bisa dipisahkan audionya lewat loopback; pisahkan dengan `IsMuted` per tab (terbukti bekerja) atau beri environment terpisah.
+  - Kontrol: menargetkan proses biasa yang memutar WAV tertangkap benar (-9 dBFS), jadi kode capture sendiri benar.
+  - Sampel video uji (`bbb.mp4`) ternyata **tanpa trek audio**; audio video asli belum diuji. [Anda]: dengarkan WAV, dan cek video Canva/Kahoot yang berbunyi lewat `browse`.
+  - Belum: format campuran (44,1 kHz/mono) lewat auto-convert hanya diuji pada 48 kHz stereo; latensi capture belum diukur.
 - Implementasi capture WASAPI process loopback pada proses aplikasi (include process tree).
 - Putar video berbunyi di WebView, tampilkan meter level dan simpan 10 detik ke WAV.
 - Uji `IsMuted` pada WebView: apakah audio hilang dari loopback saat di-mute.

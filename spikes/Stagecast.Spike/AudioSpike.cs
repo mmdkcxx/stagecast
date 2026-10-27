@@ -14,6 +14,8 @@ internal static class AudioSpike
     {
         var all = new List<float>();
         string current = "unmuted-1";
+        long phaseStartSamples = 0, settleSamples = ProcessLoopbackCapture.SampleRate * ProcessLoopbackCapture.Channels / 2;
+        long totalSamples = 0;
         var stats = new Dictionary<string, (double Peak, double SumSq, long Samples)>();
         var order = new List<string>();
         var gate = new object();
@@ -29,18 +31,23 @@ internal static class AudioSpike
                 {
                     float v = buf[i];
                     all.Add(v);
+                    totalSamples++;
+                    // Audio queued before a mute is still draining for a moment; the first 0.5 s of each phase is not scored.
+                    if (totalSamples - phaseStartSamples < settleSamples) continue;
                     peak = Math.Max(peak, Math.Abs(v));
                     sumSq += (double)v * v;
+                    samples++;
                 }
-                stats[current] = (peak, sumSq, samples + n);
+                stats[current] = (peak, sumSq, samples);
             }
         }))
         {
             SpikeLog.Write("process loopback started");
+            SpikeLog.Write($"process tree: {DescribeTree(processId)}");
             async Task PhaseAsync(string name, bool muted, int seconds)
             {
                 await setMuted(muted);
-                lock (gate) { current = name; order.Add(name); }
+                lock (gate) { current = name; order.Add(name); phaseStartSamples = totalSamples; }
                 for (int i = 0; i < seconds; i++)
                 {
                     await Task.Delay(1000);
@@ -65,6 +72,21 @@ internal static class AudioSpike
             double rms = s.Samples == 0 ? 0 : Math.Sqrt(s.SumSq / s.Samples);
             return new Phase(n, ToDb(s.Peak), ToDb(rms), s.Samples / (double)ProcessLoopbackCapture.Channels / ProcessLoopbackCapture.SampleRate);
         }).ToList();
+    }
+
+    private static string DescribeTree(int rootPid)
+    {
+        using var searcher = new System.Management.ManagementObjectSearcher("SELECT ProcessId, ParentProcessId, Name FROM Win32_Process");
+        var rows = searcher.Get().Cast<System.Management.ManagementBaseObject>()
+            .Select(o => (Pid: Convert.ToInt32(o["ProcessId"]), Parent: Convert.ToInt32(o["ParentProcessId"]), Name: (string)o["Name"])).ToList();
+        var found = new List<string>();
+        void Walk(int pid, int depth)
+        {
+            foreach (var r in rows.Where(r => r.Parent == pid)) { found.Add($"{new string('-', depth)}{r.Name}({r.Pid})"); Walk(r.Pid, depth + 1); }
+        }
+        Walk(rootPid, 1);
+        int webviews = rows.Count(r => r.Name == "msedgewebview2.exe");
+        return $"root={rootPid} descendants=[{string.Join(" ", found)}] allWebview2Processes={webviews}";
     }
 
     private static double ToDb(double linear) => linear <= 1e-9 ? -120 : 20 * Math.Log10(linear);

@@ -15,6 +15,7 @@ internal sealed class ProcessLoopbackCapture : IDisposable
     private readonly Action<float[], int> _onSamples;
     private readonly Thread _thread;
     private volatile bool _stop;
+    private long _packets, _silentPackets, _frames;
     private IAudioClient? _client;
     private IAudioCaptureClient? _capture;
 
@@ -31,6 +32,11 @@ internal sealed class ProcessLoopbackCapture : IDisposable
                 Open(processId);
                 ready.Set();
                 Pump();
+                // The audio client lives in this thread's apartment: stop and release it here, not from the caller's thread.
+                _client!.Stop();
+                Marshal.ReleaseComObject(_capture!);
+                Marshal.ReleaseComObject(_client);
+                SpikeLog.Write($"loopback packets={_packets} silent={_silentPackets} frames={_frames}");
             }
             catch (Exception ex)
             {
@@ -102,6 +108,7 @@ internal sealed class ProcessLoopbackCapture : IDisposable
             {
                 Marshal.ThrowExceptionForHR(_capture.GetBuffer(out IntPtr data, out uint frames, out uint flags, out _, out _));
                 int samples = (int)frames * Channels;
+                _packets++; _frames += frames; if ((flags & 2) != 0) _silentPackets++;
                 if (samples > buffer.Length) buffer = new float[samples];
                 if ((flags & 2) != 0) Array.Clear(buffer, 0, samples); // AUDCLNT_BUFFERFLAGS_SILENT
                 else Marshal.Copy(data, buffer, 0, samples);
@@ -115,9 +122,6 @@ internal sealed class ProcessLoopbackCapture : IDisposable
     {
         _stop = true;
         _thread.Join(2000);
-        _client?.Stop();
-        if (_capture is not null) Marshal.ReleaseComObject(_capture);
-        if (_client is not null) Marshal.ReleaseComObject(_client);
     }
 
     [DllImport("Mmdevapi.dll", ExactSpelling = true, PreserveSig = true)]

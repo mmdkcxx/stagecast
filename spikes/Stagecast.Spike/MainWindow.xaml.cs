@@ -43,7 +43,9 @@ public partial class MainWindow : Window
             string url = _url;
             if (_mode == "s5" && ArgValue("--url") is null)
                 url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "animation.html")).AbsoluteUri;
-            if (_mode is "s6" or "s8" && ArgValue("--url") is null)
+            if (_mode == "s8" && ArgValue("--url") is null)
+                url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "tone.html")).AbsoluteUri;
+            if (_mode == "s6" && ArgValue("--url") is null)
             {
                 string media = new Uri(ArgValue("--media") ?? @"C:\dev\media\bbb.mp4").AbsoluteUri;
                 url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "video.html")).AbsoluteUri + "?src=" + Uri.EscapeDataString(media);
@@ -58,9 +60,13 @@ public partial class MainWindow : Window
             }
             else if (_mode == "s8")
             {
-                await Task.Delay(2000); // let the video start
+                await Task.Delay(2000); // let the page start
+                SpikeLog.Write($"tone page says {await _composition.EvalAsync("document.getElementById('s').textContent")}");
                 string wav = Path.Combine(AppContext.BaseDirectory, "logs", "s8-loopback.wav");
-                var phases = await AudioSpike.RunAsync(Environment.ProcessId, m => { _composition.SetMuted(m); return Task.CompletedTask; }, wav);
+                // Target the WebView2 browser process: capturing from our own (host) process tree stays silent, see PLAN_PHASES S8.
+                int target = ArgValue("--target") == "root" ? Environment.ProcessId : _composition.BrowserProcessId;
+                SpikeLog.Write($"loopback target pid {target} ({(ArgValue("--target") == "root" ? "host process" : "WebView2 browser process")})");
+                var phases = await AudioSpike.RunAsync(target, m => { _composition.SetMuted(m); return Task.CompletedTask; }, wav);
                 foreach (var p in phases) SpikeLog.Write($"S8 phase {p.Name}: {p.Seconds:F1}s peak={p.PeakDb:F1} dBFS rms={p.RmsDb:F1} dBFS");
                 bool audible = phases.Where(p => p.Name != "muted").All(p => p.PeakDb > -60);
                 bool muted = phases.First(p => p.Name == "muted").PeakDb < -80;
