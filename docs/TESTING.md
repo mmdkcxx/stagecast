@@ -18,7 +18,7 @@ Tujuan: menangkap kesalahan lewat otomatis sebanyak mungkin, tetapi **dijalankan
 | Kelompok | Fase | Dijalankan |
 |---|---|---|
 | 0 | S0-S1 (skeleton, WebView2 biasa) | **sudah, 2026-10-27**: typecheck lulus, 35 tes unit lulus, smoke lulus |
-| 1 | S2-S5 (composition hosting, viewport, capture, 30/60 fps) | setelah S5 (S2 sudah dicoba sekali saat ditulis: lulus) |
+| 1 | S2-S5 (composition hosting, viewport, capture, 30/60 fps) | setelah S5 (S2 dan S3 sudah dicoba sekali saat ditulis: lulus) |
 | 2 | S6-S9 (konten nyata, GPU, audio loopback, dua WebView) | setelah S9 |
 | 3 | S10-S12 + GATE (kontrol halaman, skala anamorfik, preview bersamaan) | sebelum GATE |
 | 4 | A1-A2d (fondasi, render, kontrol halaman, konfirmasi, preset) | setelah A2d |

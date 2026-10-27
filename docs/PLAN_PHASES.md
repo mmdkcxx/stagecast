@@ -41,6 +41,10 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - Pastikan `window.innerWidth`/`innerHeight` yang dilaporkan halaman tepat 2520x1080 (jalankan skrip di halaman dan catat hasilnya).
 - Uji juga resolusi lain (1920x1080, 3840x1080, 1080x1920) dan ubah ukuran saat berjalan.
 - **Lulus:** angka dari halaman cocok dengan yang diketik, di skala Windows 100% dan 150%. [Saya]
+- **Status: lulus dengan simulasi (2026-10-27).** Skala disimulasikan lewat `RasterizationScale` (1.0, 1.25, 1.5, 2.0) dengan `ShouldDetectMonitorScaleChanges = false`, bukan lewat pengaturan skala Windows asli. Setiap skala x 4 resolusi (2520x1080, 1920x1080, 3840x1080, 1080x1920) = 16 kasus, semuanya lulus: halaman melaporkan `innerWidth x innerHeight` persis sama dengan resolusi CSS yang dipilih dan `devicePixelRatio` sama dengan skalanya. Semua kasus dijalankan berurutan pada satu browser yang hidup, jadi ukuran diubah saat berjalan tanpa membuat ulang browser.
+  - **Aturan yang dipakai:** `Bounds` (piksel fisik) = resolusi CSS x skala (`RenderSurface.PhysicalSize` di `Stagecast.Core`, 8 tes unit).
+  - **Keputusan desain:** aplikasi sebaiknya mengunci `RasterizationScale = 1.0`. Jika tidak, resolusi 2520x1080 pada 150% membutuhkan permukaan 3780x1620 (2,25x piksel) untuk hasil CSS yang sama, tanpa manfaat untuk output.
+  - **Belum teruji:** skala Windows yang asli (DPI jendela WPF, perilaku capture di monitor 150%) tetap perlu dicoba di S4/S5 bila mesin target memakai skala selain 100%.
 
 ### S4 - Capture satu frame
 - Buat `GraphicsCaptureItem` dari visual, frame pool Direct3D 11, ambil satu frame, simpan sebagai PNG.

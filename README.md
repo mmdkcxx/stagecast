@@ -49,4 +49,4 @@ Run them once per batch of phases, not after every change; see `docs/TESTING.md`
 
 ## Status
 
-Spikes S0-S2 pass (skeleton, one WebView2, WebView2 in composition/visual hosting). Next: S3.
+Spikes S0-S3 pass (skeleton, one WebView2, composition hosting, viewport at several sizes and simulated display scales). Next: S4 (capture one frame; early decision point).
