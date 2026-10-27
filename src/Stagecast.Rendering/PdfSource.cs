@@ -39,6 +39,14 @@ public sealed class PdfSource : IDisposable
     private const int PagesBefore = 1;
     private const int PagesAfter = 2;
 
+    // Pages are drawn at the size they fill on the canvas, so a big canvas means big pages (8K is 132 MB each). Neighbours are only
+    // kept ahead of time while the cache stays under this; the page on screen is always kept.
+    private const long CacheBudgetBytes = 256L * 1024 * 1024;
+
+    // Files left behind by a crash are removed when the first PDF tab of a run is created.
+    private const string TempPrefix = "stagecast-pdf-";
+    private static bool _tempCleaned;
+
     private readonly Compositor _compositor;
     private readonly DocumentSurfaces _surfaces;
     private readonly SpriteVisual _page;
@@ -53,6 +61,7 @@ public sealed class PdfSource : IDisposable
     private int _canvasWidth;
     private int _canvasHeight;
     private int _version;
+    private int _target = -1;
     private bool _disposed;
 
     internal PdfSource(Compositor compositor, DocumentSurfaces surfaces, ContainerVisual host, int canvasWidth, int canvasHeight, ILogger logger)
@@ -80,26 +89,41 @@ public sealed class PdfSource : IDisposable
 
     public event Action? PageChanged;
 
-    /// <summary>Opens <paramref name="path"/> and shows page <paramref name="startPage"/> (zero-based, the first by default). The password is only used for this call.</summary>
+    /// <summary>A page could not be drawn (damaged page, out of memory); the picture on screen stays as it was. The argument is the one-based page number.</summary>
+    public event Action<int>? PageFailed;
+
+    internal static void CleanOldTempFiles()
+    {
+        if (_tempCleaned) return;
+        _tempCleaned = true;
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(Path.GetTempPath(), TempPrefix + "*.pdf"))
+                if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddHours(-12)) Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>
+    /// Opens <paramref name="path"/> and shows page <paramref name="startPage"/> (zero-based, the first by default). The password is
+    /// only used for this call. A file that cannot be opened changes nothing: a document that is already showing keeps showing, so a
+    /// failed reload does not blank a tab that is on air.
+    /// </summary>
     public async Task<PdfOpenResult> OpenAsync(string path, string? password = null, int startPage = 0)
     {
-        ClearDocument();
-        string temp = Path.Combine(Path.GetTempPath(), "stagecast-pdf-" + Guid.NewGuid().ToString("N") + ".pdf");
+        if (_disposed) return PdfOpenResult.Failed;
+        string temp = Path.Combine(Path.GetTempPath(), TempPrefix + Guid.NewGuid().ToString("N") + ".pdf");
+        PdfDocument document;
         try
         {
             File.Copy(path, temp);
             StorageFile file = await StorageFile.GetFileFromPathAsync(temp);
-            PdfDocument document = await PdfDocument.LoadFromFileAsync(file, password ?? "");
+            document = await PdfDocument.LoadFromFileAsync(file, password ?? "");
             if (document.PageCount == 0)
             {
                 Delete(temp);
                 return Fail("The PDF has no pages.");
             }
-
-            _tempPath = temp;
-            _document = document;
-            PageCount = (int)document.PageCount;
-            Problem = null;
         }
         catch (Exception ex)
         {
@@ -115,20 +139,43 @@ public sealed class PdfSource : IDisposable
             return Fail(ex is FileNotFoundException or DirectoryNotFoundException ? "The file was not found." : "The file could not be opened as a PDF.");
         }
 
+        if (_disposed)
+        {
+            Delete(temp);
+            return PdfOpenResult.Failed;
+        }
+
+        // The new file is good: it replaces the old one, whose picture stays on screen until the new first page is ready.
+        string? oldTemp = _tempPath;
+        _version++;
+        _cache.Clear();
+        _tempPath = temp;
+        _document = document;
+        PageCount = (int)document.PageCount;
+        Problem = null;
+        if (oldTemp is not null) Delete(oldTemp);
         _logger.LogInformation("PDF opened: {Pages} pages", PageCount);
         await GoToAsync(startPage);
         return PdfOpenResult.Opened;
     }
 
-    /// <summary>Shows page <paramref name="index"/> (zero-based, clamped to the document). Returns false when no document is open.</summary>
+    /// <summary>Shows page <paramref name="index"/> (zero-based, clamped to the document). Returns false when no document is open or the page could not be drawn.</summary>
     public async Task<bool> GoToAsync(int index)
     {
         if (_document is null || _disposed) return false;
         index = Math.Clamp(index, 0, PageCount - 1);
         int version = ++_version;
-        Rendered? rendered = await GetAsync(index);
-        // A newer request (or a resize) arrived while this page was rendering; that one decides what is on screen.
-        if (rendered is null || version != _version || _disposed) return rendered is not null;
+        _target = index;
+        Rendered? rendered = await GetAsync(index, version);
+        // A newer request (or a resize) arrived while this page waited or rendered; that one decides what is on screen.
+        if (version != _version || _disposed) return true;
+        if (rendered is null)
+        {
+            _target = PageIndex;
+            PageFailed?.Invoke(index + 1);
+            return false;
+        }
+
         Show(rendered);
         PageIndex = index;
         PageChanged?.Invoke();
@@ -136,13 +183,17 @@ public sealed class PdfSource : IDisposable
         return true;
     }
 
-    public Task<bool> NextAsync() => PageIndex + 1 < PageCount ? GoToAsync(PageIndex + 1) : Task.FromResult(false);
+    // Next and Previous count from the page last asked for, so two quick clicks while a page is still drawing move two pages.
+    private int Current => _target >= 0 ? _target : PageIndex;
 
-    public Task<bool> PreviousAsync() => PageIndex > 0 ? GoToAsync(PageIndex - 1) : Task.FromResult(false);
+    public Task<bool> NextAsync() => Current + 1 < PageCount ? GoToAsync(Current + 1) : Task.FromResult(false);
+
+    public Task<bool> PreviousAsync() => Current > 0 ? GoToAsync(Current - 1) : Task.FromResult(false);
 
     /// <summary>The render size changed: pages are drawn again at the new size, the page on screen first.</summary>
     internal void Resize(int canvasWidth, int canvasHeight)
     {
+        if (_disposed) return;
         _canvasWidth = canvasWidth;
         _canvasHeight = canvasHeight;
         _cache.Clear();
@@ -150,13 +201,14 @@ public sealed class PdfSource : IDisposable
         _ = GoToAsync(PageIndex);
     }
 
-    private async Task<Rendered?> GetAsync(int index)
+    private async Task<Rendered?> GetAsync(int index, int version)
     {
         if (_cache.TryGetValue(index, out Rendered? cached) && cached.CanvasWidth == _canvasWidth && cached.CanvasHeight == _canvasHeight) return cached;
         await _renderLock.WaitAsync();
         try
         {
-            if (_document is null || _disposed) return null;
+            // Waited for the lock behind other pages: if the request is already out of date, do not spend time on it.
+            if (_document is null || _disposed || version != _version) return null;
             if (_cache.TryGetValue(index, out cached) && cached.CanvasWidth == _canvasWidth && cached.CanvasHeight == _canvasHeight) return cached;
             int cw = _canvasWidth, ch = _canvasHeight;
             using PdfPage page = _document.GetPage((uint)index);
@@ -229,17 +281,19 @@ public sealed class PdfSource : IDisposable
         }
     }
 
+    private long CacheBytes() => _cache.Values.Sum(r => (long)r.Pixels.Length);
+
     private async Task PrepareNeighboursAsync(int index, int version)
     {
         // Keep only the pages around the one on screen so a long document does not fill the memory.
         foreach (int key in _cache.Keys.Where(k => k < index - PagesBefore || k > index + PagesAfter).ToList()) _cache.Remove(key);
         for (int next = index + 1; next <= index + PagesAfter && next < PageCount; next++)
         {
-            if (version != _version || _disposed) return;
-            await GetAsync(next);
+            if (version != _version || _disposed || CacheBytes() > CacheBudgetBytes) return;
+            await GetAsync(next, version);
         }
 
-        if (index - PagesBefore >= 0 && version == _version && !_disposed) await GetAsync(index - PagesBefore);
+        if (index - PagesBefore >= 0 && version == _version && !_disposed && CacheBytes() <= CacheBudgetBytes) await GetAsync(index - PagesBefore, version);
     }
 
     private void Show(Rendered rendered)

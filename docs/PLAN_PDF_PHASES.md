@@ -112,6 +112,14 @@ Keputusan saya (belum dikonfirmasi pemilik): (1) di Preview + Take, Spasi tetap 
 - PDF rusak sebagian dan berkas yang hilang saat tab sudah terbuka.
 - Soak singkat: ratusan pindah halaman dengan output menyala; periksa memori dan FPS.
 
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji; soak belum dijalankan.** Perubahan:
+- Buka berkas bersifat transaksional: berkas baru dimuat dulu, baru menggantikan yang lama. Muat ulang atau Pilih berkas yang gagal (hilang, rusak, kata sandi salah) tidak mengosongkan tab yang sedang tayang; gambar lama tetap tampil dan pesan menyebut "Yang tampil masih berkas sebelumnya". Sumber tab baru disimpan hanya bila berkas baru berhasil dibuka. Gambar lama tetap tampil sampai halaman pertama berkas baru siap (tidak ada kedipan hitam saat Muat ulang).
+- Pindah halaman cepat: permintaan yang sudah usang dilewati sebelum merender (tidak antre di belakang kunci render); Berikutnya/Sebelumnya menghitung dari halaman yang terakhir diminta, jadi dua klik cepat = dua halaman.
+- Halaman yang gagal digambar (halaman rusak, memori) memunculkan pesan di bar dokumen dan chip MASALAH; gambar sebelumnya tetap tampil; pesan hilang saat halaman berikutnya berhasil.
+- Memori: cache halaman punya anggaran 256 MB (halaman yang tampil selalu disimpan, tetangga hanya diambil lebih dulu bila masih muat); strip thumbnail dimatikan di atas 500 halaman dan hanya memuat jendela ±150 halaman dari halaman sekarang; berkas sementara sisa crash (lebih dari 12 jam) dihapus saat tab PDF pertama dibuat.
+- Menutup tab saat render berjalan dan perubahan ukuran sesudah ditutup dijaga (hasil usang dibuang, Resize setelah Dispose tidak melakukan apa pun).
+Belum diuji: soak ratusan pindah halaman dengan output menyala (memori dan FPS), PDF ratusan halaman sungguhan, halaman raksasa, PDF rusak sebagian.
+
 **Lulus kalau:** aplikasi tidak membeku atau bocor memori, dan kegagalan menampilkan pesan yang jelas.
 
 ## D5 - Pengujian akhir dan rilis di branch

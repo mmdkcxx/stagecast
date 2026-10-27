@@ -15,10 +15,15 @@ public partial class MainWindow
     private const int StripThumbWidth = 128;
     private const int StripThumbHeight = 72;
 
+    // A strip of thousands of pages costs more than it helps: above this the strip is left out, and only a window around the current page gets thumbnails.
+    private const int MaxStripPages = 500;
+    private const int StripWindow = 150;
+
     private static readonly Brush NextFrame = Freeze(new SolidColorBrush(Color.FromRgb(0x4D, 0xA3, 0xFF)));
 
     private readonly Dictionary<Guid, string> _docMessages = [];
     private readonly HashSet<Guid> _hookedPdfs = [];
+    private readonly HashSet<Guid> _pageFailed = [];
     private readonly Dictionary<Guid, Dictionary<int, ImageSource>> _pageThumbs = [];
     private readonly List<Border> _stripItems = [];
     private Guid? _stripTab;
@@ -84,7 +89,16 @@ public partial class MainWindow
     internal async Task<PdfOpenResult> OpenPdfAsync(DocumentTab tab, string path, int startPage = 0, bool askPassword = true)
     {
         PdfSource pdf = _engine!.AttachPdf(tab);
-        if (_hookedPdfs.Add(tab.Id)) pdf.PageChanged += OnPdfPageChanged;
+        if (_hookedPdfs.Add(tab.Id))
+        {
+            pdf.PageChanged += () => OnPdfPageChanged(tab);
+            pdf.PageFailed += page =>
+            {
+                _pageFailed.Add(tab.Id);
+                SetDocMessage(tab, $"Halaman {page} tidak bisa digambar. Gambar yang tampil tetap halaman sebelumnya.");
+                UpdateNavigationState();
+            };
+        }
         string? password = null;
         PdfOpenResult result;
         while (true)
@@ -95,15 +109,25 @@ public partial class MainWindow
             if (password is null) break; // cancelled: the tab stays closed with the message below
         }
 
-        SetDocMessage(tab, result switch
+        bool hadDocument = tab.Pdf is { PageCount: > 0 } && result != PdfOpenResult.Opened;
+        if (result == PdfOpenResult.Opened && !_pageFailed.Contains(tab.Id)) SetDocMessage(tab, null);
+        else if (result != PdfOpenResult.Opened)
         {
-            PdfOpenResult.Opened => null,
-            PdfOpenResult.PasswordRequired => "Berkas ini diberi kata sandi. Klik Muat ulang untuk memasukkannya.",
-            PdfOpenResult.WrongPassword => "Kata sandi salah. Klik Muat ulang untuk mencoba lagi.",
-            _ => File.Exists(path) ? "Berkas rusak atau bukan PDF yang bisa dibuka." : "Berkas tidak ditemukan. Klik Pilih berkas… untuk memilih ulang.",
-        });
-        _pageThumbs.Remove(tab.Id);
-        _stripTab = null;
+            string message = result switch
+            {
+                PdfOpenResult.PasswordRequired => "Berkas ini diberi kata sandi. Klik Muat ulang untuk memasukkannya.",
+                PdfOpenResult.WrongPassword => "Kata sandi salah. Klik Muat ulang untuk mencoba lagi.",
+                _ => File.Exists(path) ? "Berkas rusak atau bukan PDF yang bisa dibuka." : "Berkas tidak ditemukan. Klik Pilih berkas… untuk memilih ulang.",
+            };
+            // A file that cannot be opened changes nothing on screen: say so, so the operator knows which document is showing.
+            SetDocMessage(tab, hadDocument ? message + " Yang tampil masih berkas sebelumnya." : message);
+        }
+
+        if (result == PdfOpenResult.Opened)
+        {
+            _pageThumbs.Remove(tab.Id);
+            _stripTab = null;
+        }
         UpdateNavigationState();
         return result;
     }
@@ -121,6 +145,7 @@ public partial class MainWindow
         _docMessages.Remove(id);
         _hookedPdfs.Remove(id);
         _pageThumbs.Remove(id);
+        _pageFailed.Remove(id);
         if (_stripTab == id) _stripTab = null;
     }
 
@@ -133,9 +158,9 @@ public partial class MainWindow
         path ??= PickPdf();
         if (path is null) return false;
         if (IsOnAir(tab.Id) && tab.Pdf is { PageCount: > 0 } && !Confirm("Tab ini sedang tayang. Mengganti berkas mengubah apa yang dilihat penonton. Lanjutkan?")) return false;
+        if (await OpenPdfAsync(tab, path) != PdfOpenResult.Opened) return false; // the old file stays the tab's file
         _tabs.SetSource(tab.Id, path);
         tab.SetSource(path);
-        await OpenPdfAsync(tab, path);
         SchedulePersist();
         return true;
     }
@@ -201,11 +226,13 @@ public partial class MainWindow
         if (ActivePdf is { } pdf) DocPageBox.Text = pdf.PageNumber.ToString();
     }
 
-    private void OnPdfPageChanged()
+    private void OnPdfPageChanged(DocumentTab tab)
     {
+        if (_pageFailed.Remove(tab.Id)) SetDocMessage(tab, null); // a page drew fine again
         UpdateDocumentControls();
         UpdateStripHighlight();
         UpdateProgramBar();
+        EnsureStripAround(tab);
     }
 
     /// <summary>Shows the document bar and the page strip for a document tab, the address bar for a web page.</summary>
@@ -242,8 +269,10 @@ public partial class MainWindow
         DocStatusText.Text = _docMessages.TryGetValue(tab.Id, out var message) ? message : open ? FileLabel(tab.Source) : "";
         DocStatusText.ToolTip = tab.Source;
 
-        DocStrip.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-        if (open && (_stripTab != tab.Id || _stripPages != count)) BuildStrip(tab, pdf!);
+        bool strip = open && count <= MaxStripPages;
+        DocStrip.Visibility = strip ? Visibility.Visible : Visibility.Collapsed;
+        if (open && !strip) DocStatusText.Text += $"  ·  Dokumen besar ({count} halaman): strip thumbnail dimatikan.";
+        if (strip && (_stripTab != tab.Id || _stripPages != count)) BuildStrip(tab, pdf!);
         UpdateStripHighlight();
     }
 
@@ -295,7 +324,8 @@ public partial class MainWindow
     {
         if (!_pageThumbs.TryGetValue(id, out var known)) return;
         int start = Math.Max(pdf.PageIndex, 0);
-        foreach (int index in Enumerable.Range(0, pdf.PageCount).OrderBy(i => Math.Abs(i - start)).ThenBy(i => i))
+        foreach (int index in Enumerable.Range(Math.Max(0, start - StripWindow), Math.Min(pdf.PageCount, start + StripWindow + 1) - Math.Max(0, start - StripWindow))
+                     .OrderBy(i => Math.Abs(i - start)).ThenBy(i => i))
         {
             if (known.ContainsKey(index)) continue;
             PdfThumbnail? thumb = await pdf.RenderThumbnailAsync(index, StripThumbWidth * 2, StripThumbHeight * 2);
@@ -306,6 +336,14 @@ public partial class MainWindow
             known[index] = bitmap;
             if (index < _stripItems.Count && _stripItems[index].Tag is Image picture) picture.Source = bitmap;
         }
+    }
+
+    // The pages near the one on screen need their pictures even when the strip started at another page.
+    private void EnsureStripAround(DocumentTab tab)
+    {
+        if (_stripTab != tab.Id || tab.Pdf is not { PageIndex: >= 0 } pdf || !_pageThumbs.TryGetValue(tab.Id, out var known)) return;
+        if (known.ContainsKey(pdf.PageIndex) && known.ContainsKey(Math.Min(pdf.PageIndex + 3, pdf.PageCount - 1))) return;
+        _ = LoadStripAsync(tab.Id, pdf, ++_stripVersion);
     }
 
     private void UpdateStripHighlight()
