@@ -1,0 +1,23 @@
+# Changelog
+
+Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
+`src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
+
+## [0.1.1] - 2026-10-27
+
+### Diperbaiki
+- Dialog "Value does not fall within the expected range" saat mouse digerakkan di atas pratinjau. WebView2 kadang menolak
+  input mouse (`E_INVALIDARG`) pada kondisi sesaat; sekarang input yang ditolak diabaikan dan dicatat sekali di log
+  (`SendMouse` di `RenderEngine`). Akar masalahnya belum dipastikan, perbaikan ini mencegah aplikasi menampilkan error.
+
+## [0.1.0] - 2026-10-27
+
+### Ditambahkan
+- Render halaman web ke resolusi kustom (WebView2), pratinjau dengan Preview + Take, multi-tab dengan profil login
+  bersama/terpisah.
+- Keluaran layar penuh ke monitor pilihan dengan squeeze, NDI, dan OMT (vMix), audio dengan pilihan perangkat lokal,
+  Freeze/Blackout, FPS 30/60.
+- Pemulihan otomatis (jaringan, render crash, proses browser berhenti).
+- Paket portabel (zip) dan installer Inno Setup dengan Start Menu, cek prasyarat, unduh WebView2 otomatis, dan opsi
+  unduh NDI Tools.
+- Logo "S".

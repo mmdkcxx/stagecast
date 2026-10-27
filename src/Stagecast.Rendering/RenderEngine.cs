@@ -553,7 +553,21 @@ public sealed partial class RenderEngine : IDisposable
 
     /// <summary>Forwards a mouse event to the page. The point is in page pixels (CSS pixels at page zoom 100%).</summary>
     public void SendMouse(CoreWebView2MouseEventKind kind, CoreWebView2MouseEventVirtualKeys keys, uint data, System.Drawing.Point pagePoint)
-        => Active.Controller.SendMouseInput(kind, keys, data, pagePoint);
+    {
+        // WebView2 rejects mouse input with E_INVALIDARG in some transient states (page navigating, tab switching, window
+        // deactivating). A lost mouse event is harmless; an exception on the UI thread is not.
+        try { Active.Controller.SendMouseInput(kind, keys, data, pagePoint); }
+        catch (Exception ex) when (ex is ArgumentException or COMException or InvalidOperationException or ObjectDisposedException)
+        {
+            if (!_mouseErrorLogged)
+            {
+                _mouseErrorLogged = true;
+                _logger.LogWarning(ex, "Mouse input ({Kind}) was rejected by WebView2; further occurrences are not logged", kind);
+            }
+        }
+    }
+
+    private bool _mouseErrorLogged;
 
     /// <summary>Gives keyboard focus to the page. The application window must be the active window for keys to arrive.</summary>
     public void FocusPage() => Active.Controller.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
