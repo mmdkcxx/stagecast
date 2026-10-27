@@ -1,11 +1,13 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using Stagecast.Core.Configuration;
+using Stagecast.Core.Display;
 using Stagecast.Core.Rendering;
 using Stagecast.Rendering;
 using Stagecast.Rendering.Capture;
@@ -39,7 +41,12 @@ public partial class MainWindow : Window
             _ => context.Paths.ConfigFile,
         };
         Loaded += async (_, _) => await StartEngineAsync();
-        Closed += (_, _) => _engine?.Dispose();
+        PagePreviewView.ViewChanged += UpdateViewButtons;
+        Closed += (_, _) =>
+        {
+            _detached?.Close();
+            _engine?.Dispose();
+        };
     }
 
     private async Task StartEngineAsync()
@@ -51,7 +58,10 @@ public partial class MainWindow : Window
             var render = _config.Render;
             _engine = await RenderEngine.CreateAsync(
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
-            _engine.PreviewReady += ShowPreview;
+            PagePreviewView.Attach(_engine);
+            _engine.NavigationStateChanged += UpdateNavigationState;
+            UpdateNavigationState();
+            UpdateViewButtons();
 
             var statsTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             statsTimer.Tick += (_, _) => UpdateStats();
@@ -71,14 +81,6 @@ public partial class MainWindow : Window
             _logger.LogError(ex, "Starting the render engine failed");
             StatusText.Text = $"Gagal memulai mesin render: {ex.Message}";
         }
-    }
-
-    // Raised on a capture thread: build a frozen bitmap there and hand it to the UI thread.
-    private void ShowPreview(PreviewImage image)
-    {
-        var bitmap = BitmapSource.Create(image.Width, image.Height, 96, 96, PixelFormats.Bgra32, null, image.Pixels, image.Stride);
-        bitmap.Freeze();
-        Dispatcher.BeginInvoke(() => Preview.Source = bitmap);
     }
 
     private void UpdateStats()
@@ -124,6 +126,7 @@ public partial class MainWindow : Window
         }
         ResolutionError.Text = string.Empty;
         _engine.SetResolution(resolution);
+        PagePreviewView.SetResolution(resolution);
         SaveConfig(c => new AppConfig { Render = new RenderConfig { Width = resolution.Width, Height = resolution.Height, Fps = c.Render.Fps }, Presets = c.Presets });
     }
 
@@ -146,6 +149,98 @@ public partial class MainWindow : Window
         _suppressFpsEvent = false;
         _engine!.SetFps(fps);
         SaveConfig(c => new AppConfig { Render = new RenderConfig { Width = c.Render.Width, Height = c.Render.Height, Fps = fps }, Presets = c.Presets });
+    }
+
+    // ---- page controls ----
+
+    internal PagePreview Preview => PagePreviewView;
+
+    internal RenderEngine? Engine => _engine;
+
+    private void UpdateNavigationState()
+    {
+        if (_engine is null) return;
+        BackButton.IsEnabled = _engine.CanGoBack;
+        ForwardButton.IsEnabled = _engine.CanGoForward;
+        if (!UrlBox.IsKeyboardFocusWithin && _engine.CurrentUrl is { Length: > 0 } url) UrlBox.Text = url;
+    }
+
+    private void UpdateViewButtons()
+    {
+        FitButton.IsChecked = PagePreviewView.View.Mode == ViewMode.Fit;
+        ActualButton.IsChecked = PagePreviewView.View.Mode == ViewMode.Actual;
+    }
+
+    private void OnBack(object sender, RoutedEventArgs e) => _engine?.GoBack();
+
+    private void OnForward(object sender, RoutedEventArgs e) => _engine?.GoForward();
+
+    private void OnReload(object sender, RoutedEventArgs e) => _engine?.Reload();
+
+    private void OnFit(object sender, RoutedEventArgs e)
+    {
+        PagePreviewView.ShowFit();
+        UpdateViewButtons();
+    }
+
+    private void OnActual(object sender, RoutedEventArgs e)
+    {
+        PagePreviewView.ShowActual();
+        UpdateViewButtons();
+    }
+
+    private void OnInteract(object sender, RoutedEventArgs e)
+    {
+        PagePreviewView.Interactive = InteractButton.IsChecked == true;
+        if (!PagePreviewView.Interactive) PagePreviewView.ReleaseKeyboard();
+    }
+
+    private void OnEnlarge(object sender, RoutedEventArgs e)
+    {
+        bool enlarged = EnlargeButton.IsChecked == true;
+        SidePanel.Visibility = enlarged ? Visibility.Collapsed : Visibility.Visible;
+        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(300);
+    }
+
+    private void OnMore(object sender, RoutedEventArgs e)
+    {
+        if (_engine is null) return;
+        var menu = new ContextMenu { PlacementTarget = MoreButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        menu.Items.Add(new MenuItem { Header = "Zoom halaman (ikut mengubah keluaran)", IsEnabled = false });
+        foreach (double zoom in PageZoomLevels)
+        {
+            var item = new MenuItem { Header = $"{zoom * 100:0}%", IsCheckable = true, IsChecked = Math.Abs(_engine.PageZoom - zoom) < 0.001 };
+            item.Click += (_, _) => SetPageZoom(zoom);
+            menu.Items.Add(item);
+        }
+        menu.IsOpen = true;
+    }
+
+    private static readonly double[] PageZoomLevels = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+
+    internal void SetPageZoom(double zoom)
+    {
+        if (_engine is null) return;
+        _engine.PageZoom = zoom;
+        ZoomLabel.Text = Math.Abs(zoom - 1.0) < 0.001 ? "" : $"zoom halaman {zoom * 100:0}%";
+    }
+
+    private PreviewWindow? _detached;
+
+    private void OnDetach(object sender, RoutedEventArgs e)
+    {
+        if (_detached is not null) { _detached.Activate(); return; }
+        PreviewHost.Child = null;
+        DetachedNote.Visibility = Visibility.Visible;
+        _detached = new PreviewWindow(PagePreviewView);
+        _detached.Closed += (_, _) =>
+        {
+            _detached.Content = null;
+            PreviewHost.Child = PagePreviewView;
+            DetachedNote.Visibility = Visibility.Collapsed;
+            _detached = null;
+        };
+        _detached.Show();
     }
 
     private void SaveConfig(Func<AppConfig, AppConfig> change)

@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
+using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
 using Vortice.Direct3D11;
+using Vortice.Mathematics;
 using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
@@ -11,7 +13,8 @@ using Windows.Graphics.DirectX.Direct3D11;
 namespace Stagecast.Rendering.Capture;
 
 /// <summary>A small copy of the page for the operator's preview window (BGRA).</summary>
-public sealed record PreviewImage(byte[] Pixels, int Width, int Height, int Stride);
+/// <summary>A copy of part of the page for the operator. <see cref="SourceX"/>/<see cref="SourceY"/> are the page pixel of its top-left corner and each of its pixels covers 2^<see cref="Mip"/> page pixels.</summary>
+public sealed record PreviewImage(byte[] Pixels, int Width, int Height, int Stride, int SourceX, int SourceY, int Mip);
 
 /// <summary>What the capture sees, before the hub's pacing.</summary>
 public sealed record CaptureStats(double ArrivedPerSecond, double ReadbackAverageMs, double ReadbackMaxMs, int Width, int Height);
@@ -23,7 +26,7 @@ public sealed record CaptureStats(double ArrivedPerSecond, double ReadbackAverag
 /// </summary>
 public sealed class FrameCapturer : IDisposable
 {
-    private const int PreviewMipLevel = 2;
+    private const int DefaultPreviewMip = 2;
     private const int PreviewIntervalMs = 66;
 
     private readonly Windows.UI.Composition.ContainerVisual _visual;
@@ -45,6 +48,10 @@ public sealed class FrameCapturer : IDisposable
     private ID3D11ShaderResourceView? _mipView;
     private (int Width, int Height) _mipSize;
 
+    private PreviewRegion? _previewTarget;
+    private readonly object _deviceGate = new(); // the D3D context is not thread safe: capture thread and preview refreshes take turns
+    private ID3D11Texture2D? _previewSource; // copy of the newest frame used for previews
+    private int _refreshQueued;
     private int _targetFps;
     private TimeSpan _lastDelivered = TimeSpan.MinValue;
     private TimeSpan _nextDue;
@@ -76,6 +83,40 @@ public sealed class FrameCapturer : IDisposable
                 _targetFps = value;
                 _lastDelivered = TimeSpan.MinValue;
             }
+        }
+    }
+
+    /// <summary>What the next previews should contain; null means the whole page at a quarter of the size.</summary>
+    public PreviewRegion? PreviewTarget
+    {
+        get { lock (_gate) return _previewTarget; }
+        set
+        {
+            bool changed;
+            lock (_gate)
+            {
+                changed = _previewTarget != value;
+                _previewTarget = value;
+            }
+            // A still page produces no frames, so a new view has to be cut from the copy of the last one.
+            if (changed && Interlocked.Exchange(ref _refreshQueued, 1) == 0) ThreadPool.QueueUserWorkItem(_ => RefreshPreview());
+        }
+    }
+
+    private void RefreshPreview()
+    {
+        Interlocked.Exchange(ref _refreshQueued, 0);
+        try
+        {
+            lock (_deviceGate)
+            {
+                if (_previewSource is null || _context is null) return;
+                PreviewReady?.Invoke(ReadPreview(_previewSource));
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger.LogError(ex, "Refreshing the preview failed");
         }
     }
 
@@ -166,12 +207,16 @@ public sealed class FrameCapturer : IDisposable
             }
 
             using var texture = Direct3D.TextureOf(frame.Surface);
-            if (deliver) PublishFull(texture);
-            long now = Stopwatch.GetTimestamp();
-            if (PreviewReady is { } handler && Stopwatch.GetElapsedTime(_lastPreviewTick, now).TotalMilliseconds >= PreviewIntervalMs)
+            lock (_deviceGate)
             {
-                _lastPreviewTick = now;
-                handler(ReadPreview(texture));
+                if (deliver) PublishFull(texture);
+                long now = Stopwatch.GetTimestamp();
+                if (PreviewReady is { } handler && Stopwatch.GetElapsedTime(_lastPreviewTick, now).TotalMilliseconds >= PreviewIntervalMs)
+                {
+                    _lastPreviewTick = now;
+                    UpdatePreviewSource(texture);
+                    handler(ReadPreview(_previewSource!));
+                }
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -212,38 +257,64 @@ public sealed class FrameCapturer : IDisposable
         while (took > (seen = Interlocked.Read(ref _readbackMaxTicks)) && Interlocked.CompareExchange(ref _readbackMaxTicks, took, seen) != seen) { }
     }
 
-    // The GPU shrinks the frame with mipmaps first, so the CPU copy for the preview is a sixteenth of the size.
+    private void UpdatePreviewSource(ID3D11Texture2D texture)
+    {
+        var desc = texture.Description;
+        if (_previewSource is null || _previewSource.Description.Width != desc.Width || _previewSource.Description.Height != desc.Height)
+        {
+            _previewSource?.Dispose();
+            _previewSource = _device!.CreateTexture2D(desc with
+            {
+                MipLevels = 1, Usage = ResourceUsage.Default, BindFlags = BindFlags.ShaderResource, CPUAccessFlags = CpuAccessFlags.None, MiscFlags = ResourceOptionFlags.None,
+            });
+        }
+        _context!.CopyResource(_previewSource, texture);
+    }
+
+    // The GPU shrinks the frame with mipmaps first, so the CPU copy for the preview is a fraction of the full size.
     private PreviewImage ReadPreview(ID3D11Texture2D texture)
     {
         var desc = texture.Description;
         int width = (int)desc.Width, height = (int)desc.Height;
-        if (_mipTexture is null || _mipSize != (width, height))
-        {
-            _mipView?.Dispose();
-            _mipTexture?.Dispose();
-            _mipTexture = _device!.CreateTexture2D(desc with
-            {
-                MipLevels = PreviewMipLevel + 1,
-                Usage = ResourceUsage.Default,
-                BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
-                CPUAccessFlags = CpuAccessFlags.None,
-                MiscFlags = ResourceOptionFlags.GenerateMips,
-            });
-            _mipView = _device.CreateShaderResourceView(_mipTexture);
-            _mipSize = (width, height);
-        }
-        _context!.CopySubresourceRegion(_mipTexture, 0, 0, 0, 0, texture, 0);
-        _context.GenerateMips(_mipView!);
+        var wanted = PreviewTarget ?? new PreviewRegion(0, 0, width, height, DefaultPreviewMip);
+        int mip = Math.Clamp(wanted.Mip, 0, PreviewRegion.MaxMip);
 
-        int w = Math.Max(1, width >> PreviewMipLevel), h = Math.Max(1, height >> PreviewMipLevel);
-        var staging = StagingFor(desc, w, h, PreviewMipLevel);
-        _context.CopySubresourceRegion(staging, 0, 0, 0, 0, _mipTexture, PreviewMipLevel);
+        ID3D11Texture2D source = texture;
+        if (mip > 0)
+        {
+            if (_mipTexture is null || _mipSize != (width, height))
+            {
+                _mipView?.Dispose();
+                _mipTexture?.Dispose();
+                _mipTexture = _device!.CreateTexture2D(desc with
+                {
+                    MipLevels = PreviewRegion.MaxMip + 1,
+                    Usage = ResourceUsage.Default,
+                    BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+                    CPUAccessFlags = CpuAccessFlags.None,
+                    MiscFlags = ResourceOptionFlags.GenerateMips,
+                });
+                _mipView = _device.CreateShaderResourceView(_mipTexture);
+                _mipSize = (width, height);
+            }
+            _context!.CopySubresourceRegion(_mipTexture, 0, 0, 0, 0, texture, 0);
+            _context.GenerateMips(_mipView!);
+            source = _mipTexture;
+        }
+
+        // The region is given in page pixels; at a deeper level the same area has fewer pixels.
+        int levelWidth = Math.Max(1, width >> mip), levelHeight = Math.Max(1, height >> mip);
+        int x = Math.Clamp(wanted.X >> mip, 0, levelWidth - 1), y = Math.Clamp(wanted.Y >> mip, 0, levelHeight - 1);
+        int w = Math.Clamp(Math.Max(1, wanted.Width >> mip), 1, levelWidth - x), h = Math.Clamp(Math.Max(1, wanted.Height >> mip), 1, levelHeight - y);
+
+        var staging = StagingFor(desc, w, h, mip);
+        _context!.CopySubresourceRegion(staging, 0, 0, 0, 0, source, (uint)mip, new Box(x, y, 0, x + w, y + h, 1));
         var map = _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
         {
             var pixels = new byte[(int)map.RowPitch * h];
             Marshal.Copy(map.DataPointer, pixels, 0, pixels.Length);
-            return new PreviewImage(pixels, w, h, (int)map.RowPitch);
+            return new PreviewImage(pixels, w, h, (int)map.RowPitch, x << mip, y << mip, mip);
         }
         finally
         {
@@ -273,6 +344,7 @@ public sealed class FrameCapturer : IDisposable
         foreach (var t in _staging.Values) t.Dispose();
         _mipView?.Dispose();
         _mipTexture?.Dispose();
+        _previewSource?.Dispose();
         _context?.Dispose();
         _device?.Dispose();
     }

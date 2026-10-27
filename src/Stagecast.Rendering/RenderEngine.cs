@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
+using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
 using Stagecast.Core.Rendering;
 using Stagecast.Rendering.Capture;
@@ -93,8 +94,63 @@ public sealed class RenderEngine : IDisposable
         var capturer = new FrameCapturer(root, hub, pool, options.Fps, TimeProvider.System, loggerFactory.CreateLogger<FrameCapturer>());
         capturer.Start();
         var pump = new FramePump(hub, options.Fps, loggerFactory.CreateLogger<FramePump>());
-        return new RenderEngine(options, queue, compositor, root, controller, hub, pool, capturer, pump, logger);
+        var engine = new RenderEngine(options, queue, compositor, root, controller, hub, pool, capturer, pump, logger);
+        engine.HookEvents();
+        return engine;
     }
+
+    /// <summary>What the next previews should contain (see <see cref="PreviewView.Region"/>).</summary>
+    public PreviewRegion? PreviewTarget
+    {
+        get => _capturer.PreviewTarget;
+        set => _capturer.PreviewTarget = value;
+    }
+
+    // ---- Operating the page from the preview ----
+
+    /// <summary>Forwards a mouse event to the page. The point is in page pixels (CSS pixels at page zoom 100%).</summary>
+    public void SendMouse(CoreWebView2MouseEventKind kind, CoreWebView2MouseEventVirtualKeys keys, uint data, System.Drawing.Point pagePoint)
+        => _controller.SendMouseInput(kind, keys, data, pagePoint);
+
+    /// <summary>Gives keyboard focus to the page. The application window must be the active window for keys to arrive.</summary>
+    public void FocusPage() => _controller.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
+
+    /// <summary>True while keystrokes go to the page.</summary>
+    public bool PageHasFocus { get; private set; }
+
+    public event Action<bool>? PageFocusChanged;
+
+    /// <summary>Raised on the UI thread when Esc is pressed while the page has keyboard focus. Set <c>handled</c> to keep it from the page.</summary>
+    public event Action? EscapePressed;
+
+    /// <summary>The shape the mouse pointer should have over the page (a Windows IDC_ cursor id).</summary>
+    public uint CursorId => _controller.SystemCursorId;
+
+    public event Action? CursorChanged;
+
+    /// <summary>Page zoom (the Ctrl+scroll kind). It changes the viewport the page sees, so it affects the output too.</summary>
+    public double PageZoom
+    {
+        get => _controller.ZoomFactor;
+        set => _controller.ZoomFactor = Math.Clamp(value, 0.25, 5.0);
+    }
+
+    public bool CanGoBack => Browser.CanGoBack;
+
+    public bool CanGoForward => Browser.CanGoForward;
+
+    public void GoBack() => Browser.GoBack();
+
+    public void GoForward() => Browser.GoForward();
+
+    public void Reload() => Browser.Reload();
+
+    /// <summary>Raised after the address or the back/forward history changed.</summary>
+    public event Action? NavigationStateChanged;
+
+    public string CurrentUrl => Browser.Source;
+
+    public Task<string> EvaluateAsync(string script) => Browser.ExecuteScriptAsync(script);
 
     /// <summary>Loads a page and waits until it has finished loading (or <paramref name="timeout"/> passes).</summary>
     public async Task<bool> NavigateAsync(string url, TimeSpan timeout)
@@ -125,6 +181,30 @@ public sealed class RenderEngine : IDisposable
         Resolution = resolution;
         _capturer.Restart();
         _logger.LogInformation("Resolution set to {Resolution}", resolution);
+    }
+
+    private void HookEvents()
+    {
+        _controller.GotFocus += (_, _) => SetPageFocus(true);
+        _controller.LostFocus += (_, _) => SetPageFocus(false);
+        _controller.CursorChanged += (_, _) => CursorChanged?.Invoke();
+        _controller.AcceleratorKeyPressed += (_, e) =>
+        {
+            if (e.VirtualKey == 0x1B && e.KeyEventKind is CoreWebView2KeyEventKind.KeyDown or CoreWebView2KeyEventKind.SystemKeyDown && EscapePressed is { } handler)
+            {
+                e.Handled = true;
+                handler();
+            }
+        };
+        Browser.SourceChanged += (_, _) => NavigationStateChanged?.Invoke();
+        Browser.HistoryChanged += (_, _) => NavigationStateChanged?.Invoke();
+    }
+
+    private void SetPageFocus(bool focused)
+    {
+        if (PageHasFocus == focused) return;
+        PageHasFocus = focused;
+        PageFocusChanged?.Invoke(focused);
     }
 
     public void SetFps(int fps)

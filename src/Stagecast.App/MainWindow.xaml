@@ -1,6 +1,7 @@
 <Window x:Class="Stagecast.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Stagecast.App"
         Title="Stagecast" Width="1280" Height="760" MinWidth="900" MinHeight="560"
         Background="{StaticResource Bg}" WindowStartupLocation="CenterScreen">
     <Grid>
@@ -21,14 +22,38 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="300"/>
+                <ColumnDefinition x:Name="SideColumn" Width="300"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Margin="16" Background="Black" BorderBrush="{StaticResource Line}" BorderThickness="1">
-                <Image x:Name="Preview" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
-            </Border>
+            <Grid Grid.Column="0" Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-            <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
+                <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
+                    <Button x:Name="BackButton" Content="Kembali" Style="{StaticResource ToolButton}" Click="OnBack" ToolTip="Halaman sebelumnya"/>
+                    <Button x:Name="ForwardButton" Content="Maju" Style="{StaticResource ToolButton}" Click="OnForward" ToolTip="Halaman berikutnya"/>
+                    <Button x:Name="ReloadButton" Content="Muat ulang" Style="{StaticResource ToolButton}" Click="OnReload"/>
+                    <Border Width="1" Background="{StaticResource Line}" Margin="6,2,12,2"/>
+                    <ToggleButton x:Name="FitButton" Content="Fit" Style="{StaticResource ToolToggle}" Click="OnFit" ToolTip="Seluruh halaman muat di preview"/>
+                    <ToggleButton x:Name="ActualButton" Content="100%" Style="{StaticResource ToolToggle}" Click="OnActual" ToolTip="Ukuran asli; geser dengan seret atau Space + seret"/>
+                    <Button x:Name="MoreButton" Content="···" Style="{StaticResource ToolButton}" Click="OnMore" ToolTip="Zoom halaman"/>
+                    <TextBlock x:Name="ZoomLabel" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="2,0,0,0"
+                               ToolTip="Zoom halaman mengubah isi halaman yang keluar, bukan hanya preview"/>
+                    <Button x:Name="DetachButton" DockPanel.Dock="Right" Content="Jendela terpisah" Style="{StaticResource ToolButton}" Margin="0" Click="OnDetach" ToolTip="Pindahkan preview ke jendela sendiri (untuk monitor lain)"/>
+                    <ToggleButton x:Name="EnlargeButton" DockPanel.Dock="Right" Content="Perbesar" Style="{StaticResource ToolToggle}" Click="OnEnlarge" ToolTip="Sembunyikan panel kanan"/>
+                    <ToggleButton x:Name="InteractButton" DockPanel.Dock="Right" Content="Interaksi" Style="{StaticResource ToolToggle}" Click="OnInteract" ToolTip="Teruskan klik, gulir, dan ketik ke halaman. Esc melepas keyboard dari halaman."/>
+                </DockPanel>
+
+                <Border x:Name="PreviewHost" Grid.Row="1" Background="Black" BorderBrush="{StaticResource Line}" BorderThickness="1">
+                    <local:PagePreview x:Name="PagePreviewView"/>
+                </Border>
+                <TextBlock x:Name="DetachedNote" Grid.Row="1" Text="Preview ada di jendela terpisah. Tutup jendelanya untuk mengembalikan ke sini." Visibility="Collapsed"
+                           Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Border x:Name="SidePanel" Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
                 <StackPanel Margin="16">
                     <TextBlock Text="RESOLUSI" Style="{StaticResource Label}"/>
                     <Grid>

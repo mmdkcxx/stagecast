@@ -45,6 +45,7 @@ smoke_app() { # pattern...
 smoke() {
   smoke_app "Config \"CreatedDefault\": 2520x1080 at 60 fps" "Main window shown" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a2'" smoke_app "A2 selftest ok" "exiting with code 0" || return 1
+  APP_EXTRA=",'--selftest','a2b'" smoke_app "A2b selftest ok" "exiting with code 0" || return 1
   smoke_mode s1 "webview2 runtime " "navigation completed success=True" || return 1
   smoke_mode s2 "composition controller created" "root visual target set" "navigation completed success=True" "page viewport 2520x1080" "S2 ok" || return 1
   smoke_mode s3 "S3 summary pass=16 fail=0" "S3 ok" || return 1

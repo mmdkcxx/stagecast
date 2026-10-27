@@ -1,0 +1,24 @@
+<UserControl x:Class="Stagecast.App.PagePreview"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="True" FocusVisualStyle="{x:Null}" SnapsToDevicePixels="True">
+    <Grid x:Name="Surface" Background="Black" ClipToBounds="True" SizeChanged="OnSurfaceSizeChanged"
+          MouseDown="SurfaceMouseDown" MouseUp="SurfaceMouseUp" MouseMove="SurfaceMouseMove" MouseWheel="SurfaceMouseWheel" MouseEnter="SurfaceMouseEnter" MouseLeave="SurfaceMouseLeave">
+        <Canvas x:Name="Stage" IsHitTestVisible="False">
+            <Image x:Name="Picture" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
+        </Canvas>
+
+        <Border x:Name="Badge" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,3" Background="#F7C243" CornerRadius="2" Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="BadgeText" Foreground="#1C1505" FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"/>
+        </Border>
+
+        <TextBlock x:Name="HintText" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10" Foreground="#AEAAA4" FontFamily="Segoe UI" FontSize="12" IsHitTestVisible="False" Visibility="Collapsed"/>
+
+        <Border x:Name="MiniMap" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="10" Background="#CC0C0B09" BorderBrush="#4A4743" BorderThickness="1" Visibility="Collapsed"
+                MouseDown="OnMiniMapMouse" MouseMove="OnMiniMapMouse" ToolTip="Posisi tampilan di halaman. Klik atau seret untuk pindah.">
+            <Canvas x:Name="MiniCanvas" Background="Transparent">
+                <Rectangle x:Name="MiniView" Stroke="#F7C243" StrokeThickness="1.5" Fill="#33F7C243" IsHitTestVisible="False"/>
+            </Canvas>
+        </Border>
+    </Grid>
+</UserControl>
