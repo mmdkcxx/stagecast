@@ -7,7 +7,8 @@ Windows 11 tool that renders a web page at a custom resolution (e.g. 2520x1080 f
 ```
 .
 ├── src/                      application code
-│   └── Stagecast.Core/       pure logic (scale math, resolution, presets); App and Outputs come in A1
+│   ├── Stagecast.Core/       pure logic, no Windows APIs (scale math, resolution, presets, configuration)
+│   └── Stagecast.App/        WPF application (Stagecast.exe); render and output modules join in A2+
 ├── tests/
 │   └── Stagecast.Core.Tests/ xUnit
 ├── spikes/                   throwaway spikes proving the WebView2 + capture path

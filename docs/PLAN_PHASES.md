@@ -191,6 +191,7 @@ Kumpulkan hasil S3-S12 jadi satu laporan pendek (angka fps, CPU/GPU, masalah). K
 Dimulai dari proyek baru yang bersih; kode spike diambil sebagai referensi, bukan disalin mentah.
 
 ### A1 - Fondasi
+- **Status: lulus (2026-10-27).** Struktur: `src/Stagecast.Core` (net8.0, murni, bisa diuji tanpa Windows: aturan, matematika skala, konfigurasi), `src/Stagecast.App` (WPF, `Stagecast.exe`, net8.0-windows10.0.22621.0, PerMonitorV2), `tests/Stagecast.Core.Tests`. Modul Windows (RenderEngine, audio) dan `Outputs` dibuat di fase yang memakainya (A2 dst), bukan sebagai proyek kosong sekarang. Konfigurasi: `config.json` di `%AppData%\Stagecast` (atau `--data-dir` / `STAGECAST_HOME`), ditulis lewat berkas sementara; nilai tak valid diperbaiki per bagian, JSON rusak disimpan sebagai `config.json.corrupt-<waktu>` lalu diganti bawaan, komentar dan koma akhir diizinkan, bidang tak dikenal diabaikan, preset kembar/tidak valid dibuang. Logging: Serilog ke `logs\stagecast-<tanggal>.log` (7 hari) lewat `Microsoft.Extensions.Logging`; pengecualian UI yang tak tertangani dicatat dan ditampilkan. Bukti: build bersih tanpa peringatan, 73 unit test lulus (13 baru untuk konfigurasi), aplikasi terbuka, membuat config bawaan, log "Config CreatedDefault 2520x1080 at 60 fps / Main window shown / exiting with code 0".
 - Struktur solusi: `App` (WPF), `Core` (RenderEngine, FrameHub, AudioHub), `Outputs` (Display, NDI, OMT).
 - Konfigurasi JSON dan logging.
 - **Lulus:** build bersih, aplikasi terbuka, config terbaca. [Saya]
