@@ -3,6 +3,13 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [0.1.3] - 2026-10-27
+
+### Diperbaiki
+- Tombol "Preview + Take" tetap nonaktif walau sudah ada dua tab atau lebih. Status tombol sekarang diperbarui setiap kali
+  tab ditambah atau ditutup. Cara pakai: buka minimal dua tab, tab yang sedang tayang tetap jalan, klik "Preview + Take",
+  pilih tab lain untuk disiapkan, lalu klik TAKE (atau tekan Spasi) untuk menayangkannya.
+
 ## [0.1.2] - 2026-10-27
 
 ### Diperbaiki

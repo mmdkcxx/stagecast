@@ -320,6 +320,7 @@ public partial class MainWindow
     private void RebuildTabList()
     {
         SyncAudioSources();
+        UpdateModeButtons(); // the number of tabs decides whether Preview + Take is available
         TabListPanel.Children.Clear();
         for (int i = 0; i < _tabs.Items.Count; i++)
         {
