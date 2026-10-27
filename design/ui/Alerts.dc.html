@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Kondisi gagal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+body{margin:0}
+button{font-family:inherit;cursor:pointer}
+button:hover{filter:brightness(1.15)}
+button:focus-visible{outline:2px solid #F0EEEA;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 880px; height: 640px; box-sizing: border-box; background: #0C0B09; color: #F0EEEA; font-family: Barlow, 'Segoe UI', sans-serif; font-size: 15px; padding: 32px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-size: 28px; font-weight: 700; line-height: 1.15">Saat ada yang salah</h1>
+<p style="margin: 0; color: #AEAAA4; line-height: 1.45; max-width: 560px; text-wrap: pretty">Setiap baris menyebut apa yang terjadi, apa dampaknya ke output, dan satu tindakan yang bisa langsung dilakukan.</p>
+</div>
+
+<div style="display: flex; flex-direction: column; border-top: 1px solid #34332F">
+
+<div style="display: grid; grid-template-columns: 112px 1fr auto; align-items: center; column-gap: 16px; min-height: 88px; border-bottom: 1px solid #34332F">
+<span style="justify-self: start; padding: 4px 10px; border-radius: 2px; background: #C50516; color: #FFFFFF; font-size: 12px; font-weight: 700; letter-spacing: 0.1em">GAGAL</span>
+<div style="display: flex; flex-direction: column; gap: 3px">
+<span style="font-weight: 600; font-size: 16px">Monitor 2 terputus</span>
+<span style="color: #AEAAA4; font-size: 14px; text-wrap: pretty">Output layar dihentikan. NDI dan OMT tetap berjalan.</span>
+</div>
+<button style="height: 44px; padding: 0 16px; border-radius: 3px; background: #F0EEEA; border: none; color: #0C0B09; font-weight: 700">Pilih ulang monitor</button>
+</div>
+
+<div style="display: grid; grid-template-columns: 112px 1fr auto; align-items: center; column-gap: 16px; min-height: 88px; border-bottom: 1px solid #34332F">
+<span style="justify-self: start; padding: 4px 10px; border-radius: 2px; background: #C50516; color: #FFFFFF; font-size: 12px; font-weight: 700; letter-spacing: 0.1em">GAGAL</span>
+<div style="display: flex; flex-direction: column; gap: 3px">
+<span style="font-weight: 600; font-size: 16px">Tab “Video profil” berhenti merespons</span>
+<span style="color: #AEAAA4; font-size: 14px; text-wrap: pretty">Dimuat ulang otomatis, percobaan 1 dari 3. Output menahan frame terakhir.</span>
+</div>
+<button style="height: 44px; padding: 0 16px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA; font-weight: 600">Muat ulang sekarang</button>
+</div>
+
+<div style="display: grid; grid-template-columns: 112px 1fr auto; align-items: center; column-gap: 16px; min-height: 88px; border-bottom: 1px solid #34332F">
+<span style="justify-self: start; padding: 4px 10px; border-radius: 2px; background: #C50516; color: #FFFFFF; font-size: 12px; font-weight: 700; letter-spacing: 0.1em">GAGAL</span>
+<div style="display: flex; flex-direction: column; gap: 3px">
+<span style="font-weight: 600; font-size: 16px">NDI Runtime tidak ditemukan</span>
+<span style="color: #AEAAA4; font-size: 14px; text-wrap: pretty">Letakkan <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #F0EEEA">Processing.NDI.Lib.x64.dll</span> di folder aplikasi, lalu nyalakan lagi output NDI.</span>
+</div>
+<button style="height: 44px; padding: 0 16px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA; font-weight: 600">Buka petunjuk</button>
+</div>
+
+<div style="display: grid; grid-template-columns: 112px 1fr auto; align-items: center; column-gap: 16px; min-height: 88px; border-bottom: 1px solid #34332F">
+<span style="justify-self: start; padding: 4px 10px; border-radius: 2px; background: #F7C243; color: #1C1505; font-size: 12px; font-weight: 700; letter-spacing: 0.1em">PERINGATAN</span>
+<div style="display: flex; flex-direction: column; gap: 3px">
+<span style="font-weight: 600; font-size: 16px">Frame mulai dibuang</span>
+<span style="color: #AEAAA4; font-size: 14px; text-wrap: pretty">41 dari 60 fps target, 18 frame dibuang dalam 10 detik. Turunkan ke 30 fps atau kecilkan resolusi.</span>
+</div>
+<button style="height: 44px; padding: 0 16px; border-radius: 3px; background: #F0EEEA; border: none; color: #0C0B09; font-weight: 700">Turunkan ke 30 fps</button>
+</div>
+
+</div>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4">BAR STATUS SAAT BERMASALAH</div>
+<div style="height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #151411; border: 1px solid #34332F; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #AEAAA4">
+<div style="display: flex; gap: 28px">
+<span>fps <span style="color: #F7C243">41.2</span></span>
+<span>dibuang <span style="color: #F7C243">18</span></span>
+<span>CPU 91%</span>
+<span>GPU 97%</span>
+</div>
+<div style="display: flex; gap: 28px">
+<span>NDI <span style="color: #FF7A6E">error</span></span>
+<span>OMT <span style="color: #56DC85">ok</span></span>
+</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

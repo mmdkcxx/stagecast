@@ -1,0 +1,40 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-27T09:00:00Z" },
+  "title": "Stagecast Storyboard",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 2440, "h": 800, "title": "1 · Persiapan" },
+    "Uji.dc.html": { "x": 0, "y": 920, "w": 2440, "h": 800, "title": "2 · Uji coba" },
+    "Acara.dc.html": { "x": 0, "y": 1840, "w": 2440, "h": 800, "title": "3 · Saat acara" },
+    "Selesai.dc.html": { "x": 0, "y": 2760, "w": 1240, "h": 800, "title": "4 · Selesai" }
+  },
+  "order": ["Main.dc.html", "Uji.dc.html", "Acara.dc.html", "Selesai.dc.html"],
+  "notes": {
+    "judul": {
+      "x": 0,
+      "y": -300,
+      "text": "Stagecast: dari menyalakan aplikasi sampai acara selesai",
+      "kind": "title1",
+      "maxW": 2440
+    },
+    "baca": {
+      "x": 1320,
+      "y": 2760,
+      "w": 520,
+      "size": "m",
+      "fill": "blue",
+      "text": "Cara baca\nSatu panel = satu langkah operator. Tag di bawah panel menunjuk tahap di PLAN_PHASES.md. Teks kuning = hal yang belum terbukti atau belum diputuskan. Gambar di tiap panel adalah sketsa, bukan tangkapan layar."
+    },
+    "terbuka": {
+      "x": 1900,
+      "y": 2760,
+      "w": 520,
+      "size": "m",
+      "fill": "green",
+      "text": "Sudah diputuskan\n- Tidak ada mode Setup/Show; konfirmasi hanya untuk perubahan berisiko.\n- Freeze membuat audio keluaran senyap.\n- Tab yang tayang tidak bisa dioperasikan dari Preview + Take.\n- Usulan penyederhanaan UI 2-7 diterapkan."
+    }
+  },
+  "designSystems": []
+}

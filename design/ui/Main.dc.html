@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Kontrol utama</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+body{margin:0}
+button{font-family:inherit;cursor:pointer}
+button:hover{filter:brightness(1.15)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #F0EEEA;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; background: #0C0B09; color: #F0EEEA; font-family: Barlow, 'Segoe UI', sans-serif; font-size: 15px; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="height: 64px; flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 20px; background: #151411; border-bottom: 1px solid #34332F">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="padding-right: 14px; margin-right: 4px; border-right: 1px solid #34332F; font-weight: 700; font-size: 20px; letter-spacing: 0.02em; color: #F0EEEA">Stagecast</span>
+<div style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 3px; font-weight: 700; font-size: 16px; letter-spacing: 0.1em; background: {{statusBg}}; color: {{statusFg}}">
+<span style="width: 9px; height: 9px; border-radius: 50%; background: {{statusFg}}"></span>{{statusLabel}}
+</div>
+<sc-for list="{{outputs}}" as="o" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 3px; background: #1F1E1B; border: 1px solid #34332F">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: {{o.dot}}"></span>
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4">{{o.short}}</span>
+<span style="font-weight: 500">{{o.stateText}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 20px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 15px">{{resText}} · {{fps}} fps</div>
+</div>
+</div>
+
+<div style="flex: 1; min-height: 0; display: flex">
+
+<div style="width: 300px; flex: none; box-sizing: border-box; padding: 16px; background: #151411; border-right: 1px solid #34332F; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4; padding: 0 2px 4px"><span title="Ctrl+1 sampai Ctrl+9 untuk pindah tab">TAB</span><span>4</span></div>
+<div role="group" aria-label="Cara pindah tab" style="display: flex; border: 1px solid #4A4743; border-radius: 3px; overflow: hidden; margin-bottom: 4px">
+<button onClick="{{modeDirect}}" aria-pressed="{{directStr}}" style="flex: 1; height: 44px; border: none; font-weight: 700; font-size: 13px; background: {{directBg}}; color: {{directFg}}">Langsung</button>
+<button onClick="{{modeTake}}" aria-pressed="{{takeStr}}" style="flex: 1; height: 44px; border: none; font-weight: 700; font-size: 13px; background: {{takeBg}}; color: {{takeFg}}">Preview + Take</button>
+</div>
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; border-radius: 3px; background: {{t.rowBg}}; border: 2px solid {{t.rowBorder}}">
+<sc-if value="{{t.editing}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 8px">
+<div style="display: flex; gap: 8px; align-items: center">
+<input aria-label="Nama tab {{t.index}}" value="{{t.name}}" onChange="{{t.onRename}}" maxlength="40" style="flex: 1; min-width: 0; height: 44px; box-sizing: border-box; padding: 0 10px; border-radius: 3px; background: #0C0B09; border: 1px solid #F0EEEA; color: #F0EEEA; font-family: inherit; font-size: 15px; font-weight: 600">
+<button onClick="{{t.done}}" aria-label="Selesai mengganti nama" style="width: 44px; height: 44px; flex: none; border-radius: 3px; background: #F0EEEA; border: none; color: #0C0B09"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"></path></svg></button>
+</div>
+<span style="font-size: 12px; line-height: 1.4; color: {{t.hintColor}}">{{t.hint}}</span>
+</div>
+</sc-if>
+<sc-if value="{{t.notEditing}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; align-items: stretch">
+<button onClick="{{t.pick}}" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px; text-align: left; color: #F0EEEA; background: transparent; border: none">
+<span style="width: 96px; height: 54px; flex: none; display: flex; align-items: center; justify-content: center; background: #0C0B09">
+<span style="width: {{t.thW}}px; height: {{t.thH}}px; background: {{t.bg}}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 7px; letter-spacing: 0.04em; color: #FFFFFF; overflow: hidden">{{t.shortTitle}}</span>
+</span>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<span style="display: flex; align-items: center; gap: 6px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #AEAAA4">{{t.index}}</span>
+<span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{t.name}}</span>
+</span>
+<span style="display: flex; align-items: center; gap: 6px; min-height: 18px">
+<sc-if value="{{t.isLive}}" hint-placeholder-val="{{ true }}">
+<span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; padding: 2px 6px; border-radius: 2px; background: #C50516; color: #FFFFFF">LIVE</span>
+</sc-if>
+<sc-if value="{{t.isPrv}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; padding: 2px 6px; border-radius: 2px; background: #56DC85; color: #0C0B09">PREVIEW</span>
+</sc-if>
+<sc-if value="{{t.audio}}" hint-placeholder-val="{{ true }}">
+<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#AEAAA4" stroke-width="1.5" aria-label="Tab ini bersuara" role="img"><path d="M2 6h2.5L8 3v10L4.5 10H2z"></path><path d="M10.5 5.5a3.5 3.5 0 0 1 0 5"></path></svg>
+</sc-if>
+</span>
+</span>
+</button>
+<button onClick="{{t.startEdit}}" aria-label="Ganti nama tab {{t.name}}" style="width: 40px; flex: none; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-left: 1px solid #34332F; color: #AEAAA4"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 13.5l.7-3L11 2.7a1.4 1.4 0 0 1 2 2L5.2 12.5z"></path><path d="M9.8 3.9l2 2"></path></svg></button>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<button style="width: 100%; min-height: 46px; border-radius: 3px; background: transparent; border: 1px dashed #4A4743; color: #AEAAA4; font-weight: 500">+ Tab baru</button>
+</div>
+
+<div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; gap: 8px; align-items: center">
+<button aria-label="Kembali" style="width: 44px; height: 44px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M13 8H3M7 4L3 8l4 4"></path></svg></button>
+<button aria-label="Maju" style="width: 44px; height: 44px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"></path></svg></button>
+<input aria-label="Alamat halaman" readonly value="{{liveUrl}}" style="flex: 1; height: 44px; box-sizing: border-box; padding: 0 14px; border-radius: 3px; background: #151411; border: 1px solid #4A4743; color: #F0EEEA; font-family: 'IBM Plex Mono', monospace; font-size: 13px">
+<button aria-label="Muat ulang" style="width: 44px; height: 44px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7"></path><path d="M13 2v3h-3"></path></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 8px">
+<div style="display: flex; border: 1px solid #4A4743; border-radius: 3px; overflow: hidden" role="group" aria-label="Zoom tampilan preview">
+<button onClick="{{viewFit}}" aria-pressed="{{fitStr}}" style="width: 60px; height: 44px; border: none; font-weight: 700; background: {{fitBg}}; color: {{fitFg}}">Fit</button>
+<button onClick="{{view100}}" aria-pressed="{{v100Str}}" style="width: 60px; height: 44px; border: none; font-weight: 700; background: {{v100Bg}}; color: {{v100Fg}}">100%</button>
+</div>
+<button onClick="{{toggleInteract}}" aria-pressed="{{interactStr}}" style="height: 46px; padding: 0 14px; border-radius: 3px; font-weight: 700; letter-spacing: 0.06em; background: {{interactBg}}; color: {{interactFg}}; border: 1px solid {{interactBorder}}">INTERAKSI · {{interactLabel}}</button>
+<span style="flex: 1"></span>
+<div style="position: relative">
+<button onClick="{{toggleMore}}" aria-expanded="{{moreStr}}" aria-label="Pengaturan halaman lainnya" style="width: 46px; height: 46px; border-radius: 3px; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.5"></circle><circle cx="8" cy="8" r="1.5"></circle><circle cx="13" cy="8" r="1.5"></circle></svg></button>
+<sc-if value="{{moreOpen}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; right: 0; top: 52px; z-index: 5; width: max-content; padding: 10px; background: #151411; border: 1px solid #4A4743; border-radius: 3px">
+<div style="display: flex; align-items: center; border: 1px solid #4A4743; border-radius: 3px; overflow: hidden" role="group" aria-label="Zoom isi halaman">
+<span style="padding: 0 8px 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4">HALAMAN</span>
+<button onClick="{{pageZoomDown}}" aria-label="Perkecil halaman" style="width: 40px; height: 44px; border: none; border-left: 1px solid #34332F; background: #1F1E1B; color: #F0EEEA; font-size: 18px">−</button>
+<button onClick="{{pageZoomReset}}" aria-label="Setel ulang zoom halaman" style="width: 60px; height: 44px; border: none; background: #1F1E1B; color: #F0EEEA; font-family: 'IBM Plex Mono', monospace; font-size: 13px">{{pageZoom}}%</button>
+<button onClick="{{pageZoomUp}}" aria-label="Perbesar halaman" style="width: 40px; height: 44px; border: none; background: #1F1E1B; color: #F0EEEA; font-size: 18px">+</button>
+</div>
+</div>
+</sc-if>
+</div>
+<button onClick="{{toggleExpand}}" aria-pressed="{{expandStr}}" style="height: 46px; padding: 0 14px; display: flex; align-items: center; gap: 8px; border-radius: 3px; font-weight: 600; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"></path></svg>{{expandLabel}}</button>
+<button aria-label="Buka preview di jendela terpisah" style="width: 46px; height: 46px; border-radius: 3px; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="5" width="9" height="8" rx="1"></rect><path d="M6 3h7v7M13 3L8 8"></path></svg></button>
+</div>
+
+<div style="height: {{boxH}}px; flex: none; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #151411; border: 1px solid #34332F">
+<div style="position: relative; overflow: hidden; width: {{pvW}}px; height: {{pvH}}px; cursor: {{pvCursor}}; outline: 3px solid {{tally}}; outline-offset: 5px; background: {{liveBg}}; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
+<sc-if value="{{liveIsVideo}}" hint-placeholder-val="{{ false }}">
+<svg width="{{playSize}}" height="{{playSize}}" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+</sc-if>
+<div style="font-weight: 700; letter-spacing: 0.04em; font-size: {{titleSize}}px; line-height: 1.1">{{liveTitle}}</div>
+<div style="font-size: {{subSize}}px; opacity: 0.85">{{liveSub}}</div>
+<sc-if value="{{takeMode}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; right: 8px; top: 8px; padding: 3px 8px; border-radius: 2px; background: {{prvChipBg}}; color: {{prvChipFg}}; font-size: 11px; font-weight: 700; letter-spacing: 0.1em">{{prvLabel}}</div>
+</sc-if>
+<sc-if value="{{interact}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 8px; top: 8px; padding: 3px 8px; border-radius: 2px; background: #F0EEEA; color: #0C0B09; font-size: 11px; font-weight: 700; letter-spacing: 0.1em">{{interactTarget}}</div>
+</sc-if>
+<sc-if value="{{clipped}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; right: 8px; bottom: 8px; width: {{mmW}}px; height: {{mmH}}px; background: #0C0B09; border: 1px solid #AEAAA4; display: flex; align-items: center; justify-content: center" role="img" aria-label="Posisi bagian yang terlihat">
+<div style="width: {{mmInW}}px; height: {{mmInH}}px; background: rgba(240, 238, 234, 0.35); border: 1px solid #F0EEEA"></div>
+</div>
+</sc-if>
+<sc-if value="{{pipShow}}" hint-placeholder-val="{{ false }}">
+<div style="position: absolute; left: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start">
+<span style="padding: 2px 6px; border-radius: 2px; background: {{pipChipBg}}; color: {{pipChipFg}}; font-size: 10px; font-weight: 700; letter-spacing: 0.1em">{{heldLabel}}</span>
+<div style="width: {{pipW}}px; height: {{pipH}}px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid {{pipBorder}}; background: {{pipBg}}; color: #FFFFFF; font-weight: 700; font-size: 8px; letter-spacing: 0.04em">{{pipText}}</div>
+</div>
+</sc-if>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #AEAAA4"><span>{{viewHint}}</span><span>skala {{scalePct}}%</span></div>
+
+<div style="display: flex; gap: 12px">
+<sc-if value="{{showTake}}" hint-placeholder-val="{{ false }}">
+<button onClick="{{doTake}}" disabled="{{takeDisabled}}" title="Pindahkan tab preview ke output (Spasi)" style="flex: 1.3; height: 52px; border-radius: 3px; font-weight: 700; font-size: 16px; letter-spacing: 0.1em; background: {{takeBtnBg}}; color: {{takeBtnFg}}; border: 1px solid {{takeBtnBorder}}">TAKE</button>
+</sc-if>
+<button onClick="{{toggleBlackout}}" aria-pressed="{{blackoutStr}}" style="flex: 1; height: 52px; border-radius: 3px; font-weight: 700; font-size: 16px; letter-spacing: 0.1em; background: {{blackBg}}; color: {{blackFg}}; border: 1px solid {{blackBorder}}">BLACKOUT</button>
+<button onClick="{{toggleFreeze}}" aria-pressed="{{freezeStr}}" style="flex: 1; height: 52px; border-radius: 3px; font-weight: 700; font-size: 16px; letter-spacing: 0.1em; background: {{freezeBg}}; color: {{freezeFg}}; border: 1px solid {{freezeBorder}}">FREEZE</button>
+</div>
+</div>
+
+<sc-if value="{{showPanel}}" hint-placeholder-val="{{ true }}">
+<div style="width: 340px; flex: none; box-sizing: border-box; background: #151411; border-left: 1px solid #34332F; display: flex; flex-direction: column; overflow-y: auto; min-height: 0">
+<sc-if value="{{pendingShow}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 20px; background: #2F2203; border-bottom: 1px solid #F7C243; font-size: 13px; color: #F0EEEA">
+<span style="line-height: 1.4; text-wrap: pretty">{{pendingText}}</span>
+<div style="display: flex; gap: 8px">
+<button onClick="{{cancelPending}}" style="flex: 1; height: 44px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA; font-weight: 600">Batal</button>
+<button onClick="{{doPending}}" style="flex: 1; height: 44px; border-radius: 3px; background: #F7C243; border: none; color: #1C1505; font-weight: 700">{{pendingOk}}</button>
+</div>
+</div>
+</sc-if>
+
+<div style="box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid #34332F">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4">RENDER · UNTUK SEMUA OUTPUT</div>
+<div style="display: flex; align-items: flex-end; gap: 8px">
+<label style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #AEAAA4">Lebar
+<input value="{{wTxt}}" onInput="{{setWTxt}}" inputmode="numeric" aria-invalid="{{wBadStr}}" style="height: 44px; box-sizing: border-box; width: 100%; padding: 0 12px; border-radius: 3px; background: #0C0B09; border: 1px solid {{wBorder}}; color: #F0EEEA; font-family: 'IBM Plex Mono', monospace; font-size: 16px">
+</label>
+<span style="height: 44px; display: flex; align-items: center; color: #AEAAA4">×</span>
+<label style="flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #AEAAA4">Tinggi
+<input value="{{hTxt}}" onInput="{{setHTxt}}" inputmode="numeric" aria-invalid="{{hBadStr}}" style="height: 44px; box-sizing: border-box; width: 100%; padding: 0 12px; border-radius: 3px; background: #0C0B09; border: 1px solid {{hBorder}}; color: #F0EEEA; font-family: 'IBM Plex Mono', monospace; font-size: 16px">
+</label>
+</div>
+<sc-if value="{{sizeErr}}" hint-placeholder-val="{{ false }}">
+<div style="font-size: 12px; color: #FF7A6E">{{sizeErr}}</div>
+</sc-if>
+<sc-if value="{{canApply}}" hint-placeholder-val="{{ false }}">
+<button onClick="{{applySize}}" style="height: 44px; border-radius: 3px; font-weight: 700; font-size: 14px; background: #F0EEEA; color: #0C0B09; border: 1px solid #F0EEEA">Terapkan {{wTxt}} × {{hTxt}}</button>
+</sc-if>
+<div style="display: flex; align-items: center; justify-content: space-between">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4">PRESET</span>
+<button onClick="{{toggleManage}}" aria-pressed="{{manageStr}}" style="height: 44px; padding: 0 14px; border-radius: 3px; font-weight: 600; font-size: 13px; background: {{manageBg}}; color: {{manageFg}}; border: 1px solid {{manageBorder}}">{{manageLabel}}</button>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{presets}}" as="p" hint-placeholder-count="4">
+<button onClick="{{p.pick}}" disabled="{{p.locked}}" aria-label="{{p.aria}}" style="min-height: 48px; border-radius: 3px; padding: 4px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; background: {{p.bg}}; color: {{p.fg}}; border: 1px solid {{p.border}}">
+<span style="font-size: 14px; font-weight: 600">{{p.name}}</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: {{p.sub}}">{{p.res}}</span>
+<span style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: {{p.tagFg}}">{{p.tag}}</span>
+</button>
+</sc-for>
+</div>
+<sc-if value="{{delConfirm}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #2F2203; border: 1px solid #F7C243; border-radius: 3px">
+<span style="font-size: 13px; line-height: 1.4">Hapus preset "{{delName}}"? Resolusi yang sedang dipakai tidak berubah.</span>
+<div style="display: flex; gap: 8px">
+<button onClick="{{cancelDelete}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 600; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743">Batal</button>
+<button onClick="{{doDelete}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 700; background: #F7C243; color: #1C1505; border: 1px solid #F7C243">Hapus</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{showSaveBtn}}" hint-placeholder-val="{{ true }}">
+<button onClick="{{openSave}}" disabled="{{saveBtnOff}}" style="height: 44px; border-radius: 3px; font-weight: 600; font-size: 13px; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743; opacity: {{saveBtnOp}}">+ Simpan {{wTxt}} × {{hTxt}} sebagai preset</button>
+</sc-if>
+<sc-if value="{{saving}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #151411; border: 1px solid #4A4743; border-radius: 3px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #AEAAA4">Nama preset ({{wTxt}} × {{hTxt}})
+<input value="{{saveName}}" onInput="{{setSaveName}}" maxlength="24" aria-invalid="{{saveErrStr}}" style="height: 44px; box-sizing: border-box; width: 100%; padding: 0 12px; border-radius: 3px; background: #0C0B09; border: 1px solid {{saveBorder}}; color: #F0EEEA; font-family: inherit; font-size: 15px">
+</label>
+<div style="font-size: 12px; color: #FF7A6E">{{saveErr}}</div>
+<div style="display: flex; gap: 8px">
+<button onClick="{{cancelSave}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 600; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743">Batal</button>
+<button onClick="{{doSave}}" disabled="{{saveOff}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 700; background: #F0EEEA; color: #0C0B09; border: 1px solid #F0EEEA; opacity: {{saveOp}}">Simpan</button>
+</div>
+</div>
+</sc-if>
+<div style="display: flex; gap: 10px; align-items: center">
+<span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4; width: 36px">FPS</span>
+<div style="flex: 1; display: flex; border: 1px solid #4A4743; border-radius: 3px; overflow: hidden">
+<button onClick="{{setFps30}}" style="flex: 1; height: 44px; border: none; font-weight: 700; font-size: 16px; background: {{fps30Bg}}; color: {{fps30Fg}}">30</button>
+<button onClick="{{setFps60}}" style="flex: 1; height: 44px; border: none; font-weight: 700; font-size: 16px; background: {{fps60Bg}}; color: {{fps60Fg}}">60</button>
+</div>
+</div>
+</div>
+
+<div style="box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #34332F">
+<div style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #AEAAA4; padding-bottom: 4px">OUTPUT</div>
+<sc-for list="{{outputs}}" as="o" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; border-top: 1px solid #34332F">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 56px">
+<button onClick="{{o.toggleOpen}}" aria-expanded="{{o.openStr}}" aria-label="Pengaturan {{o.name}}" style="flex: 1; min-width: 0; min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 0; text-align: left; color: #F0EEEA; background: transparent; border: none">
+<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#AEAAA4" stroke-width="1.6" aria-hidden="true" style="flex: none; transform: {{o.chevRot}}"><path d="M3 5l4 4 4-4"></path></svg>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-weight: 600">{{o.name}}</span>
+<span style="font-size: 13px; color: #AEAAA4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{o.detail}}</span>
+</span>
+</button>
+<button onClick="{{o.toggle}}" aria-pressed="{{o.onStr}}" aria-label="{{o.name}}" style="width: 76px; height: 44px; border-radius: 3px; font-weight: 700; font-size: 13px; letter-spacing: 0.1em; background: {{o.btnBg}}; color: {{o.btnFg}}; border: 1px solid {{o.btnBorder}}">{{o.btnLabel}}</button>
+</div>
+<sc-if value="{{o.confirming}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; margin-bottom: 10px; background: #2F2203; border: 1px solid #F7C243; border-radius: 3px">
+<span style="font-size: 13px; line-height: 1.4; text-wrap: pretty">Matikan {{o.name}}? Penerima kehilangan sumber sampai dinyalakan lagi.</span>
+<div style="display: flex; gap: 8px">
+<button onClick="{{o.cancelOff}}" style="flex: 1; height: 44px; border-radius: 3px; background: #1F1E1B; border: 1px solid #4A4743; color: #F0EEEA; font-weight: 600">Batal</button>
+<button onClick="{{o.doOff}}" style="flex: 1; height: 44px; border-radius: 3px; background: #F7C243; border: none; color: #1C1505; font-weight: 700">Matikan</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{o.showDisplayBody}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 2px 0 16px 24px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #AEAAA4">Monitor
+<select aria-label="Monitor output" style="height: 44px; box-sizing: border-box; width: 100%; padding: 0 10px; border-radius: 3px; background: #0C0B09; border: 1px solid #4A4743; color: #F0EEEA; font-family: inherit; font-size: 14px">
+<option>Monitor 2 · HDMI 1 · 1920×1080</option>
+<option>Monitor 3 · HDMI 2 · 1920×1080</option>
+</select>
+</label>
+<div style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #AEAAA4">Skala ke monitor
+<div style="display: flex; border: 1px solid #4A4743; border-radius: 3px; overflow: hidden" role="group" aria-label="Mode skala layar">
+<button onClick="{{o.scStretch}}" aria-pressed="{{o.scSOn}}" style="flex: 1; height: 44px; border: none; font-weight: 700; background: {{o.scSBg}}; color: {{o.scSFg}}">Peras</button>
+<button onClick="{{o.scFit}}" aria-pressed="{{o.scFOn}}" style="flex: 1; height: 44px; border: none; font-weight: 700; background: {{o.scFBg}}; color: {{o.scFFg}}">Fit</button>
+<button onClick="{{o.scOne}}" aria-pressed="{{o.scOOn}}" style="flex: 1; height: 44px; border: none; font-weight: 700; background: {{o.scOBg}}; color: {{o.scOFg}}">1:1</button>
+</div>
+</div>
+<div style="font-size: 13px; line-height: 1.4; color: #AEAAA4; text-wrap: pretty">{{o.scaleInfo}}</div>
+<div style="font-size: 13px; line-height: 1.4; color: #F0EEEA; text-wrap: pretty">{{o.scaleDown}}</div>
+<div style="display: flex; align-items: center; gap: 10px; padding-top: 10px; border-top: 1px solid #34332F">
+<span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 14px">Selalu di atas</span>
+<span style="font-size: 12px; line-height: 1.4; color: #AEAAA4; text-wrap: pretty">{{o.topHint}}</span>
+</span>
+<button onClick="{{o.toggleTop}}" aria-pressed="{{o.topStr}}" aria-label="Output layar selalu di atas" style="width: 76px; height: 44px; flex: none; border-radius: 3px; font-weight: 700; font-size: 13px; letter-spacing: 0.1em; background: {{o.topBg}}; color: {{o.topFg}}; border: 1px solid {{o.topBorder}}">{{o.topLabel}}</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{o.showNameBody}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 2px 0 16px 24px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #AEAAA4">Nama sumber {{o.short}}
+<input value="{{o.nameValue}}" onChange="{{o.onName}}" maxlength="64" style="height: 44px; box-sizing: border-box; width: 100%; padding: 0 12px; border-radius: 3px; background: #0C0B09; border: 1px solid #4A4743; color: #F0EEEA; font-family: 'IBM Plex Mono', monospace; font-size: 14px">
+</label>
+<span style="font-size: 12px; line-height: 1.4; text-wrap: pretty; color: {{o.hintColor}}">{{o.nameHint}}</span>
+<div style="font-size: 13px; color: #AEAAA4">Resolusi kirim: <span style="font-family: 'IBM Plex Mono', monospace; color: #F0EEEA">{{o.resLine}}</span> native</div>
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="flex: 1; font-size: 13px; color: #AEAAA4">Kirim audio halaman</span>
+<button onClick="{{o.toggleAudio}}" aria-pressed="{{o.audioStr}}" aria-label="Kirim audio ke {{o.short}}" style="width: 76px; height: 44px; border-radius: 3px; font-weight: 700; font-size: 13px; letter-spacing: 0.1em; background: {{o.audioBg}}; color: {{o.audioFg}}; border: 1px solid {{o.audioBorder}}">{{o.audioLabel}}</button>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+
+<div style="box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+<button onClick="{{toggleAudioOpen}}" aria-expanded="{{audioOpenStr}}" style="display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; padding: 0 12px; border-radius: 3px; background: #151411; border: 1px solid #4A4743; color: #F0EEEA; font-family: inherit">
+<span style="flex: 1; text-align: left; font-size: 13px; font-weight: 600; letter-spacing: 0.1em">AUDIO</span>
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: {{audioStatusFg}}">{{audioStatus}}</span>
+<span aria-hidden="true" style="font-size: 12px; color: #AEAAA4">{{audioChevron}}</span>
+</button>
+<sc-if value="{{audioOpen}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<select aria-label="Perangkat audio lokal" style="height: 44px; box-sizing: border-box; width: 100%; padding: 0 10px; border-radius: 3px; background: #0C0B09; border: 1px solid #4A4743; color: #F0EEEA; font-family: inherit; font-size: 14px">
+<option>HDMI Output (NVIDIA)</option>
+<option>Speakers (Realtek)</option>
+<option>Tidak ada (hanya NDI/OMT)</option>
+</select>
+<div style="display: flex; gap: 2px; height: 14px" aria-label="Level audio" role="img">
+<sc-for list="{{meter}}" as="m" hint-placeholder-count="24">
+<span style="flex: 1; border-radius: 1px; background: {{m.color}}"></span>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 10px">
+<input type="range" min="0" max="100" value="80" aria-label="Volume" style="flex: 1; height: 44px">
+<button onClick="{{toggleMute}}" aria-pressed="{{muteStr}}" style="height: 44px; padding: 0 14px; border-radius: 3px; font-weight: 600; background: {{muteBg}}; color: {{muteFg}}; border: 1px solid {{muteBorder}}">{{muteLabel}}</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 12px; margin-top: 4px; border-top: 1px solid #34332F">
+<button onClick="{{toggleToneOpen}}" aria-expanded="{{toneOpenStr}}" style="display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; padding: 0 12px; border-radius: 3px; background: #151411; border: 1px solid #4A4743; color: #F0EEEA; font-family: inherit">
+<span style="flex: 1; text-align: left; font-size: 13px; font-weight: 600; letter-spacing: 0.1em">TEST TONE</span>
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: {{toneStatusFg}}">{{toneStatus}}</span>
+<span aria-hidden="true" style="font-size: 12px; color: #AEAAA4">{{toneChevron}}</span>
+</button>
+<sc-if value="{{toneOpen}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 56px; font-size: 13px; color: #AEAAA4">Kirim ke</span>
+<sc-for list="{{toneTargets}}" as="g" hint-placeholder-count="3">
+<button onClick="{{g.pick}}" aria-pressed="{{g.str}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 600; font-size: 13px; background: {{g.bg}}; color: {{g.fg}}; border: 1px solid {{g.border}}">{{g.name}}</button>
+</sc-for></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 56px; font-size: 13px; color: #AEAAA4">Sinyal</span>
+<sc-for list="{{toneSigs}}" as="g" hint-placeholder-count="2">
+<button onClick="{{g.pick}}" aria-pressed="{{g.str}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 600; font-size: 13px; background: {{g.bg}}; color: {{g.fg}}; border: 1px solid {{g.border}}">{{g.name}}</button>
+</sc-for></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 56px; font-size: 13px; color: #AEAAA4">Kanal</span>
+<sc-for list="{{toneChs}}" as="g" hint-placeholder-count="3">
+<button onClick="{{g.pick}}" aria-pressed="{{g.str}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 600; font-size: 13px; background: {{g.bg}}; color: {{g.fg}}; border: 1px solid {{g.border}}">{{g.name}}</button>
+</sc-for></div>
+<button onClick="{{toggleTone}}" disabled="{{toneNoTarget}}" aria-pressed="{{toneStr}}" style="height: 48px; border-radius: 3px; font-weight: 700; font-size: 14px; letter-spacing: 0.08em; background: {{toneBg}}; color: {{toneFg}}; border: 1px solid {{toneBorder}}">{{toneBtn}}</button>
+<div style="font-size: 12px; color: {{toneNoteFg}}; line-height: 1.4">{{toneNote}}</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+
+<div style="box-sizing: border-box; padding: 20px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #34332F">
+<button onClick="{{toggleSessOpen}}" aria-expanded="{{sessOpenStr}}" style="display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; padding: 0 12px; border-radius: 3px; background: #151411; border: 1px solid #4A4743; color: #F0EEEA; font-family: inherit">
+<span style="flex: 1; text-align: left; font-size: 13px; font-weight: 600; letter-spacing: 0.1em">SESI LOGIN</span>
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: {{sessStatusFg}}">{{sessStatus}}</span>
+<span aria-hidden="true" style="font-size: 12px; color: #AEAAA4">{{sessChevron}}</span>
+</button>
+<sc-if value="{{sessOpen}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<sc-for list="{{sessions}}" as="r" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #151411; border: 1px solid #34332F; border-radius: 3px">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.name}}</span>
+<span style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: {{r.fg}}">{{r.status}}</span>
+</div>
+<button onClick="{{r.toggleProfile}}" aria-pressed="{{r.profStr}}" aria-label="Profil terpisah untuk {{r.name}}" style="height: 44px; padding: 0 10px; border-radius: 3px; font-size: 12px; font-weight: 600; background: {{r.profBg}}; color: {{r.profFg}}; border: 1px solid {{r.profBorder}}">{{r.profLabel}}</button>
+</div>
+</sc-for>
+<button onClick="{{checkSessions}}" style="height: 44px; border-radius: 3px; font-weight: 600; font-size: 13px; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743">Cek sesi sebelum acara</button>
+<sc-if value="{{confirmWipe}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #2F2203; border: 1px solid #F7C243; border-radius: 3px">
+<span style="font-size: 13px; line-height: 1.4">Semua login di aplikasi ini akan keluar (Canva, Kahoot, Slido, dan lainnya). Tidak bisa dibatalkan.</span>
+<div style="display: flex; gap: 8px">
+<button onClick="{{cancelWipe}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 600; background: #1F1E1B; color: #F0EEEA; border: 1px solid #4A4743">Batal</button>
+<button onClick="{{doWipe}}" style="flex: 1; height: 44px; border-radius: 3px; font-weight: 700; background: #F7C243; color: #1C1505; border: 1px solid #F7C243">Hapus</button>
+</div>
+</div>
+</sc-if>
+<button onClick="{{askWipe}}" style="height: 44px; border-radius: 3px; font-weight: 600; font-size: 13px; background: #1F1E1B; color: #FF7A6E; border: 1px solid #4A4743">Hapus data login</button>
+<div style="font-size: 12px; color: #AEAAA4; line-height: 1.4">Aplikasi tidak menyimpan password; hanya sesi browser. Login di tab Preview agar tidak terlihat penonton. Di mode Langsung, Freeze output dulu. Profil terpisah dipakai bila satu situs butuh akun berbeda per tab (lebih berat).</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+
+<div style="height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #0C0B09; border-top: 1px solid #34332F; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #AEAAA4">
+<div style="display: flex; gap: 28px">
+<span>fps <span style="color: #56DC85">{{fpsReal}}</span></span>
+<span>dibuang <span style="color: #56DC85">0</span></span>
+<span>CPU 22%</span>
+<span>GPU 41%</span>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { live: 0, fps: 60, blackout: false, freeze: false, display: true, ndi: true, omt: true, mute: false, w: 2520, h: 1080, expanded: false, interact: false, viewZoom: 'fit', pageZoom: 100, scaleMode: 'stretch', frozenTab: 0, ndiName: 'Videotron-Main', omtName: 'Videotron-Main', tabNames: ['Opening', 'Sponsor', 'Video profil', 'Penutup'], editing: -1, openOut: '', takeMode: false, prv: 0, wTxt: '2520', hTxt: '1080', presetList: [{ id: 'b1', name: 'LED 7×3', w: 2520, h: 1080, builtin: true }, { id: 'b2', name: 'Full HD', w: 1920, h: 1080, builtin: true }, { id: 'b3', name: '4K UHD', w: 3840, h: 2160, builtin: true }, { id: 'b4', name: 'Vertikal', w: 1080, h: 1920, builtin: true }], manage: false, saving: false, saveName: '', delId: '', uid: 1, tone: false, audioOpen: false, toneOpen: false, sessOpen: false, sess: ['unknown','unknown','unknown','unknown'], sepProf: [false,false,false,false], confirmWipe: false, toneLocal: true, toneNdi: false, toneOmt: false, toneSig: 'sine', toneCh: 'LR', onTop: true, ndiAudio: true, omtAudio: true, pending: null, moreOpen: false, confirmOff: '' };
+  }
+  renderVals() {
+    const s = this.state;
+    const INK = '#0C0B09', TEXT = '#F0EEEA', MUTED = '#AEAAA4', RAISED = '#1F1E1B', LINE2 = '#4A4743';
+    const defs = [
+      { name: 'Opening', host: 'canva.com/design/DAGx…', title: 'SELAMAT DATANG', short: 'SELAMAT DATANG', sub: 'Pembukaan acara', bg: '#243A5E', audio: false, video: false, url: 'https://www.canva.com/design/DAGx1/view' },
+      { name: 'Sponsor', host: 'canva.com/design/DAGx…', title: 'TERIMA KASIH SPONSOR', short: 'SPONSOR', sub: 'Mitra acara', bg: '#4A2E5C', audio: false, video: false, url: 'https://www.canva.com/design/DAGx2/view' },
+      { name: 'Video profil', host: 'canva.com/design/DAGx…', title: 'VIDEO PROFIL', short: 'VIDEO', sub: 'MP4 · 02:14', bg: '#17434A', audio: true, video: true, url: 'https://www.canva.com/design/DAGx3/view' },
+      { name: 'Penutup', host: 'localhost:3000/closing', title: 'SAMPAI JUMPA', short: 'SAMPAI JUMPA', sub: 'Terima kasih', bg: '#5A3622', audio: false, video: false, url: 'http://localhost:3000/closing' }
+    ];
+    const live = defs[s.live];
+    const vi = s.takeMode ? s.prv : s.live;
+    const vw = defs[vi];
+    const thScale = Math.min(96 / s.w, 54 / s.h);
+    const thW = Math.round(s.w * thScale);
+    const thH = Math.round(s.h * thScale);
+    const tabs = defs.map((t, i) => ({
+      name: s.tabNames[i], host: t.host, audio: t.audio, index: i + 1, isLive: i === s.live,
+      isPrv: s.takeMode && i === s.prv && i !== s.live,
+      editing: s.editing === i, notEditing: s.editing !== i,
+      onRename: (e) => { const v = e.target.value; this.setState({ tabNames: s.tabNames.map((n, k) => (k === i ? v : n)) }); },
+      startEdit: () => this.setState({ editing: i }),
+      done: () => { if (s.tabNames[i].trim()) this.setState({ editing: -1 }); },
+      hint: s.tabNames[i].trim() ? 'Nama hanya label untuk operator; tidak mengubah halaman.' : 'Nama tab tidak boleh kosong.',
+      hintColor: s.tabNames[i].trim() ? '#AEAAA4' : '#F7C243',
+      bg: t.bg, shortTitle: t.short, thW, thH,
+      rowBg: i === vi ? RAISED : '#151411',
+      rowBorder: i === vi ? TEXT : '#34332F',
+      pick: () => this.setState(s.takeMode ? { prv: i } : { live: i, prv: i })
+    }));
+    const anyLive = s.display || s.ndi || s.omt;
+    const ask = (text, ok, patch) => anyLive ? this.setState({ pending: { text, ok, patch } }) : this.setState(patch);
+    const askRes = (patch) => ask('Mengubah resolusi saat tayang bisa memutus output beberapa detik.', 'Terapkan', patch);
+    const presets = s.presetList.map((p) => {
+      const on = p.w === s.w && p.h === s.h;
+      const del = s.manage && !p.builtin;
+      return {
+        name: p.name, res: p.w + ' × ' + p.h,
+        bg: on ? TEXT : RAISED, fg: on ? INK : TEXT, sub: on ? '#3A3834' : MUTED, border: del ? '#F7C243' : (on ? TEXT : LINE2),
+        locked: s.manage && p.builtin,
+        tag: s.manage ? (p.builtin ? 'BAWAAN' : 'HAPUS') : '', tagFg: del ? '#8A5A00' : (on ? '#3A3834' : MUTED),
+        aria: s.manage ? (p.builtin ? p.name + ', bawaan, tidak bisa dihapus' : 'Hapus preset ' + p.name) : 'Pakai preset ' + p.name + ' ' + p.w + ' kali ' + p.h,
+        pick: () => s.manage ? this.setState({ delId: p.id }) : askRes({ w: p.w, h: p.h, wTxt: String(p.w), hTxt: String(p.h) })
+      };
+    });
+    const wn = parseInt(s.wTxt, 10), hn = parseInt(s.hTxt, 10);
+    const wBad = !(wn >= 100 && wn <= 8192), hBad = !(hn >= 100 && hn <= 8192);
+    const trimmed = s.saveName.trim();
+    const sameRes = s.presetList.find((p) => p.w === wn && p.h === hn);
+    const saveErr = trimmed === '' ? 'Nama tidak boleh kosong.' : (s.presetList.some((p) => p.name.toLowerCase() === trimmed.toLowerCase()) ? 'Nama sudah dipakai.' : (sameRes ? 'Resolusi ini sudah ada di preset "' + sameRes.name + '".' : ''));
+    const delP = s.presetList.find((p) => p.id === s.delId);
+    const presetVals = {
+      presets,
+      wBadStr: wBad ? 'true' : 'false', hBadStr: hBad ? 'true' : 'false', wBorder: wBad ? '#FF7A6E' : LINE2, hBorder: hBad ? '#FF7A6E' : LINE2,
+      setWTxt: (e) => { const x = e.target.value.replace(/\D/g, '').slice(0, 4); const n = parseInt(x, 10); this.setState({ wTxt: x }); },
+      setHTxt: (e) => { const x = e.target.value.replace(/\D/g, '').slice(0, 4); const n = parseInt(x, 10); this.setState({ hTxt: x }); },
+      canApply: !wBad && !hBad && (wn !== s.w || hn !== s.h), applySize: () => askRes({ w: wn, h: hn }),
+      pendingShow: !!s.pending, pendingText: s.pending ? s.pending.text : '', pendingOk: s.pending ? s.pending.ok : '',
+      cancelPending: () => this.setState({ pending: null }), doPending: () => this.setState(Object.assign({}, s.pending.patch, { pending: null })),
+      moreOpen: s.moreOpen, moreStr: s.moreOpen ? 'true' : 'false', toggleMore: () => this.setState({ moreOpen: !s.moreOpen }),
+      sizeErr: (wBad || hBad) ? 'Lebar dan tinggi harus 100 sampai 8192 piksel.' : '',
+      toggleManage: () => this.setState({ manage: !s.manage, saving: false, delId: '' }),
+      manageStr: s.manage ? 'true' : 'false', manageLabel: s.manage ? 'Selesai' : 'Kelola',
+      manageBg: s.manage ? TEXT : RAISED, manageFg: s.manage ? INK : TEXT, manageBorder: s.manage ? TEXT : LINE2,
+      delConfirm: !!delP, delName: delP ? delP.name : '',
+      cancelDelete: () => this.setState({ delId: '' }),
+      doDelete: () => this.setState({ presetList: s.presetList.filter((p) => p.id !== s.delId), delId: '' }),
+      showSaveBtn: !s.saving && !s.manage, saveBtnOff: wBad || hBad, saveBtnOp: (wBad || hBad) ? 0.4 : 1,
+      openSave: () => this.setState({ saving: true, saveName: 'Custom ' + wn + '×' + hn }),
+      saving: s.saving, saveName: s.saveName, setSaveName: (e) => this.setState({ saveName: e.target.value.slice(0, 24) }),
+      saveErr, saveErrStr: saveErr ? 'true' : 'false', saveBorder: saveErr ? '#FF7A6E' : LINE2, saveOff: !!saveErr, saveOp: saveErr ? 0.4 : 1,
+      cancelSave: () => this.setState({ saving: false }),
+      doSave: () => this.setState({ presetList: s.presetList.concat([{ id: 'u' + s.uid, name: trimmed, w: wn, h: hn, builtin: false }]), uid: s.uid + 1, saving: false })
+    };
+    const outDefs = [
+      { key: 'display', name: 'Layar penuh', short: 'LAYAR', chip: 'Monitor 2', detail: 'Monitor 2 · 1920×1080 · ' + ({ stretch: 'peras', fit: 'fit', one: '1:1' })[s.scaleMode] },
+      { key: 'ndi', nameKey: 'ndiName', name: 'NDI', short: 'NDI', chip: s.ndiName.trim() || '(tanpa nama)', detail: (s.ndiName.trim() || '(tanpa nama)') + ' · ' + s.w + '×' + s.h + ' asli' },
+      { key: 'omt', nameKey: 'omtName', name: 'OMT (vMix)', short: 'OMT', chip: s.omtName.trim() || '(tanpa nama)', detail: (s.omtName.trim() || '(tanpa nama)') + ' · ' + s.w + '×' + s.h + ' asli' }
+    ];
+    const outputs = outDefs.map((o) => {
+      const on = s[o.key];
+      return {
+        name: o.name, short: o.short, chip: on ? o.chip : 'mati', stateText: on ? '' : 'MATI', detail: o.detail,
+        hasName: !!o.nameKey, nameValue: o.nameKey ? s[o.nameKey] : '',
+        openStr: s.openOut === o.key ? 'true' : 'false',
+        chevRot: s.openOut === o.key ? 'rotate(180deg)' : 'rotate(0deg)',
+        toggleOpen: () => this.setState({ openOut: s.openOut === o.key ? '' : o.key }),
+        showDisplayBody: s.openOut === o.key && o.key === 'display',
+        showNameBody: s.openOut === o.key && !!o.nameKey,
+        resLine: s.w + ' × ' + s.h,
+        audioStr: s[o.key + 'Audio'] ? 'true' : 'false', audioLabel: s[o.key + 'Audio'] ? 'NYALA' : 'MATI',
+        audioBg: s[o.key + 'Audio'] ? TEXT : RAISED, audioFg: s[o.key + 'Audio'] ? INK : MUTED, audioBorder: s[o.key + 'Audio'] ? TEXT : LINE2,
+        toggleAudio: () => this.setState({ [o.key + 'Audio']: !s[o.key + 'Audio'] }),
+        topStr: s.onTop ? 'true' : 'false', topLabel: s.onTop ? 'NYALA' : 'MATI',
+        topBg: s.onTop ? TEXT : RAISED, topFg: s.onTop ? INK : MUTED, topBorder: s.onTop ? TEXT : LINE2,
+        topHint: s.onTop ? 'Output menutupi jendela lain di monitor ini, termasuk bar tugas.' : 'Jendela lain dan notifikasi bisa menutupi output.',
+        toggleTop: () => this.setState({ onTop: !s.onTop }),
+        onName: (e) => { if (o.nameKey) this.setState({ [o.nameKey]: e.target.value }); },
+        nameHint: (o.nameKey && !String(s[o.nameKey]).trim()) ? 'Nama tidak boleh kosong.' : (on ? 'Mengubah nama saat NYALA memutus sumber sesaat; di vMix pilih ulang sumbernya.' : 'Nama ini tampil di daftar sumber penerima.'),
+        hintColor: (o.nameKey && !String(s[o.nameKey]).trim()) ? '#F7C243' : '#AEAAA4',
+        dot: on ? '#56DC85' : '#6F6B65', onStr: on ? 'true' : 'false',
+        btnLabel: on ? 'NYALA' : 'MATI',
+        btnBg: on ? '#0C2815' : RAISED, btnFg: on ? '#56DC85' : MUTED, btnBorder: on ? '#56DC85' : LINE2,
+        confirming: s.confirmOff === o.key,
+        cancelOff: () => this.setState({ confirmOff: '' }),
+        doOff: () => this.setState({ [o.key]: false, confirmOff: '' }),
+        toggle: () => { if (on) this.setState({ confirmOff: o.key }); else this.setState({ [o.key]: !on }); }
+      };
+    });
+    const anyOut = s.display || s.ndi || s.omt;
+    const boxH = s.expanded ? 520 : 436;
+    const maxW = s.expanded ? 1100 : 740;
+    const maxH = boxH - 32;
+    const fitScale = Math.min(maxW / s.w, maxH / s.h);
+    const scale = s.viewZoom === 'fit' ? fitScale : s.viewZoom;
+    const fullW = s.w * scale;
+    const fullH = s.h * scale;
+    const pvW = Math.round(Math.min(fullW, maxW));
+    const pvH = Math.round(Math.min(fullH, maxH));
+    const clipped = fullW > maxW + 1 || fullH > maxH + 1;
+    const mmK = Math.min(96 / s.w, 54 / s.h);
+    const mmW = Math.round(s.w * mmK);
+    const mmH = Math.round(s.h * mmK);
+    const mmInW = Math.round(mmW * Math.min(1, pvW / fullW));
+    const mmInH = Math.round(mmH * Math.min(1, pvH / fullH));
+    const zoomBtn = (on) => ({ bg: on ? TEXT : RAISED, fg: on ? INK : TEXT });
+    const zf = zoomBtn(s.viewZoom === 'fit'), z1 = zoomBtn(s.viewZoom === 1);
+    const pctView = Math.round(scale * 100);
+    const held = s.blackout || s.freeze;
+    const fz = defs[s.frozenTab];
+    const pk = Math.min(128 / s.w, 72 / s.h);
+    const pipW = Math.round(s.w * pk);
+    const pipH = Math.round(s.h * pk);
+    const viewHint = held
+      ? 'Halaman tetap berjalan dan bisa dioperasikan. Keluaran ' + (s.blackout ? 'hitam' : 'beku, audio senyap,') + ' sampai dilepas.'
+      : s.takeMode
+      ? 'Preview: perubahan di sini belum tampil di output sampai TAKE.'
+      : s.interact
+      ? 'Klik, scroll, dan ketik diteruskan ke halaman. Esc melepas keyboard.'
+      : (clipped ? 'Tampilan ' + pctView + '%: sebagian halaman di luar bingkai. Geser dengan Space + seret.' : 'Seluruh halaman terlihat · ' + s.w + ' × ' + s.h);
+    const pz = s.pageZoom;
+    const sx = 1920 / s.w, sy = 1080 / s.h;
+    const f1 = (n) => n.toFixed(1).replace('.', ',');
+    const f2 = (n) => n.toFixed(2).replace('.', ',');
+    let scaleInfo, scaleDown;
+    if (s.scaleMode === 'stretch') {
+      scaleInfo = s.w + '×' + s.h + ' diperas ke 1920×1080 (lebar ' + f1(sx * 100) + '%, tinggi ' + f1(sy * 100) + '%).';
+      scaleDown = 'Di Resolume atau vMix, skalakan lebar ke ' + f2(100 / sx) + '%' + (Math.abs(sy - 1) > 0.001 ? ' dan tinggi ke ' + f2(100 / sy) + '%' : '') + '.';
+    } else if (s.scaleMode === 'fit') {
+      const k = Math.min(sx, sy);
+      scaleInfo = 'Proporsi asli dipertahankan: ' + Math.round(s.w * k) + '×' + Math.round(s.h * k) + ' dengan pita hitam.';
+      scaleDown = 'Pita hitam ikut terkirim ke Resolume atau vMix.';
+    } else {
+      scaleInfo = 'Piksel 1:1. Bagian di luar 1920×1080 terpotong.';
+      scaleDown = 'Tidak perlu diskalakan, tetapi hanya sebagian halaman yang terlihat.';
+    }
+    const sm = (k) => ({ bg: s.scaleMode === k ? TEXT : RAISED, fg: s.scaleMode === k ? INK : TEXT, on: s.scaleMode === k ? 'true' : 'false' });
+    const smS = sm('stretch'), smF = sm('fit'), smO = sm('one');
+    outputs.forEach((o) => Object.assign(o, {
+      scaleInfo, scaleDown,
+      scStretch: () => this.setState({ scaleMode: 'stretch' }), scFit: () => this.setState({ scaleMode: 'fit' }), scOne: () => this.setState({ scaleMode: 'one' }),
+      scSBg: smS.bg, scSFg: smS.fg, scSOn: smS.on, scFBg: smF.bg, scFFg: smF.fg, scFOn: smF.on, scOBg: smO.bg, scOFg: smO.fg, scOOn: smO.on
+    }));
+    const level = s.freeze ? 0 : (s.tone ? 14 : ((live.audio && !s.mute) ? 15 : 0));
+    const meter = Array.from({ length: 24 }, (_, i) => ({ color: i < level ? (i < 16 ? '#56DC85' : (i < 21 ? '#F7C243' : '#FF7A6E')) : '#34332F' }));
+    const caution = s.blackout || s.freeze;
+    const statusLabel = s.blackout ? 'BLACKOUT' : (s.freeze ? 'FREEZE' : (anyOut ? 'LIVE' : 'OFF AIR'));
+    const statusBg = caution ? '#F7C243' : (anyOut ? '#C50516' : RAISED);
+    const statusFg = caution ? '#1C1505' : (anyOut ? '#FFFFFF' : MUTED);
+    return {
+      ...presetVals, tabs, outputs, meter,
+      statusLabel, statusBg, statusFg,
+      held, pipShow: held || s.takeMode, pipW, pipH,
+      heldLabel: held ? (s.blackout ? 'KELUARAN: HITAM' : 'KELUARAN: BEKU') : 'PROGRAM · ' + s.tabNames[s.live],
+      pipChipBg: held ? '#F7C243' : '#C50516', pipChipFg: held ? '#1C1505' : '#FFFFFF', pipBorder: held ? '#F7C243' : '#C50516',
+      pipBg: held ? (s.blackout ? '#000000' : fz.bg) : live.bg, pipText: held ? (s.blackout ? '' : fz.short) : live.short,
+      takeMode: s.takeMode, showTake: s.takeMode,
+      modeDirect: () => this.setState({ takeMode: false, prv: s.live }), modeTake: () => this.setState({ takeMode: true }),
+      directStr: s.takeMode ? 'false' : 'true', takeStr: s.takeMode ? 'true' : 'false',
+      directBg: s.takeMode ? 'transparent' : TEXT, directFg: s.takeMode ? MUTED : INK,
+      takeBg: s.takeMode ? TEXT : 'transparent', takeFg: s.takeMode ? INK : MUTED,
+      takeDisabled: s.prv === s.live,
+      takeBtnBg: s.prv === s.live ? RAISED : TEXT, takeBtnFg: s.prv === s.live ? MUTED : INK, takeBtnBorder: s.prv === s.live ? LINE2 : TEXT,
+      doTake: () => this.setState({ live: s.prv, prv: s.live }),
+      prvLabel: s.prv === s.live ? 'PREVIEW = PROGRAM' : 'PREVIEW',
+      prvChipBg: s.prv === s.live ? RAISED : '#56DC85', prvChipFg: s.prv === s.live ? TEXT : '#0C0B09',
+      interactTarget: s.takeMode ? 'INTERAKSI · PREVIEW' : 'INTERAKSI',
+      scaleInfo, scaleDown,
+      scStretch: () => this.setState({ scaleMode: 'stretch' }), scFit: () => this.setState({ scaleMode: 'fit' }), scOne: () => this.setState({ scaleMode: 'one' }),
+      scSBg: smS.bg, scSFg: smS.fg, scSOn: smS.on, scFBg: smF.bg, scFFg: smF.fg, scFOn: smF.on, scOBg: smO.bg, scOFg: smO.fg, scOOn: smO.on,
+      boxH, showPanel: !s.expanded, clipped, mmW, mmH, mmInW, mmInH, viewHint, pageZoom: pz,
+      viewFit: () => this.setState({ viewZoom: 'fit' }), view100: () => this.setState({ viewZoom: 1 }),
+      fitBg: zf.bg, fitFg: zf.fg, v100Bg: z1.bg, v100Fg: z1.fg,
+      fitStr: s.viewZoom === 'fit' ? 'true' : 'false', v100Str: s.viewZoom === 1 ? 'true' : 'false',
+      pageZoomDown: () => this.setState({ pageZoom: Math.max(25, s.pageZoom - 25) }),
+      pageZoomUp: () => this.setState({ pageZoom: Math.min(300, s.pageZoom + 25) }),
+      pageZoomReset: () => this.setState({ pageZoom: 100 }),
+      interact: s.interact, pvCursor: s.interact ? 'crosshair' : 'default',
+      interactStr: s.interact ? 'true' : 'false', interactLabel: s.interact ? 'NYALA' : 'MATI',
+      interactBg: s.interact ? TEXT : RAISED, interactFg: s.interact ? INK : MUTED, interactBorder: s.interact ? TEXT : LINE2,
+      toggleInteract: () => this.setState({ interact: !s.interact }),
+      toggleExpand: () => this.setState({ expanded: !s.expanded }),
+      expandStr: s.expanded ? 'true' : 'false', expandLabel: s.expanded ? 'Perkecil' : 'Perbesar',
+      tally: (s.takeMode && s.prv !== s.live) ? '#56DC85' : (caution ? '#F7C243' : (anyOut ? '#C50516' : '#34332F')),
+      fps: s.fps, fpsReal: (s.fps - 0.2).toFixed(1),
+      w: s.w, h: s.h, resText: s.w + ' × ' + s.h,
+      pvW, pvH, scalePct: Math.round(scale * 100),
+      titleSize: Math.max(12, Math.round(s.h * 0.15 * scale * pz / 100)), subSize: Math.max(10, Math.round(s.h * 0.065 * scale * pz / 100)),
+      playSize: Math.max(20, Math.round(s.h * 0.18 * scale * pz / 100)),
+      liveTitle: vw.title, liveSub: vw.sub, liveBg: vw.bg, liveUrl: vw.url, liveIsVideo: vw.video,
+      blackout: s.blackout, freeze: s.freeze,
+      blackoutStr: s.blackout ? 'true' : 'false', freezeStr: s.freeze ? 'true' : 'false',
+      blackBg: s.blackout ? '#F7C243' : RAISED, blackFg: s.blackout ? '#1C1505' : TEXT, blackBorder: s.blackout ? '#F7C243' : LINE2,
+      freezeBg: s.freeze ? '#F7C243' : RAISED, freezeFg: s.freeze ? '#1C1505' : TEXT, freezeBorder: s.freeze ? '#F7C243' : LINE2,
+      toggleBlackout: () => this.setState({ blackout: !s.blackout }),
+      toggleFreeze: () => this.setState({ freeze: !s.freeze, frozenTab: s.live }),
+      setFps30: () => ask('Mengubah FPS saat tayang bisa memutus output sesaat.', 'Terapkan', { fps: 30 }), setFps60: () => ask('Mengubah FPS saat tayang bisa memutus output sesaat.', 'Terapkan', { fps: 60 }),
+      fps30Bg: s.fps === 30 ? TEXT : 'transparent', fps30Fg: s.fps === 30 ? INK : MUTED,
+      fps60Bg: s.fps === 60 ? TEXT : 'transparent', fps60Fg: s.fps === 60 ? INK : MUTED,
+      toneTargets: [['toneLocal','Lokal'],['toneNdi','NDI'],['toneOmt','OMT']].map(([k, n]) => { const on = s[k]; return { name: n, str: on ? 'true' : 'false', bg: on ? TEXT : RAISED, fg: on ? INK : MUTED, border: on ? TEXT : LINE2, pick: () => this.setState({ [k]: !s[k] }) }; }),
+      toneSigs: [['sine','Sinus 1 kHz'],['pink','Pink noise']].map(([k, n]) => ({ name: n, str: s.toneSig === k ? 'true' : 'false', bg: s.toneSig === k ? TEXT : RAISED, fg: s.toneSig === k ? INK : MUTED, border: s.toneSig === k ? TEXT : LINE2, pick: () => this.setState({ toneSig: k }) })),
+      toneChs: [['LR','L + R'],['L','Kiri'],['R','Kanan']].map(([k, n]) => ({ name: n, str: s.toneCh === k ? 'true' : 'false', bg: s.toneCh === k ? TEXT : RAISED, fg: s.toneCh === k ? INK : MUTED, border: s.toneCh === k ? TEXT : LINE2, pick: () => this.setState({ toneCh: k }) })),
+      audioOpen: s.audioOpen, toggleAudioOpen: () => this.setState({ audioOpen: !s.audioOpen }), audioOpenStr: s.audioOpen ? 'true' : 'false', audioChevron: s.audioOpen ? '▴' : '▾',
+      audioStatus: s.freeze ? 'SENYAP · FREEZE' : (s.tone ? 'TONE AKTIF' : (s.mute ? 'MUTED' : '')), audioStatusFg: (s.freeze || s.tone || s.mute) ? '#F7C243' : '#56DC85',
+      toneOpen: s.toneOpen, toggleToneOpen: () => this.setState({ toneOpen: !s.toneOpen }), toneOpenStr: s.toneOpen ? 'true' : 'false',
+      toneChevron: s.toneOpen ? '▴' : '▾', toneStatus: s.tone ? 'AKTIF' : 'MATI', toneStatusFg: s.tone ? '#F7C243' : '#AEAAA4',
+      sessOpen: s.sessOpen, toggleSessOpen: () => this.setState({ sessOpen: !s.sessOpen }), sessOpenStr: s.sessOpen ? 'true' : 'false', sessChevron: s.sessOpen ? '▴' : '▾',
+      sessStatus: s.sess.includes('login') ? s.sess.filter(x => x === 'login').length + ' PERLU LOGIN' : '',
+      sessStatusFg: s.sess.includes('login') ? '#F7C243' : (s.sess.includes('unknown') ? '#AEAAA4' : '#56DC85'),
+      sessions: defs.map((d, i) => { const st = s.sess[i], sep = s.sepProf[i]; return { name: s.tabNames[i], status: st === 'ok' ? 'SESI AKTIF' : (st === 'login' ? 'PERLU LOGIN' : (st === 'none' ? 'TANPA LOGIN' : '')), fg: st === 'ok' ? '#56DC85' : (st === 'login' ? '#F7C243' : '#AEAAA4'), profLabel: sep ? 'Profil terpisah' : 'Profil bersama', profStr: sep ? 'true' : 'false', profBg: sep ? TEXT : RAISED, profFg: sep ? INK : MUTED, profBorder: sep ? TEXT : LINE2, toggleProfile: () => this.setState({ sepProf: s.sepProf.map((v, j) => j === i ? !v : v) }) }; }),
+      checkSessions: () => this.setState({ sess: ['ok', 'login', 'ok', 'none'] }),
+      confirmWipe: s.confirmWipe, askWipe: () => this.setState({ confirmWipe: true }), cancelWipe: () => this.setState({ confirmWipe: false }),
+      doWipe: () => this.setState({ confirmWipe: false, sess: ['unknown', 'unknown', 'unknown', 'unknown'] }),
+      toneNoTarget: !(s.toneLocal || s.toneNdi || s.toneOmt),
+      toggleTone: () => (!s.tone && ((s.toneNdi && s.ndi) || (s.toneOmt && s.omt))) ? this.setState({ pending: { text: 'Test tone akan terdengar di penerima NDI/OMT yang sedang menerima output ini. Mulai?', ok: 'Mulai tone', patch: { tone: true } } }) : this.setState({ tone: !s.tone }),
+      toneStr: s.tone ? 'true' : 'false', toneBtn: s.tone ? 'HENTIKAN TONE' : 'MULAI TONE',
+      toneBg: s.tone ? '#F7C243' : RAISED, toneFg: s.tone ? '#1C1505' : TEXT, toneBorder: s.tone ? '#F7C243' : LINE2,
+      toneNote: s.tone ? 'Tone aktif ' + (s.toneSig === 'sine' ? '1 kHz' : 'pink noise') + ' pada -20 dBFS. Berhenti otomatis setelah 30 detik. Audio halaman dibisukan selama tone.' : 'Level tetap -20 dBFS. Tone ke NDI/OMT terdengar di vMix atau penerima lain; aplikasi meminta konfirmasi bila output itu sedang nyala.',
+      toneNoteFg: s.tone ? '#F7C243' : '#AEAAA4',
+      toggleMute: () => this.setState({ mute: !s.mute }),
+      muteStr: s.mute ? 'true' : 'false', muteLabel: s.mute ? 'Muted' : 'Mute',
+      muteBg: s.mute ? '#F7C243' : RAISED, muteFg: s.mute ? '#1C1505' : TEXT, muteBorder: s.mute ? '#F7C243' : LINE2
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-27T12:00:00Z" },
+  "title": "Stagecast UI",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Kontrol utama", "is_interactive": true },
+    "Wizard.dc.html": { "x": 1520, "y": 0, "w": 880, "h": 720, "title": "Pengaturan awal" },
+    "Alerts.dc.html": { "x": 1520, "y": 840, "w": 880, "h": 640, "title": "Kondisi gagal" }
+  },
+  "order": ["Main.dc.html", "Wizard.dc.html", "Alerts.dc.html"],
+  "notes": {
+    "t1": { "x": 0, "y": -300, "text": "Stagecast: rancangan UI", "kind": "title1", "maxW": 2400 },
+    "s1": { "x": 0, "y": 1020, "w": 360, "text": "Pindah tab punya dua mode (saklar di atas daftar tab): Langsung, atau Preview + Take. Preview + Take bergantung pada spike S12 (beban dua capture).", "fill": "blue" }
+  },
+  "designSystems": []
+}
