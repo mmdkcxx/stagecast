@@ -14,6 +14,19 @@ public sealed class AppConfig
 
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
+
+    /// <summary>The tabs open when the application was closed. Only names and addresses; never credentials.</summary>
+    public List<TabEntry> Tabs { get; init; } = [];
+
+    /// <summary>Position in <see cref="Tabs"/> of the tab that was active.</summary>
+    public int ActiveTab { get; init; }
+}
+
+public sealed class TabEntry
+{
+    public string Name { get; init; } = string.Empty;
+
+    public string Url { get; init; } = "about:blank";
 }
 
 public sealed class RenderConfig

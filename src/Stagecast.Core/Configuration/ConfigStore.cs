@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Stagecast.Core.Presets;
 using Stagecast.Core.Rendering;
+using Stagecast.Core.Tabs;
 
 namespace Stagecast.Core.Configuration;
 
@@ -137,6 +138,21 @@ public sealed class ConfigStore
             presets.Add(new PresetEntry { Name = entry.Name.Trim(), Width = entry.Width, Height = entry.Height });
         }
 
+        var tabs = new List<TabEntry>();
+        foreach (var entry in input.Tabs ?? [])
+        {
+            if (tabs.Count >= TabRules.MaxTabs)
+            {
+                notes.Add($"more than {TabRules.MaxTabs} tabs; the rest were dropped");
+                break;
+            }
+            string name = (entry.Name ?? string.Empty).Trim();
+            if (TabRules.ValidateName(name) == TabNameError.Empty) name = TabRules.NextDefaultName(tabs.Select(t => new TabInfo(Guid.Empty, t.Name, t.Url)));
+            else if (name.Length > TabRules.MaxNameLength) name = name[..TabRules.MaxNameLength].TrimEnd();
+            tabs.Add(new TabEntry { Name = name, Url = string.IsNullOrWhiteSpace(entry.Url) ? TabRules.BlankUrl : entry.Url.Trim() });
+        }
+        int activeTab = tabs.Count == 0 ? 0 : Math.Clamp(input.ActiveTab, 0, tabs.Count - 1);
+
         if (input.SchemaVersion > AppConfig.CurrentSchemaVersion)
             notes.Add($"the file is from a newer version (schema {input.SchemaVersion}); unknown settings may be lost on the next save");
 
@@ -145,6 +161,8 @@ public sealed class ConfigStore
             SchemaVersion = AppConfig.CurrentSchemaVersion,
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
             Presets = presets,
+            Tabs = tabs,
+            ActiveTab = activeTab,
         };
     }
 }

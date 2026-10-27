@@ -95,21 +95,30 @@ internal sealed class ControlSpike
 
     private async Task<bool> KeyboardAsync(System.Windows.Window window)
     {
-        for (int attempt = 0; attempt < 5 && !window.IsActive; attempt++)
+        // Real keystrokes go to whichever window has the focus, which another program can change at any moment: try a few times.
+        string typed = "";
+        for (int attempt = 1; attempt <= 3 && typed != "stagecast 2520"; attempt++)
         {
-            window.Topmost = true; // Activate alone is ignored when another program has the focus
-            window.Activate();
-            window.Topmost = false;
-            await Task.Delay(200);
+            for (int i = 0; i < 5 && !window.IsActive; i++)
+            {
+                keybd_event(0x12, 0, 0, UIntPtr.Zero); // a synthetic Alt press lets this program take the foreground
+                keybd_event(0x12, 0, 2, UIntPtr.Zero);
+                window.Topmost = true;
+                SetForegroundWindow(new System.Windows.Interop.WindowInteropHelper(window).Handle);
+                window.Activate();
+                window.Topmost = false;
+                await Task.Delay(200);
+            }
+            _page.FocusBrowser();
+            await _page.EvalAsync("document.getElementById('input').value=''");
+            var inputPoint = new System.Drawing.Point(500, 230);
+            _page.SendMouse(CoreWebView2MouseEventKind.LeftButtonDown, CoreWebView2MouseEventVirtualKeys.LeftButton, 0, inputPoint);
+            _page.SendMouse(CoreWebView2MouseEventKind.LeftButtonUp, CoreWebView2MouseEventVirtualKeys.None, 0, inputPoint);
+            await Task.Delay(300);
+            TypeText("stagecast 2520");
+            await Task.Delay(500);
+            typed = (await ReadStateAsync()).GetProperty("input").GetString() ?? "";
         }
-        _page.FocusBrowser();
-        var inputPoint = new System.Drawing.Point(500, 230);
-        _page.SendMouse(CoreWebView2MouseEventKind.LeftButtonDown, CoreWebView2MouseEventVirtualKeys.LeftButton, 0, inputPoint);
-        _page.SendMouse(CoreWebView2MouseEventKind.LeftButtonUp, CoreWebView2MouseEventVirtualKeys.None, 0, inputPoint);
-        await Task.Delay(300);
-        TypeText("stagecast 2520");
-        await Task.Delay(500);
-        string typed = (await ReadStateAsync()).GetProperty("input").GetString() ?? "";
         bool ok = typed == "stagecast 2520";
         SpikeLog.Write($"S10 keyboard: typed '{typed}' foreground={GetForegroundWindow() == new System.Windows.Interop.WindowInteropHelper(window).Handle} {(ok ? "PASS" : "FAIL")}");
         return ok;
@@ -224,4 +233,10 @@ internal sealed class ControlSpike
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 }

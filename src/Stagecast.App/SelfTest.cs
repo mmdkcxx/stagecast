@@ -5,6 +5,8 @@ using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Stagecast.Core.Configuration;
 using Stagecast.Core.Display;
+using Stagecast.Core.Frames;
+using Stagecast.Core.Tabs;
 using Stagecast.Core.Presets;
 using Microsoft.Extensions.Logging;
 using Stagecast.Core.Rendering;
@@ -31,6 +33,7 @@ internal sealed class SelfTest
     public async Task RunAsync(string name, MainWindow window)
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
+        if (name == "a3") { await RunTabsAsync(window); return; }
         if (name == "a2c") { await RunChangesAndPresetsAsync(window); return; }
         if (name != "a2") { _logger.LogError("Unknown self test {Name}", name); return; }
 
@@ -68,6 +71,124 @@ internal sealed class SelfTest
 
         _logger.LogInformation(_failures.Count == 0 ? "A2 selftest ok" : "A2 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
+
+    /// <summary>Counts what the output would show: frames whose centre is not one of the expected colours (black = a flash).</summary>
+    private sealed class ColourSink : IFrameSink
+    {
+        public string Name => "colour-check";
+
+        public long Frames, Black;
+        public volatile string Seen = "";
+        private long _lastSequence;
+
+        public void Deliver(Frame frame, bool repeated)
+        {
+            int offset = frame.Height / 2 * frame.Stride + frame.Width / 2 * 4;
+            byte b = frame.Pixels[offset], g = frame.Pixels[offset + 1], r = frame.Pixels[offset + 2];
+            Interlocked.Increment(ref Frames);
+            if (r < 12 && g < 12 && b < 12) Interlocked.Increment(ref Black);
+            Seen = $"{r:X2}{g:X2}{b:X2}";
+            _lastSequence = frame.Sequence;
+        }
+    }
+
+    // STAGECAST_TEST_ANIM=1 adds a tiny flickering corner so the page keeps producing frames (to tell "not drawn" from "not re-sent").
+    private static string Page(string rgb) => Environment.GetEnvironmentVariable("STAGECAST_TEST_ANIM") == "1"
+        ? $"data:text/html,<style>@keyframes b%7Bfrom%7Bopacity:.5%7Dto%7Bopacity:1%7D%7D</style><body style='margin:0;background:%23{rgb}'><div style='position:fixed;right:0;bottom:0;width:6px;height:6px;background:%23fff;animation:b .1s infinite alternate'></div></body>"
+        : $"data:text/html,<body style='margin:0;background:%23{rgb}'></body>";
+
+    /// <summary>Five tabs on the stage one after another: no black flashes, the right tab each time, names, order, closing, limit, saved file.</summary>
+    private async Task RunTabsAsync(MainWindow window)
+    {
+        string[] colours = ["E03030", "3050E0", "30B050", "E0C020", "B030C0"];
+        var sink = new ColourSink();
+        _engine.Hub.AddSink(sink);
+        await Task.Delay(300);
+
+        // The first tab already exists (blank). Give it the first colour and add four more.
+        await _engine.NavigateAsync(Page(colours[0]), TimeSpan.FromSeconds(10));
+        await Task.Delay(500);
+        long blackAfterNavigation = Interlocked.Read(ref sink.Black);
+        _logger.LogInformation("A3 black frames up to the first page being loaded (not a tab switch): {Black}", blackAfterNavigation);
+        for (int i = 1; i < colours.Length; i++)
+        {
+            long before = Interlocked.Read(ref sink.Black);
+            Expect(await window.AddTabAsync(Page(colours[i])), $"tab {i + 1} can be added");
+            await Task.Delay(500);
+            _logger.LogInformation("A3 adding tab {N}: {Black} black frames", i + 1, Interlocked.Read(ref sink.Black) - before);
+        }
+        Expect(window.Tabs.Items.Count == 5 && _engine.Tabs.Count == 5, "five tabs exist");
+        Expect(sink.Seen == colours[4], $"the newest tab is on the stage (saw {sink.Seen})");
+
+        long blackWhileAdding = Interlocked.Read(ref sink.Black) - blackAfterNavigation;
+        _logger.LogInformation("A3 black frames while the first five tabs were created and shown: {Black}", blackWhileAdding);
+
+        // Switch around a lot and check what the output shows after each one.
+        var order = new[] { 0, 1, 2, 3, 4, 0, 3, 1, 4, 2, 0, 4, 1, 3, 2, 0 };
+        var wrong = new List<string>();
+        var latencies = new List<long>();
+        foreach (int index in order)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var trace = new List<string>();
+            var selecting = window.SelectTabAsync(window.Tabs.Items[index].Id);
+            while (!selecting.IsCompleted || (sink.Seen != colours[index] && clock.ElapsedMilliseconds < 3000))
+            {
+                string seen = sink.Seen;
+                if (trace.Count == 0 || trace[^1].Split('@')[0] != seen) trace.Add($"{seen}@{clock.ElapsedMilliseconds}");
+                await Task.Delay(5);
+            }
+            await selecting;
+            if (trace.Count > 1 || sink.Seen != colours[index]) _logger.LogInformation("A3 trace to tab {Index} ({Want}): {Trace}", index, colours[index], string.Join(" ", trace));
+            latencies.Add(clock.ElapsedMilliseconds);
+            await Task.Delay(250);
+            if (sink.Seen != colours[index]) wrong.Add($"{index}:{sink.Seen}");
+            Expect(_tabsAudioOk(window), "only the active tab is unmuted");
+        }
+        latencies.Sort();
+        _logger.LogInformation("A3 {Count} switches: output frames {Frames}, black frames {Black}, wrong colours {Wrong}, switch latency median {Median} ms max {Max} ms",
+            order.Length, sink.Frames, sink.Black, wrong.Count, latencies[latencies.Count / 2], latencies[^1]);
+        Expect(wrong.Count == 0, $"every switch ends on the right tab ({string.Join(", ", wrong)})");
+        long blackAtSwitchStart = blackAfterNavigation + blackWhileAdding;
+        Expect(sink.Black - blackAtSwitchStart == 0, $"no black frame reached the output while switching ({sink.Black - blackAtSwitchStart} did)");
+        Expect(blackWhileAdding == 0, $"no black frame reached the output while tabs were created ({blackWhileAdding} did)");
+
+        // Names.
+        var first = window.Tabs.Items[0].Id;
+        Expect(window.RenameTab(first, "") == TabNameError.Empty, "an empty tab name is refused");
+        Expect(window.RenameTab(first, new string('n', 41)) == TabNameError.TooLong, "a tab name over 40 characters is refused");
+        Expect(window.RenameTab(first, "  Kuis Kahoot  ") == TabNameError.None && window.Tabs.Items[0].Name == "Kuis Kahoot", "a valid name is trimmed and kept");
+
+        // Order: moving does not change which tab is on the stage.
+        var activeBefore = window.Tabs.Active.Id;
+        Expect(window.MoveTab(activeBefore, +1) && window.Tabs.Active.Id == activeBefore, "moving a tab keeps the same tab active");
+        Expect(_engine.Tabs.Select(t => t.Id).SequenceEqual(window.Tabs.Items.Select(t => t.Id)), "the engine follows the list order");
+
+        // Closing.
+        var closing = window.Tabs.Items[2].Id;
+        await window.SelectTabAsync(closing);
+        await Task.Delay(400);
+        Expect(await window.CloseTabAsync(closing) && window.Tabs.Items.Count == 4 && _engine.Tabs.Count == 4, "closing the active tab removes it");
+        await Task.Delay(500);
+        Expect(window.Tabs.Active.Id != closing && _engine.Active.Id == window.Tabs.Active.Id, "a neighbour became active and is on the stage");
+        Expect(sink.Seen is { Length: 6 } && sink.Black == blackAtSwitchStart, "closing the active tab did not flash the output");
+
+        // The limit and the last tab.
+        while (window.Tabs.CanAdd) await window.AddTabAsync();
+        Expect(window.Tabs.Items.Count == TabRules.MaxTabs && !await window.AddTabAsync(), $"at most {TabRules.MaxTabs} tabs");
+        while (window.Tabs.CanClose) await window.CloseTabAsync(window.Tabs.Items[^1].Id);
+        Expect(window.Tabs.Items.Count == 1 && !await window.CloseTabAsync(window.Tabs.Items[0].Id), "the last tab cannot be closed");
+
+        // The saved file.
+        await Task.Delay(1500);
+        var saved = window.ReadConfigFromDisk();
+        Expect(saved.Tabs.Count == 1 && saved.Tabs[0].Name == window.Tabs.Items[0].Name, "the settings file holds the tabs");
+        _engine.Hub.RemoveSink(sink);
+        _logger.LogInformation(_failures.Count == 0 ? "A3 selftest ok" : "A3 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    private bool _tabsAudioOk(MainWindow window)
+        => _engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Active));
 
     /// <summary>Confirmation of resolution/rate changes while an output is on (simulated), and the resolution presets.</summary>
     private async Task RunChangesAndPresetsAsync(MainWindow window)
@@ -201,14 +322,21 @@ internal sealed class SelfTest
         // Keyboard to the page, then Esc takes it back.
         preview.ShowFit();
         await Task.Delay(500);
-        Expect(await window.BringToFrontAsync(), "the window can be brought to the front for the keyboard test");
-        preview.InjectClick(preview.ControlPointOf(500, 230));
-        _engine.FocusPage();
-        await Task.Delay(400);
-        TypeText("stagecast");
-        await Task.Delay(400);
-        string typed = (await ReadStateAsync()).GetProperty("input").GetString() ?? "";
-        _logger.LogInformation("A2b keyboard: typed '{Typed}', page has focus {Focus}", typed, _engine.PageHasFocus);
+        // Real keystrokes go to whatever window has the focus on the desktop, which another program (or a person) can change
+        // at any moment; try a few times before calling it a failure.
+        string typed = "";
+        for (int attempt = 1; attempt <= 3 && typed != "stagecast"; attempt++)
+        {
+            Expect(await window.BringToFrontAsync(), "the window can be brought to the front for the keyboard test");
+            await _engine.EvaluateAsync("document.getElementById('input').value=''");
+            preview.InjectClick(preview.ControlPointOf(500, 230));
+            _engine.FocusPage();
+            await Task.Delay(400);
+            TypeText("stagecast");
+            await Task.Delay(400);
+            typed = (await ReadStateAsync()).GetProperty("input").GetString() ?? "";
+            _logger.LogInformation("A2b keyboard attempt {Attempt}: typed '{Typed}', page has focus {Focus}", attempt, typed, _engine.PageHasFocus);
+        }
         Expect(typed == "stagecast", "keystrokes reach the page");
         Expect(_engine.PageHasFocus, "page reports keyboard focus");
         PressKey(0x1B);

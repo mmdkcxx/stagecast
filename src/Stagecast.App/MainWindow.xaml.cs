@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         _config = context.Config.Config;
         _logger = context.LoggerFactory.CreateLogger<MainWindow>();
         _presets = PresetCatalog.FromConfig(_config);
+        _tabs = BuildTabList();
         Confirm = text => MessageBox.Show(this, text, "Stagecast", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
         VersionText.Text = $"v{context.Version}";
         WidthBox.Text = _config.Render.Width.ToString();
@@ -62,6 +63,7 @@ public partial class MainWindow : Window
             var render = _config.Render;
             _engine = await RenderEngine.CreateAsync(
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
+            await StartTabsAsync();
             PagePreviewView.Attach(_engine);
             ShowControls();
             _engine.NavigationStateChanged += UpdateNavigationState;
@@ -72,9 +74,7 @@ public partial class MainWindow : Window
             statsTimer.Tick += (_, _) => UpdateStats();
             statsTimer.Start();
 
-            string url = _context.StartUrl ?? "about:blank";
-            UrlBox.Text = url;
-            await _engine.NavigateAsync(url, TimeSpan.FromSeconds(20));
+            if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.Active, "about:blank", TimeSpan.FromSeconds(20));
 
             if (_context.SelfTest is not null) {
                 await new SelfTest(_engine, _context.LoggerFactory.CreateLogger<SelfTest>()).RunAsync(_context.SelfTest, this);
@@ -440,11 +440,17 @@ public partial class MainWindow : Window
 
     private static readonly double[] PageZoomLevels = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
+    private void ShowZoomLabel()
+    {
+        double zoom = _engine?.PageZoom ?? 1.0;
+        ZoomLabel.Text = Math.Abs(zoom - 1.0) < 0.001 ? "" : $"zoom halaman {zoom * 100:0}%";
+    }
+
     internal void SetPageZoom(double zoom)
     {
         if (_engine is null) return;
         _engine.PageZoom = zoom;
-        ZoomLabel.Text = Math.Abs(zoom - 1.0) < 0.001 ? "" : $"zoom halaman {zoom * 100:0}%";
+        ShowZoomLabel();
     }
 
     private PreviewWindow? _detached;
@@ -468,9 +474,15 @@ public partial class MainWindow : Window
     /// <summary>Brings the window to the front even when another program has the focus; real keystrokes only reach the active window.</summary>
     internal async Task<bool> BringToFrontAsync()
     {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         for (int attempt = 0; attempt < 5 && !IsActive; attempt++)
         {
+            // Windows only lets the program that has the input focus change the foreground window. A synthetic Alt key press
+            // counts as input from this program, which is the usual way around that.
+            keybd_event(0x12, 0, 0, UIntPtr.Zero);
+            keybd_event(0x12, 0, 2, UIntPtr.Zero);
             Topmost = true;
+            SetForegroundWindow(hwnd);
             Activate();
             Topmost = false;
             await Task.Delay(200);
@@ -478,12 +490,24 @@ public partial class MainWindow : Window
         return IsActive;
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hwnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
     internal AppConfig ReadConfigFromDisk() => _context.ConfigStore.Load().Config;
 
     private void Persist()
     {
         var render = _engine is null ? _config.Render : new RenderConfig { Width = _engine.Resolution.Width, Height = _engine.Resolution.Height, Fps = _engine.Fps };
-        _config = new AppConfig { Render = render, Presets = _presets.ToEntries() };
+        _config = new AppConfig
+        {
+            Render = render,
+            Presets = _presets.ToEntries(),
+            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url }).ToList(),
+            ActiveTab = _tabs.ActiveIndex,
+        };
         try
         {
             _context.ConfigStore.Save(_config);

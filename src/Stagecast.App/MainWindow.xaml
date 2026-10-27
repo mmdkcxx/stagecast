@@ -66,7 +66,16 @@
             </Grid>
 
             <Border x:Name="SidePanel" Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="16">
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Content="+ Tab" Style="{StaticResource ToolButton}" Margin="0" Click="OnAddTab" ToolTip="Tab baru (Ctrl+T)"/>
+                        <TextBlock Text="TAB" Style="{StaticResource Label}" Margin="0" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    <StackPanel x:Name="TabListPanel"/>
+                    <TextBlock x:Name="TabError" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                    <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>
+
                     <TextBlock Text="RESOLUSI" Style="{StaticResource Label}"/>
                     <Button x:Name="PresetButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnPresetMenu" ToolTip="Pilih resolusi tersimpan"/>
                     <Grid>
@@ -101,6 +110,7 @@
                     <CheckBox x:Name="LiveSimBox" Content="Uji: anggap ada output yang nyala" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" Margin="0,24,0,0"
                               ToolTip="Sementara, sampai output ada di A4: memperlihatkan spanduk konfirmasi ubah resolusi/FPS"/>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
 
