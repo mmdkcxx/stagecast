@@ -25,6 +25,8 @@ D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitCompose
 
 **Bahan dari pemilik:** 3 sampai 5 PDF yang mewakili pemakaian sungguhan (termasuk satu hasil ekspor PowerPoint dan satu yang berat). Bila belum ada, saya buat PDF uji sendiri, tetapi itu tidak mewakili file acara.
 
+**Status (2026-10-27): dijalankan pada 3 PDF pemilik; keputusan sementara opsi A cukup. Angka dan hal yang belum terbukti ada di `docs/SPIKE_REPORT.md`.**
+
 **Hasil yang dicatat:** tabel angka dan keputusan A, D, atau PDFium di `docs/SPIKE_REPORT.md` atau berkas laporan spike yang sudah ada.
 
 **Lulus kalau:** waktu render per halaman pada 2520×1080 cukup rendah untuk pindah halaman terasa instan dengan cache; teks terbaca tajam; semua jenis dokumen di atas terbuka atau gagal dengan pesan yang jelas; keputusan pilihan teknologi tertulis.
@@ -44,7 +46,7 @@ D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitCompose
 
 **Lulus kalau:** semua uji lama tetap lulus; konfigurasi lama terbaca; sumber tiruan (uji) bisa dijadikan program dan mengirim bingkai ke layar penuh, NDI, dan OMT.
 
-**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Unit test dan self test baru sudah ditulis tetapi belum dijalankan (batch penuh hanya saat pemilik meminta).
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Pembaruan: batch penuh dijalankan atas permintaan pemilik pada 2026-10-27; typecheck, unit (244) dan smoke termasuk `d1a` lulus. Satu kegagalan A2b (ketikan keyboard) pada putaran pertama tidak terulang pada putaran berikutnya dan diduga fokus jendela dicuri.
 
 **Yang dibuat dan keputusan rancangan di dalamnya**
 - Temuan saat membaca mesin: semua tab digambar ke satu "panggung" komposisi yang ditangkap Windows Graphics Capture, dan seluruh logika pindah tab (tumpang tindih, pemanasan), Preview + Take (tata letak panggung, pratinjau), dan thumbnail bergantung pada visual komposisi tiap tab. Maka tab dokumen dibuat sebagai **visual komposisi juga**, bukan sebagai pengirim bingkai ke `FrameHub`. Dengan begitu semua mekanisme panggung dipakai ulang tanpa perubahan, dan sumber dokumen nanti cukup menggambar ke visualnya (PDF: gambar halaman; PowerPoint: bingkai hasil tangkapan jendela). Rencana D1b disesuaikan: `FitComposer` menempatkan visual atau permukaan gambar di panggung, bukan menerbitkan bingkai langsung.

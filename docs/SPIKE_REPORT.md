@@ -42,3 +42,22 @@ Jalur WebView2 (composition hosting) + Windows.Graphics.Capture **lulus** untuk 
 ## Rekomendasi
 
 **Lulus dengan batasan: lanjut ke Bagian 2 (A1 dan seterusnya).** Tidak ada hasil yang mengharuskan pindah ke CEF. Keputusan ini milik Anda.
+
+## D0 - Spike PDF dengan Windows.Data.Pdf (2026-10-27)
+
+Alat: `spikes/Stagecast.PdfSpike` (di luar solusi aplikasi). Dijalankan sekali pada 3 PDF milik pemilik (3 file ekspor presentasi, semua 16:9, tanpa kata sandi, tanpa rotasi). Mesin: PC pengembangan pemilik, build Release. Halaman dirender scale to fit ke kanvas (hasil gambar 2520×1080 → 1920×1080, bar ditambahkan nanti oleh `FitComposer`).
+
+| File | Halaman | Ukuran | Buka | 2520×1080 BMP rata-rata / terburuk | 3840×2160 BMP rata-rata / terburuk |
+|---|---|---|---|---|---|
+| Keynote Gubernur DKI | 18 | 7,2 MB, 1280×720 pt | 563 ms (pertama, termasuk pemanasan) | 48 / 79 ms | 77 / 125 ms |
+| Paparan Bu Shanty (berat, kolase foto) | 13 | 30,3 MB, 1920×1080 pt | 14 ms | 74 / 97 ms | 112 / 212 ms |
+| Opening Remarks Prof Firdaus Ali | 5 | 11,6 MB, 1920×1080 pt | 14 ms | 71 / 103 ms | 116 / 165 ms |
+
+- Keluaran PNG (bawaan API) jauh lebih lambat: 140–175 ms pada 2520×1080 dan 320–400 ms pada 3840×2160. Pakai keluaran BMP/bitmap mentah, bukan PNG.
+- Merender semua halaman berurutan pada 2520×1080: 44–72 ms per halaman. Working set proses naik dari 36 MB ke 161–228 MB setelah GC dan turun lagi ke 190 MB, tidak naik terus di antara file (belum diuji dengan 100+ halaman).
+- Pemeriksaan visual (halaman 5 Keynote dan halaman 5 Paparan): teks tajam, warna wajar, foto dan transparansi benar, font tertanam benar.
+- Kebutuhan memori bingkai: 1920×1080 BGRA = 8,1 MB, 3840×2160 = 32 MB per halaman di cache.
+
+**Keputusan sementara: opsi A (Windows.Data.Pdf) cukup**; opsi D (pdf.js) dan PDFium tidak dicoba karena A memenuhi kriteria kecepatan dan ketajaman pada file-file ini. Dengan 50–110 ms per halaman, pindah halaman terasa instan bila halaman berikutnya dirender lebih dulu di latar belakang.
+
+**Belum dibuktikan** (file contoh tidak ada): PDF berkata sandi, halaman berotasi, ukuran halaman campuran (potret dan lanskap), PDF 100+ halaman, PDF dengan font langka atau lapisan, perbandingan dengan Edge, 4:3. Itu masuk D1b/D4 dan diuji bila ada file. Alpha pada bar transparan juga belum dibuktikan (bukan bagian spike ini).
