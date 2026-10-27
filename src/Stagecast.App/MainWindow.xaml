@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Stagecast.App"
-        Title="Stagecast" Icon="stagecast.ico" Width="1440" Height="860" MinWidth="1180" MinHeight="640"
+        Title="Stagecast" Icon="stagecast.ico" Width="1440" Height="860" MinWidth="1220" MinHeight="640"
         Background="{StaticResource Bg}" FontFamily="{StaticResource FontBody}" FontSize="15" Foreground="{StaticResource Text}" TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType" UseLayoutRounding="True" WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>
@@ -65,7 +65,7 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="TabColumn" Width="300"/>
+                <ColumnDefinition x:Name="TabColumn" Width="320"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition x:Name="SideColumn" Width="360"/>
             </Grid.ColumnDefinitions>
@@ -138,11 +138,16 @@
                     <ToggleButton x:Name="InteractButton" DockPanel.Dock="Right" Content="Interaksi" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnInteract" ToolTip="Teruskan klik, gulir, dan ketik ke halaman. Esc melepas keyboard dari halaman."/>
                 </DockPanel>
 
-                <Border x:Name="PreviewHost" Grid.Row="2" Background="Black" BorderBrush="{StaticResource Line}" BorderThickness="1">
-                    <local:PagePreview x:Name="PagePreviewView"/>
+                <!-- Tally: the frame around the preview shows whether what you are looking at is on air. -->
+                <Border x:Name="TallyFrame" Grid.Row="2" BorderBrush="{StaticResource Line}" BorderThickness="3" CornerRadius="3" Padding="5">
+                    <Grid>
+                        <Border x:Name="PreviewHost" Background="Black" BorderBrush="{StaticResource Line}" BorderThickness="1">
+                            <local:PagePreview x:Name="PagePreviewView"/>
+                        </Border>
+                        <TextBlock x:Name="DetachedNote" Text="Preview ada di jendela terpisah. Tutup jendelanya untuk mengembalikan ke sini." Visibility="Collapsed"
+                                   Foreground="{StaticResource Muted}" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
                 </Border>
-                <TextBlock x:Name="DetachedNote" Grid.Row="2" Text="Preview ada di jendela terpisah. Tutup jendelanya untuk mengembalikan ke sini." Visibility="Collapsed"
-                           Foreground="{StaticResource Muted}" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
 
                 <Grid Grid.Row="3" Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>

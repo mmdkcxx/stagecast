@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -296,6 +297,77 @@ public partial class MainWindow
         RebuildTabList();
     }
 
+    private readonly TabThumbnails _thumbs = new();
+    private readonly Dictionary<Guid, (Image Picture, UIElement Placeholder)> _thumbViews = [];
+
+    /// <summary>Capture thread: offers the picture of a tab; it is shrunk here and handed to the UI thread when one is due.</summary>
+    private void OfferThumbnail(Guid id, Stagecast.Rendering.Capture.PreviewImage image)
+    {
+        if (!_thumbs.Due(id, Environment.TickCount64)) return;
+        if (TabThumbnails.Downscale(image) is not { } bitmap) return;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            _thumbs.Set(id, bitmap);
+            if (_thumbViews.TryGetValue(id, out var view))
+            {
+                view.Picture.Source = bitmap;
+                view.Picture.Visibility = Visibility.Visible;
+                view.Placeholder.Visibility = Visibility.Collapsed;
+            }
+        });
+    }
+
+    private void OnThumbSourcePreview(Stagecast.Rendering.Capture.PreviewImage image)
+    {
+        if (_engine is not { } engine) return;
+        // A zoomed (100%) view shows only part of the page; only a picture of the whole page makes a thumbnail.
+        int mip = 1 << image.Mip;
+        bool wholePage = image.SourceX == 0 && image.SourceY == 0
+            && image.Width * mip >= engine.Resolution.Width - mip && image.Height * mip >= engine.Resolution.Height - mip;
+        if (wholePage) OfferThumbnail(engine.Active.Id, image);
+    }
+
+    private void OnThumbSourceProgram(Stagecast.Rendering.Capture.PreviewImage image)
+    {
+        if (_engine is { } engine) OfferThumbnail(engine.Program.Id, image);
+    }
+
+    private static string ThumbnailLabel(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            if (uri.IsFile) return "berkas lokal";
+            if (!string.IsNullOrEmpty(uri.Host)) return uri.Host.StartsWith("www.") ? uri.Host[4..] : uri.Host;
+        }
+        return "kosong";
+    }
+
+    private FrameworkElement ThumbnailFor(Guid id, string url)
+    {
+        var picture = new Image { Stretch = Stretch.Uniform, Visibility = Visibility.Collapsed, SnapsToDevicePixels = true };
+        RenderOptions.SetBitmapScalingMode(picture, BitmapScalingMode.HighQuality);
+        var placeholder = new TextBlock
+        {
+            Text = ThumbnailLabel(url), Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 10,
+            TextTrimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0),
+        };
+        if (_thumbs.Get(id) is { } known)
+        {
+            picture.Source = known;
+            picture.Visibility = Visibility.Visible;
+            placeholder.Visibility = Visibility.Collapsed;
+        }
+        _thumbViews[id] = (picture, placeholder);
+        var grid = new Grid();
+        grid.Children.Add(placeholder);
+        grid.Children.Add(picture);
+        return new Border
+        {
+            Width = 96, Height = 54, Background = (Brush)FindResource("Bg"), BorderBrush = (Brush)FindResource("Line"), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(2), ClipToBounds = true, VerticalAlignment = VerticalAlignment.Top, Child = grid,
+        };
+    }
+
     private Button SmallButton(string glyph, string tip, Action click, bool enabled = true)
     {
         var button = new Button
@@ -329,23 +401,21 @@ public partial class MainWindow
         SyncAudioSources();
         UpdateModeButtons(); // the number of tabs decides whether Preview + Take is available
         TabListPanel.Children.Clear();
+        _thumbViews.Clear();
+        _thumbs.Keep(_tabs.Items.Select(t => t.Id));
         for (int i = 0; i < _tabs.Items.Count; i++)
         {
             var tab = _tabs.Items[i];
             bool active = i == _tabs.ActiveIndex;
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var number = new TextBlock
-            {
-                Text = i < 9 ? (i + 1).ToString() : "", Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"),
-                FontSize = 12, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 0, 0),
-            };
-            grid.Children.Add(number);
+            var thumbnail = ThumbnailFor(tab.Id, tab.Url);
+            grid.Children.Add(thumbnail);
 
-            var content = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var content = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 4, 0) };
             if (_renamingId == tab.Id)
             {
                 var box = new TextBox { Text = tab.Name, Style = (Style)FindResource("Field"), FontFamily = (FontFamily)FindResource("FontBody"), FontSize = 14, MinHeight = 30, Padding = new Thickness(6, 0, 6, 0), MaxLength = TabRules.MaxNameLength + 20 };
@@ -387,14 +457,18 @@ public partial class MainWindow
             }
             else
             {
-                content.Children.Add(new TextBlock
+                var title = new TextBlock
                 {
-                    Text = tab.Name, Foreground = (Brush)FindResource("Text"), FontFamily = (FontFamily)FindResource("FontSemi"), FontSize = 15,
+                    Foreground = (Brush)FindResource("Text"), FontFamily = (FontFamily)FindResource("FontSemi"), FontSize = 15,
                     TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = $"{tab.Name}\n{tab.Url}",
-                });
+                };
+                if (i < 9)
+                    title.Inlines.Add(new Run((i + 1) + "  ") { Foreground = (Brush)FindResource("Muted"), FontFamily = (FontFamily)FindResource("FontMono"), FontSize = 12 });
+                title.Inlines.Add(new Run(tab.Name));
+                content.Children.Add(title);
             }
 
-            var chips = new WrapPanel { Margin = new Thickness(0, 5, 0, 0) };
+            var chips = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             bool onAir = _tabs.PreviewMode ? tab.Id == _tabs.ProgramId : active;
             bool previewing = _tabs.PreviewMode && active;
             if (previewing) chips.Children.Add(Chip("PREVIEW", "Tab yang sedang disiapkan di preview", "Ok", "Ok"));
@@ -418,7 +492,7 @@ public partial class MainWindow
             grid.Children.Add(content);
 
             int index = i;
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
+            var buttons = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Top };
             buttons.Children.Add(SmallButton("✎", "Ganti nama (F2)", () => StartRename(tab.Id)));
             buttons.Children.Add(SmallButton("✕", "Tutup tab (Ctrl+W)", () => _ = CloseTabAsync(tab.Id), enabled: _tabs.CanCloseTab(tab.Id)));
             Grid.SetColumn(buttons, 2);

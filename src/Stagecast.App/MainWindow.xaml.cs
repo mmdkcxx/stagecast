@@ -74,6 +74,8 @@ public partial class MainWindow : Window
             UpdateModeButtons();
             StartAudio();
             PagePreviewView.Attach(_engine);
+            _engine.PreviewReady += OnThumbSourcePreview;
+            _engine.ProgramThumbReady += OnThumbSourceProgram;
             ShowControls();
             _engine.NavigationStateChanged += UpdateNavigationState;
             _engine.TabProblem += (tab, message) => Dispatcher.BeginInvoke(() => ShowTabProblem(tab, message));
@@ -122,6 +124,11 @@ public partial class MainWindow : Window
         SetChip(ChipScreenDot, ChipScreenState, screen);
         SetChip(ChipNdiDot, ChipNdiState, ndi);
         SetChip(ChipOmtDot, ChipOmtState, omt);
+        // Direct mode: the preview is what is on air. Preview + Take: it is the tab being prepared, so green.
+        string tally = !_tabs.PreviewMode && (screen || ndi || omt)
+            ? (BlackoutButton.IsChecked == true ? "Text" : FreezeButton.IsChecked == true ? "Warn" : "LiveBg")
+            : _tabs.PreviewMode ? "Ok" : "Line";
+        TallyFrame.BorderBrush = (Brush)FindResource(tally);
         ResText.Text = $"{_engine.Resolution.Width} × {_engine.Resolution.Height} · {_engine.Fps} fps";
     }
 

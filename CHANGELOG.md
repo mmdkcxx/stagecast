@@ -3,6 +3,19 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [0.1.6] - 2026-10-27
+
+### Ditambahkan
+- Thumbnail tab di daftar tab (96 × 54): gambar terakhir tab itu saat tampil di preview atau tayang, diperbarui tiap 1,5 detik
+  selama tab tampil. Tab yang belum pernah tampil menampilkan nama situsnya. Saat preview diperbesar ke 100% (hanya sebagian
+  halaman terlihat) thumbnail tidak diperbarui.
+- Outline tally di sekeliling preview: merah saat tab yang dilihat sedang tayang di output, kuning saat FREEZE, putih saat
+  BLACKOUT, hijau untuk tab preview di mode Preview + Take, dan abu-abu bila tidak ada output yang menyala.
+
+### Diubah
+- Kolom tab melebar menjadi 320 px, tombol ganti nama dan tutup ditumpuk vertikal di sisi kanan baris tab; lebar minimum
+  jendela 1220 px.
+
 ## [0.1.5] - 2026-10-27
 
 ### Diubah
@@ -19,7 +32,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikut
 - Uji A2b: toleransi klik pada tampilan Fit mengikuti skala preview (satu piksel preview = beberapa piksel halaman).
 
 ### Belum ada dibanding rancangan
-- Thumbnail tab, outline tally di sekeliling preview, dan bagian Output yang bisa dilipat.
+- Thumbnail tab, outline tally (ditambahkan di 0.1.6) dan bagian Output yang bisa dilipat.
 
 ## [0.1.4] - 2026-10-27
 
