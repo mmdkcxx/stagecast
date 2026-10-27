@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stagecast sharpness pattern</title>
+<style>
+  html, body { margin: 0; width: 2520px; height: 1080px; background: #fff; color: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
+  .box { position: absolute; width: 400px; height: 200px; top: 40px; }
+  #lines2px { left: 40px;   background: repeating-linear-gradient(90deg, #000 0 1px, #fff 1px 2px); }
+  #lines3px { left: 480px;  background: repeating-linear-gradient(90deg, #000 0 1px, #fff 1px 3px); }
+  #lines4px { left: 920px;  background: repeating-linear-gradient(90deg, #000 0 2px, #fff 2px 4px); }
+  #edge     { left: 1360px; background: linear-gradient(90deg, #000 0 50%, #fff 50% 100%); }
+  #hlines   { left: 1800px; background: repeating-linear-gradient(0deg, #000 0 1px, #fff 1px 2px); }
+  #text { position: absolute; left: 40px; top: 300px; width: 1100px; }
+  #text p { margin: 0 0 10px; white-space: nowrap; }
+  #colour { position: absolute; left: 1300px; top: 300px; width: 600px; }
+  #colour div { padding: 8px 12px; margin-bottom: 8px; }
+</style>
+<div id="lines2px" class="box"></div><div id="lines3px" class="box"></div><div id="lines4px" class="box"></div>
+<div id="edge" class="box"></div><div id="hlines" class="box"></div>
+<div id="text">
+  <p style="font-size:10px">10 px: Stagecast sends 2520 x 1080 to a 1920 x 1080 HDMI output, squeezed to 76.19 percent of the width.</p>
+  <p style="font-size:12px">12 px: The quick brown fox jumps over the lazy dog. 0123456789 il1I O0o</p>
+  <p style="font-size:14px">14 px: The quick brown fox jumps over the lazy dog. 0123456789 il1I O0o</p>
+  <p style="font-size:18px">18 px: The quick brown fox jumps over the lazy dog. 0123456789</p>
+  <p style="font-size:24px">24 px: The quick brown fox jumps over the lazy dog.</p>
+  <p style="font-size:32px;font-weight:700">32 px bold: Videotron 7 x 3 m</p>
+</div>
+<div id="colour">
+  <div style="background:#1c4fd8;color:#f7c243;font-size:16px">16 px yellow on blue: Slido Kahoot Canva</div>
+  <div style="background:#000;color:#fff;font-size:14px">14 px white on black: 0123456789 ABCDEFG abcdefg</div>
+  <div style="background:#c50516;color:#fff;font-size:14px">14 px white on red: 0123456789 ABCDEFG abcdefg</div>
+</div>
+<script>
+  window.regions = () => JSON.stringify(Object.fromEntries(['lines2px','lines3px','lines4px','edge','hlines','text','colour'].map(id => {
+    const r = document.getElementById(id).getBoundingClientRect(); return [id, [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]];
+  })));
+</script>
