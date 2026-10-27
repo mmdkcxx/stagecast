@@ -68,6 +68,10 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Lulus:** 60 fps stabil (misal minimal 55 rata-rata, tanpa stutter nyata) selama 5 menit. [Saya untuk angka, Anda untuk kelancaran visual]
 
 ### S6 - Konten nyata
+- **Status: setengah selesai (2026-10-27).**
+  - **[Saya] lulus:** video MP4 H.264 720p (Big Buck Bunny, uji publik; tidak disimpan di repo) terputar di visual composition: `canPlayType` = "probably", 330 frame, 0 frame dibuang, frame ditangkap berwarna wajar (PNG saya lihat sendiri). Kebijakan autoplay bawaan **memblokir** pemutaran bersuara tanpa klik (`NotAllowedError`); dengan argumen `--autoplay-policy=no-user-gesture-required` diizinkan. Jadi aplikasi asli perlu argumen itu untuk Kahoot/Canva yang berbunyi tanpa klik.
+  - **Harness interaktif:** `scripts/run-spike.sh browse [profil] [url]` membuka jendela dengan preview, mouse diteruskan ke halaman lewat `SendMouseInput`, popup dibuka di tab yang sama (kebijakan yang diuji), profil WebView2 permanen per nama profil, dan log jumlah cookie Canva/Kahoot/Slido saat start (nilai cookie tidak dicatat). Cookie Canva sudah ada 8 di profil `main`... **catatan:** itu dari kunjungan uji otomatis saya, bukan login.
+  - **[Anda] belum:** login Canva (juga lewat Google), tutup-buka cek sesi, popup login, putar video Canva, dua profil. Keyboard ke halaman belum terbukti [U]; harness baru meneruskan mouse.
 - Muat video MP4 (H.264) langsung, lalu presentasi/video dari Canva web.
 - Uji login: login Canva (termasuk lewat Google) dilakukan sekali oleh Anda; profil WebView2 permanen menyimpan sesi.
 - Tutup dan buka aplikasi, lalu cek sesi Canva masih aktif.

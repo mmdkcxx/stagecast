@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 
     private async Task StartAsync()
     {
-        if (_mode is "s2" or "s3" or "s4" or "s5") await StartCompositionAsync();
+        if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i") await StartCompositionAsync();
         else await StartPlainAsync();
     }
 
@@ -36,19 +36,38 @@ public partial class MainWindow : Window
             Web.Visibility = Visibility.Collapsed; // no WebView2 control: the page lives only in a composition visual
             var dataDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Stagecast", "Spike", "WebView2-composition");
+                "Stagecast", "Spike", _mode == "s6i" ? $"WebView2-s6-{ArgValue("--profile") ?? "main"}" : "WebView2-composition");
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
             _composition = new CompositionSpike();
             Status.Text = $"{_mode.ToUpperInvariant()}: page is loading inside an off-screen composition visual...";
-            string url = _mode == "s5" && ArgValue("--url") is null
-                ? new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "animation.html")).AbsoluteUri
-                : _url;
-            await _composition.InitializeAsync(hwnd, dataDir, url, new Stagecast.Core.Rendering.Resolution(2520, 1080));
+            string url = _url;
+            if (_mode == "s5" && ArgValue("--url") is null)
+                url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "animation.html")).AbsoluteUri;
+            if (_mode == "s6" && ArgValue("--url") is null)
+            {
+                string media = new Uri(ArgValue("--media") ?? @"C:\dev\media\bbb.mp4").AbsoluteUri;
+                url = new Uri(Path.Combine(AppContext.BaseDirectory, "assets", "video.html")).AbsoluteUri + "?src=" + Uri.EscapeDataString(media);
+            }
+            string? browserArgs = ArgValue("--autoplay") == "open" ? "--autoplay-policy=no-user-gesture-required" : null;
+            await _composition.InitializeAsync(hwnd, dataDir, url, new Stagecast.Core.Rendering.Resolution(2520, 1080), browserArgs);
             if (_mode == "s2")
             {
                 await _composition.LogViewportAsync();
                 Status.Text = "S2 ok: page loaded in a composition visual (nothing is shown on screen by design)";
                 SpikeLog.Write("S2 ok");
+            }
+            else if (_mode == "s6i")
+            {
+                await StartInteractiveAsync();
+                return; // stays open until the operator closes the window
+            }
+            else if (_mode == "s6")
+            {
+                string png = Path.Combine(AppContext.BaseDirectory, "logs", "s6-video-frame.png");
+                string report = await _composition.RunVideoCheckAsync(10, png);
+                bool ok = report.Contains("\"readyState\":4") && report.Contains("\"videoWidth\":1280") && !report.Contains("\"paused\":true");
+                Status.Text = $"S6: {report}";
+                SpikeLog.Write(ok ? "S6 ok video plays" : "S6 FAILED video did not play");
             }
             else if (_mode == "s5")
             {
@@ -90,6 +109,42 @@ public partial class MainWindow : Window
         }
     }
 
+    // S6 interactive: the page is only in the composition visual, so the preview image is the operator's view and
+    // mouse/keyboard are forwarded into the browser by hand. This is exactly what the real app's preview tab will need.
+    private ContinuousCapture? _preview;
+
+    private async Task StartInteractiveAsync()
+    {
+        Bar.Visibility = Visibility.Visible;
+        UrlBox.Text = _composition!.CurrentUrl;
+        GoButton.Click += (_, _) => _composition.Navigate(NormalizeUrl(UrlBox.Text));
+        UrlBox.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) _composition.Navigate(NormalizeUrl(UrlBox.Text)); };
+        Preview.MouseMove += (_, e) => Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind.Move, e, 0);
+        Preview.MouseLeftButtonDown += (_, e) => { Preview.Focus(); _composition.FocusBrowser(); Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind.LeftButtonDown, e, 0); };
+        Preview.MouseLeftButtonUp += (_, e) => Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind.LeftButtonUp, e, 0);
+        Preview.MouseRightButtonDown += (_, e) => Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind.RightButtonDown, e, 0);
+        Preview.MouseRightButtonUp += (_, e) => Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind.RightButtonUp, e, 0);
+        Preview.MouseWheel += (_, e) => Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind.Wheel, e, (uint)e.Delta);
+        Preview.Focusable = true;
+        _preview = _composition.StartPreview(ShowPreview, 50);
+        foreach (var site in new[] { "https://www.canva.com", "https://kahoot.it", "https://slido.com" })
+            await _composition.LogCookiesAsync(site);
+        Status.Text = "S6 interactive: click the preview to use the page. Close the window when done (log: logs/spike.log)";
+        SpikeLog.Write("S6 interactive ready");
+    }
+
+    private static string NormalizeUrl(string text) => text.Contains("://") ? text : "https://" + text;
+
+    private void Forward(Microsoft.Web.WebView2.Core.CoreWebView2MouseEventKind kind, System.Windows.Input.MouseEventArgs e, uint data)
+    {
+        // Preview is stretched Uniform: map the pointer from the displayed image back to page pixels.
+        var p = e.GetPosition(Preview);
+        double scale = Math.Min(Preview.ActualWidth / 2520.0, Preview.ActualHeight / 1080.0);
+        double offX = (Preview.ActualWidth - 2520 * scale) / 2, offY = (Preview.ActualHeight - 1080 * scale) / 2;
+        var point = new System.Drawing.Point((int)((p.X - offX) / scale), (int)((p.Y - offY) / scale));
+        _composition!.SendMouse(kind, Microsoft.Web.WebView2.Core.CoreWebView2MouseEventVirtualKeys.None, data, point);
+    }
+
     private static void LogSummary(string label, CaptureSummary s) =>
         SpikeLog.Write($"S5 summary {label}: {s.Seconds:F1}s delivered={s.Delivered} ({s.DeliveredFps:F1}/s) arrived={s.Arrived} ({s.ArrivedFps:F1}/s) "
             + $"p99={s.P99IntervalMs:F1}ms max={s.MaxIntervalMs:F1}ms stutters={s.Stutters} dropped={s.Dropped} cpu={s.CpuPercent:F1}%");
@@ -105,6 +160,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _preview?.Dispose();
         _composition?.Dispose();
         base.OnClosed(e);
     }

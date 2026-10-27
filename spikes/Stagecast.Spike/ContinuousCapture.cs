@@ -21,6 +21,7 @@ internal sealed class ContinuousCapture : IDisposable
     private readonly object _gate = new();
     private readonly List<double> _intervalsMs = new();
     private readonly Action<byte[], int, int, int>? _onPreview;
+    private readonly int _previewIntervalMs;
 
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
@@ -37,8 +38,9 @@ internal sealed class ContinuousCapture : IDisposable
     private int _secondArrived, _secondDelivered;
     private Timer? _secondTimer;
 
-    public ContinuousCapture(Windows.UI.Composition.ContainerVisual visual, int targetFps, Action<byte[], int, int, int>? onPreview)
+    public ContinuousCapture(Windows.UI.Composition.ContainerVisual visual, int targetFps, Action<byte[], int, int, int>? onPreview, int previewIntervalMs = 250)
     {
+        _previewIntervalMs = previewIntervalMs;
         _visual = visual;
         _targetFps = targetFps;
         _onPreview = onPreview;
@@ -120,7 +122,7 @@ internal sealed class ContinuousCapture : IDisposable
         // A few times per second, read the frame back for the preview window. This is the slow path, so it is
         // kept out of the statistics above.
         long now = Stopwatch.GetTimestamp();
-        if (deliver && _onPreview is not null && Stopwatch.GetElapsedTime(_lastPreviewTicks, now).TotalMilliseconds >= 250)
+        if (deliver && _onPreview is not null && Stopwatch.GetElapsedTime(_lastPreviewTicks, now).TotalMilliseconds >= _previewIntervalMs)
         {
             _lastPreviewTicks = now;
             ReadBack(frame);

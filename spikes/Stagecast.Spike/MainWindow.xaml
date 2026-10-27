@@ -6,12 +6,17 @@
         Background="#0C0B09" WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <wv2:WebView2 x:Name="Web" Grid.Row="0"/>
-        <Image x:Name="Preview" Grid.Row="0" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
-        <TextBlock x:Name="Status" Grid.Row="1" Margin="12,8" Foreground="#AEAAA4"
+        <DockPanel x:Name="Bar" Grid.Row="0" Margin="8" Visibility="Collapsed">
+            <Button x:Name="GoButton" DockPanel.Dock="Right" Content="Go" Width="60" Margin="8,0,0,0"/>
+            <TextBox x:Name="UrlBox" FontFamily="Consolas" FontSize="14"/>
+        </DockPanel>
+        <wv2:WebView2 x:Name="Web" Grid.Row="1"/>
+        <Image x:Name="Preview" Grid.Row="1" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
+        <TextBlock x:Name="Status" Grid.Row="2" Margin="12,8" Foreground="#AEAAA4"
                    FontFamily="Consolas" FontSize="13" Text="starting..."/>
     </Grid>
 </Window>

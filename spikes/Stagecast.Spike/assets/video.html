@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stagecast video test</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}video{width:100%;height:100%;object-fit:contain}</style>
+<video id="v" loop playsinline></video>
+<script>
+  const q = new URLSearchParams(location.search);
+  const v = document.getElementById('v');
+  window.result = { canPlayH264: v.canPlayType('video/mp4; codecs="avc1.42E01E"'), unmutedPlay: 'not tried' };
+  v.src = q.get('src');
+  // First, unmuted without any user click: shows the default autoplay policy.
+  v.muted = false;
+  v.play().then(() => { window.result.unmutedPlay = 'allowed'; })
+    .catch(e => { window.result.unmutedPlay = 'blocked: ' + e.name; v.muted = true; return v.play(); })
+    .catch(e => { window.result.mutedPlay = 'blocked: ' + e.name; });
+  window.report = () => {
+    const pq = v.getVideoPlaybackQuality();
+    return JSON.stringify({ ...window.result, muted: v.muted, paused: v.paused, readyState: v.readyState,
+      videoWidth: v.videoWidth, videoHeight: v.videoHeight, currentTime: +v.currentTime.toFixed(2),
+      totalFrames: pq.totalVideoFrames, droppedFrames: pq.droppedVideoFrames, error: v.error && v.error.message });
+  };
+</script>
