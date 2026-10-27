@@ -76,6 +76,15 @@
                     <TextBlock x:Name="TabError" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>
 
+                    <TextBlock Text="SESI LOGIN" Style="{StaticResource Label}"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Cek sesi" Style="{StaticResource ToolButton}" Click="OnCheckSessions" ToolTip="Tandai tiap tab: SESI AKTIF, PERLU LOGIN, atau TANPA LOGIN (perkiraan; tetap periksa di preview)"/>
+                        <Button Content="Hapus data login" Style="{StaticResource ToolButton}" Margin="0" Click="OnClearLogins" ToolTip="Keluar dari semua situs di semua tab"/>
+                    </StackPanel>
+                    <TextBlock x:Name="SessionNote" Foreground="{StaticResource Muted}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Text="Login di tab yang sedang tidak tayang supaya ketikan tidak terlihat penonton. Klik kanan tab untuk memberi login sendiri (profil terpisah)."/>
+                    <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>
+
                     <TextBlock Text="RESOLUSI" Style="{StaticResource Label}"/>
                     <Button x:Name="PresetButton" Style="{StaticResource ToolButton}" Margin="0,0,0,8" HorizontalContentAlignment="Left" Click="OnPresetMenu" ToolTip="Pilih resolusi tersimpan"/>
                     <Grid>

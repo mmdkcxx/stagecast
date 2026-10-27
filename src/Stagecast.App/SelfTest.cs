@@ -8,6 +8,7 @@ using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
 using Stagecast.Core.Tabs;
 using Stagecast.Core.Presets;
+using Stagecast.Core.Sessions;
 using Microsoft.Extensions.Logging;
 using Stagecast.Core.Rendering;
 using Stagecast.Rendering;
@@ -33,6 +34,7 @@ internal sealed class SelfTest
     public async Task RunAsync(string name, MainWindow window)
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
+        if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
         if (name == "a3") { await RunTabsAsync(window); return; }
         if (name == "a2c") { await RunChangesAndPresetsAsync(window); return; }
         if (name != "a2") { _logger.LogError("Unknown self test {Name}", name); return; }
@@ -70,6 +72,116 @@ internal sealed class SelfTest
         Expect(back.Capture is { Width: 2520, Height: 1080 }, "frames are 2520x1080 again");
 
         _logger.LogInformation(_failures.Count == 0 ? "A2 selftest ok" : "A2 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    private const int LoginPort = 47831;
+    private static readonly string LoginSite = $"http://localhost:{LoginPort}";
+
+    /// <summary>A tiny local site: /dologin and /dologin2 set a session cookie the way a login does, every other path is a page.</summary>
+    private static System.Net.HttpListener StartLoginSite()
+    {
+        var listener = new System.Net.HttpListener();
+        listener.Prefixes.Add($"{LoginSite}/");
+        listener.Start();
+        _ = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                try
+                {
+                    var context = await listener.GetContextAsync();
+                    string path = context.Request.Url!.AbsolutePath;
+                    if (path == "/dologin") context.Response.AddHeader("Set-Cookie", "sess=one; Path=/; HttpOnly; Max-Age=86400");
+                    if (path == "/dologin2") context.Response.AddHeader("Set-Cookie", "sess2=two; Path=/; HttpOnly; Max-Age=86400");
+                    byte[] body = System.Text.Encoding.UTF8.GetBytes($"<html><body style='background:#223'>page {path}</body></html>");
+                    context.Response.ContentType = "text/html";
+                    await context.Response.OutputStream.WriteAsync(body);
+                    context.Response.Close();
+                }
+                catch (Exception) when (!listener.IsListening)
+                {
+                    return;
+                }
+                catch (Exception)
+                {
+                    // one bad request must not stop the site
+                }
+            }
+        });
+        return listener;
+    }
+
+    private async Task<string> CookieNamesAsync(Rendering.PageTab tab)
+        => string.Join(",", (await _engine.CookiesAsync(tab, LoginSite)).Select(c => c.Name).OrderBy(n => n));
+
+    /// <summary>
+    /// Logins: a cookie set by a site stays in the profile; a tab with its own profile does not share it; the session guess; the
+    /// logins survive a restart (second launch); clearing removes them everywhere; profile folders do not pile up.
+    /// </summary>
+    private async Task RunLoginsAsync(MainWindow window, bool first)
+    {
+        using var site = StartLoginSite();
+        string profiles = window.ProfilesDirectory;
+        if (first)
+        {
+            Directory.CreateDirectory(Path.Combine(profiles, "tab-" + new string('f', 32))); // an orphan left by "an earlier session"
+
+            var shared = window.Tabs.Items[0];
+            await _engine.NavigateAsync($"{LoginSite}/dologin", TimeSpan.FromSeconds(10));
+            await Task.Delay(500);
+            Expect(await CookieNamesAsync(_engine.Active) == "sess", "the shared tab holds the cookie its login set");
+
+            Expect(await window.AddTabAsync($"{LoginSite}/page"), "a second tab can be added");
+            var second = window.Tabs.Active;
+            window.Confirm = _ => true;
+            Expect(await window.SetSeparateProfileAsync(second.Id, true), "the second tab can get its own profile");
+            await Task.Delay(1500);
+            var secondTab = _engine.TabById(second.Id)!;
+            Expect(secondTab.ProfileId is { Length: 32 } && _engine.Active.Id == second.Id, "the second tab runs on its own profile and is still the active one");
+            Expect(await CookieNamesAsync(secondTab) == "", "a separate profile does not see the shared login");
+
+            await _engine.NavigateAsync($"{LoginSite}/dologin2", TimeSpan.FromSeconds(10));
+            Expect(await CookieNamesAsync(secondTab) == "sess2", "the separate tab holds only its own login");
+            Expect(await CookieNamesAsync(_engine.TabById(shared.Id)!) == "sess", "the shared tab does not see the separate login");
+
+            await _engine.NavigateAsync($"{LoginSite}/page", TimeSpan.FromSeconds(10));
+            await window.CheckSessionsAsync();
+            Expect(window.Sessions[shared.Id] == SessionState.LoggedIn, "the shared tab (a page with a session cookie) is guessed as logged in");
+            Expect(window.Sessions[second.Id] == SessionState.LoggedIn, "the separate tab is guessed as logged in");
+            await _engine.NavigateAsync(_engine.TabById(shared.Id)!, $"{LoginSite}/login", TimeSpan.FromSeconds(10));
+            await window.CheckSessionsAsync();
+            Expect(window.Sessions[shared.Id] == SessionState.NeedsLogin, "a login page is guessed as needing login");
+
+            await Task.Delay(1800); // let the tabs reach config.json
+            var saved = window.ReadConfigFromDisk();
+            Expect(saved.Tabs.Count == 2 && saved.Tabs[0].ProfileId is null && saved.Tabs[1].ProfileId == secondTab.ProfileId, "the settings file knows which tab has its own profile (and holds no cookie)");
+            _logger.LogInformation(_failures.Count == 0 ? "A3c set selftest ok" : "A3c set selftest FAILED: {Failures}", string.Join("; ", _failures));
+            return;
+        }
+
+        // Second launch: everything was closed and opened again with the same data folder.
+        Expect(window.Tabs.Items.Count == 2 && window.Tabs.Items[1].ProfileId is { Length: 32 }, "both tabs and the separate profile were restored");
+        Expect(!Directory.Exists(Path.Combine(profiles, "tab-" + new string('f', 32))), "a profile folder no tab refers to was removed at startup");
+        var tab0 = _engine.TabById(window.Tabs.Items[0].Id)!;
+        var tab1 = _engine.TabById(window.Tabs.Items[1].Id)!;
+        await Task.Delay(1000);
+        Expect(await CookieNamesAsync(tab0) == "sess", "the shared login survived the restart");
+        Expect(await CookieNamesAsync(tab1) == "sess2", "the separate login survived the restart");
+
+        window.Confirm = _ => false;
+        Expect(!await window.ClearLoginDataAsync() && await CookieNamesAsync(tab0) == "sess", "declining the confirmation keeps the logins");
+        window.Confirm = _ => true;
+        Expect(await window.ClearLoginDataAsync(), "Hapus data login runs after confirmation");
+        await Task.Delay(800);
+        Expect(await CookieNamesAsync(tab0) == "" && await CookieNamesAsync(tab1) == "", "no login is left in any profile");
+
+        string folder = Path.Combine(profiles, "tab-" + window.Tabs.Items[1].ProfileId);
+        Expect(Directory.Exists(folder), "the separate profile folder exists while its tab does");
+        Expect(await window.SetSeparateProfileAsync(window.Tabs.Items[1].Id, false), "the tab can go back to the shared profile");
+        for (int i = 0; i < 40 && Directory.Exists(folder); i++) await Task.Delay(500);
+        Expect(!Directory.Exists(folder), "the profile folder of a tab that went back to the shared profile is deleted");
+        Expect(_engine.Tabs.Count == 2 && _engine.TabById(window.Tabs.Items[1].Id)?.ProfileId is null, "the engine and the list agree afterwards");
+        _logger.LogInformation(_failures.Count == 0 ? "A3c check selftest ok" : "A3c check selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
     /// <summary>Counts what the output would show: frames whose centre is not one of the expected colours (black = a flash).</summary>

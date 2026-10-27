@@ -59,7 +59,7 @@ public partial class MainWindow : Window
         try
         {
             var hwnd = new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
-            string profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Stagecast", "Profiles", "default");
+            string profile = _context.Paths.ProfilesDirectory;
             var render = _config.Render;
             _engine = await RenderEngine.CreateAsync(
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
@@ -377,6 +377,8 @@ public partial class MainWindow : Window
 
     internal PagePreview Preview => PagePreviewView;
 
+    internal string ProfilesDirectory => _context.Paths.ProfilesDirectory;
+
     internal RenderEngine? Engine => _engine;
 
     private void UpdateNavigationState()
@@ -505,7 +507,7 @@ public partial class MainWindow : Window
         {
             Render = render,
             Presets = _presets.ToEntries(),
-            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url }).ToList(),
+            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
             ActiveTab = _tabs.ActiveIndex,
         };
         try

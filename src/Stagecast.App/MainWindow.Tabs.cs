@@ -4,7 +4,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Stagecast.Core.Configuration;
+using Stagecast.Core.Sessions;
 using Stagecast.Core.Tabs;
+using Stagecast.Rendering;
 
 namespace Stagecast.App;
 
@@ -19,7 +21,7 @@ public partial class MainWindow
 
     private TabList BuildTabList()
     {
-        var items = _config.Tabs.Select(t => new TabInfo(Guid.NewGuid(), t.Name, t.Url)).ToList();
+        var items = _config.Tabs.Select(t => new TabInfo(Guid.NewGuid(), t.Name, t.Url, t.ProfileId)).ToList();
         var list = new TabList(items, _config.ActiveTab);
         // --url opens that address in the tab that was active.
         if (_context.StartUrl is { } url) list.SetUrl(list.Active.Id, url);
@@ -33,8 +35,10 @@ public partial class MainWindow
         engine.ActiveTabChanged += () => ShowZoomLabel();
 
         // The tab that was active goes first, so it is on the stage from the start; the others load behind it.
-        await engine.AddTabAsync(_tabs.Active.Id, _tabs.Active.Url);
-        foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active.Id)) await engine.AddTabAsync(info.Id, info.Url);
+        RenderEngine.RemoveUnusedProfiles(_context.Paths.ProfilesDirectory, _tabs.Items.Select(t => t.ProfileId));
+        await engine.AddTabAsync(_tabs.Active.Id, _tabs.Active.Url, _tabs.Active.ProfileId);
+        // A snapshot: pages start loading while the next tabs are created, and their address changes update the list.
+        foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active.Id).ToList()) await engine.AddTabAsync(info.Id, info.Url, info.ProfileId);
         engine.SortTabs(_tabs.Items.Select(t => t.Id).ToList());
         RebuildTabList();
     }
@@ -63,6 +67,64 @@ public partial class MainWindow
         Persist();
     }
 
+    // ---- logins ----
+
+    private readonly Dictionary<Guid, SessionState> _sessions = [];
+
+    internal IReadOnlyDictionary<Guid, SessionState> Sessions => _sessions;
+
+    /// <summary>Marks every tab with a guess: session active, needs login, or nothing to log in to. Does not change what is on the stage.</summary>
+    internal async Task CheckSessionsAsync()
+    {
+        if (_engine is null) return;
+        _sessions.Clear();
+        foreach (var info in _tabs.Items)
+        {
+            if (_engine.TabById(info.Id) is not { } tab) continue;
+            _sessions[info.Id] = SessionHeuristics.Classify(tab.Url, await _engine.SessionCookieCountAsync(tab));
+        }
+        int needLogin = _sessions.Values.Count(s => s == SessionState.NeedsLogin);
+        SessionNote.Text = needLogin == 0
+            ? "Tidak ada tab yang tampak perlu login. Ini perkiraan; tetap lihat tiap tab di preview."
+            : $"{needLogin} tab tampak perlu login. Ini perkiraan; periksa di preview.";
+        RebuildTabList();
+    }
+
+    /// <summary>Signs out of every site in every profile, after asking. Returns false when the operator declined.</summary>
+    internal async Task<bool> ClearLoginDataAsync()
+    {
+        if (_engine is null) return false;
+        if (!Confirm("Hapus semua data login? Semua tab akan keluar dari semua situs, termasuk tab dengan profil sendiri. Ini tidak bisa dibatalkan.")) return false;
+        await _engine.ClearLoginDataAsync();
+        _sessions.Clear();
+        SessionNote.Text = "Data login dihapus. Login lagi di tiap tab yang membutuhkannya.";
+        RebuildTabList();
+        return true;
+    }
+
+    /// <summary>Gives a tab its own login (a separate browser profile) or puts it back on the shared one. The page is loaded again.</summary>
+    internal async Task<bool> SetSeparateProfileAsync(Guid id, bool separate)
+    {
+        if (_engine is null || _engine.TabById(id) is not { } tab) return false;
+        if ((tab.ProfileId is not null) == separate) return true;
+        string what = separate
+            ? "Tab ini akan memakai login sendiri. Halamannya dimuat ulang dan belum login di profil baru."
+            : "Tab ini kembali memakai login bersama. Halamannya dimuat ulang dan login sendirinya dihapus.";
+        if (!Confirm(what + " Lanjutkan?")) return false;
+        _tabs.SetSeparateProfile(id, separate);
+        await _engine.ReplaceProfileAsync(tab, _tabs.Items[_tabs.IndexOf(id)].ProfileId);
+        _sessions.Remove(id);
+        RebuildTabList();
+        UpdateNavigationState();
+        ShowZoomLabel();
+        SchedulePersist();
+        return true;
+    }
+
+    private void OnCheckSessions(object sender, RoutedEventArgs e) => _ = CheckSessionsAsync();
+
+    private void OnClearLogins(object sender, RoutedEventArgs e) => _ = ClearLoginDataAsync();
+
     // ---- operations (used by the buttons, the keys and the self test) ----
 
     internal async Task<bool> AddTabAsync(string url = TabRules.BlankUrl)
@@ -75,7 +137,7 @@ public partial class MainWindow
             return false;
         }
         TabError.Text = string.Empty;
-        await _engine.AddTabAsync(info.Id, url); // the list keeps only an address worth restoring; the page gets the real one
+        await _engine.AddTabAsync(info.Id, url, info.ProfileId); // the list keeps only an address worth restoring; the page gets the real one
         await SelectTabAsync(info.Id);
         return true;
     }
@@ -155,6 +217,12 @@ public partial class MainWindow
         return button;
     }
 
+    private TextBlock Badge(string text, string tip, string brush) => new()
+    {
+        Text = text, ToolTip = tip, Foreground = (Brush)FindResource(brush), FontFamily = new FontFamily("Segoe UI"), FontSize = 10, FontWeight = FontWeights.Bold,
+        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
+    };
+
     private void RebuildTabList()
     {
         TabListPanel.Children.Clear();
@@ -227,6 +295,18 @@ public partial class MainWindow
             grid.Children.Add(nameElement);
 
             var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+            if (tab.ProfileId is not null)
+                buttons.Children.Add(Badge("PROFIL", "Memakai login sendiri (profil terpisah)", "Muted"));
+            if (_sessions.TryGetValue(tab.Id, out var session))
+            {
+                var (text, brush, tip) = session switch
+                {
+                    SessionState.LoggedIn => ("SESI AKTIF", "Ok", "Ada cookie sesi untuk situs ini (perkiraan)"),
+                    SessionState.NeedsLogin => ("PERLU LOGIN", "Warn", "Halaman login atau belum ada cookie sesi (perkiraan)"),
+                    _ => ("TANPA LOGIN", "Muted", "Bukan situs web, tidak ada yang perlu login"),
+                };
+                buttons.Children.Add(Badge(text, tip, brush));
+            }
             if (active)
                 buttons.Children.Add(new TextBlock
                 {
@@ -246,6 +326,14 @@ public partial class MainWindow
                 Child = grid, Padding = new Thickness(8, 4, 4, 4), Margin = new Thickness(0, 0, 0, 4), Cursor = Cursors.Hand,
                 Background = (Brush)FindResource("Raised"), BorderBrush = (Brush)FindResource(active ? "Warn" : "LineStrong"), BorderThickness = new Thickness(1),
             };
+            var menu = new ContextMenu();
+            var rename = new MenuItem { Header = "Ganti nama (F2)" };
+            rename.Click += (_, _) => StartRename(tab.Id);
+            var separate = new MenuItem { Header = "Profil terpisah (login sendiri)", IsCheckable = true, IsChecked = tab.ProfileId is not null };
+            separate.Click += (_, _) => _ = SetSeparateProfileAsync(tab.Id, separate.IsChecked);
+            menu.Items.Add(rename);
+            menu.Items.Add(separate);
+            row.ContextMenu = menu;
             row.MouseLeftButtonUp += (_, e) =>
             {
                 if (_renamingId is null) _ = SelectTabAsync(tab.Id);

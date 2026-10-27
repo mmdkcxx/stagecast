@@ -1,7 +1,8 @@
 namespace Stagecast.Core.Tabs;
 
 /// <summary>One tab as the operator sees it. The name is only a label; the address is where the tab last was.</summary>
-public sealed record TabInfo(Guid Id, string Name, string Url);
+/// <param name="ProfileId">Null when the tab shares the common browser profile; otherwise the id of its own profile (a separate login).</param>
+public sealed record TabInfo(Guid Id, string Name, string Url, string? ProfileId = null);
 
 public enum TabNameError
 {
@@ -18,6 +19,12 @@ public static class TabRules
     public const int MaxTabs = 12;
 
     public const string BlankUrl = "about:blank";
+
+    /// <summary>A profile id is the name of a folder, so only the exact form this program makes is accepted (32 hex digits).</summary>
+    public static bool IsValidProfileId(string? id)
+        => id is { Length: 32 } && id.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    public static string NewProfileId() => Guid.NewGuid().ToString("N");
 
     public static TabNameError ValidateName(string? name)
     {
@@ -95,6 +102,17 @@ public sealed class TabList
         if (index < ActiveIndex) ActiveIndex--;
         else if (index == ActiveIndex) ActiveIndex = Math.Min(index, _items.Count - 1);
         return Active;
+    }
+
+    /// <summary>Gives the tab its own browser profile (a separate login) or puts it back on the shared one. Returns the profile id it had.</summary>
+    public string? SetSeparateProfile(Guid id, bool separate)
+    {
+        int index = IndexOf(id);
+        if (index < 0) return null;
+        string? old = _items[index].ProfileId;
+        string? next = separate ? old ?? TabRules.NewProfileId() : null;
+        _items[index] = _items[index] with { ProfileId = next };
+        return old;
     }
 
     public TabNameError Rename(Guid id, string? name)

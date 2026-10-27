@@ -27,6 +27,9 @@ public sealed class TabEntry
     public string Name { get; init; } = string.Empty;
 
     public string Url { get; init; } = "about:blank";
+
+    /// <summary>Set when the tab has its own browser profile (a separate login); names a folder, never holds credentials.</summary>
+    public string? ProfileId { get; init; }
 }
 
 public sealed class RenderConfig

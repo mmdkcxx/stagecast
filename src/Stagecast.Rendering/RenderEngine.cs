@@ -1,3 +1,4 @@
+using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
@@ -12,10 +13,10 @@ using Windows.UI.Composition;
 namespace Stagecast.Rendering;
 
 /// <param name="WindowHandle">Any top-level window of the application; WebView2 needs a parent window even when it draws into a visual.</param>
-/// <param name="UserDataFolder">Where the browser profile (cookies, logins) lives.</param>
+/// <param name="ProfilesDirectory">Where the browser profiles (cookies, logins) live: <c>default</c> for the shared one, <c>tab-&lt;id&gt;</c> for each separate one.</param>
 /// <param name="BrowserArguments">Extra Chromium switches. The default lets pages play sound without a click.</param>
 public sealed record RenderEngineOptions(
-    IntPtr WindowHandle, string UserDataFolder, Resolution Resolution, int Fps,
+    IntPtr WindowHandle, string ProfilesDirectory, Resolution Resolution, int Fps,
     string BrowserArguments = "--autoplay-policy=no-user-gesture-required");
 
 public sealed record RenderEngineStats(FrameHubStats Hub, CaptureStats Capture);
@@ -29,6 +30,8 @@ public sealed record RenderEngineStats(FrameHubStats Hub, CaptureStats Capture);
 /// </summary>
 public sealed class RenderEngine : IDisposable
 {
+    private const string SharedProfileKey = "default";
+
     /// <summary>How long a tab that is about to be shown gets to draw itself before it replaces the one on the stage.</summary>
     private const int WarmUpMilliseconds = 150;
 
@@ -39,7 +42,8 @@ public sealed class RenderEngine : IDisposable
     private readonly IntPtr _dispatcherQueueController;
     private readonly Compositor _compositor;
     private readonly ContainerVisual _stage;
-    private readonly CoreWebView2Environment _environment;
+    private readonly Dictionary<string, CoreWebView2Environment> _environments = [];
+    private readonly RenderEngineOptions _options;
     private readonly IntPtr _windowHandle;
     private readonly FrameCapturer _capturer;
     private readonly FramePump _pump;
@@ -48,12 +52,13 @@ public sealed class RenderEngine : IDisposable
     private PageTab? _active;
 
     private RenderEngine(RenderEngineOptions options, IntPtr dispatcherQueueController, Compositor compositor, ContainerVisual stage,
-        CoreWebView2Environment environment, FrameHub hub, FramePool pool, FrameCapturer capturer, FramePump pump, ILogger<RenderEngine> logger)
+        CoreWebView2Environment sharedEnvironment, FrameHub hub, FramePool pool, FrameCapturer capturer, FramePump pump, ILogger<RenderEngine> logger)
     {
         _dispatcherQueueController = dispatcherQueueController;
         _compositor = compositor;
         _stage = stage;
-        _environment = environment;
+        _options = options;
+        _environments[SharedProfileKey] = sharedEnvironment;
         _windowHandle = options.WindowHandle;
         Hub = hub;
         Pool = pool;
@@ -94,10 +99,11 @@ public sealed class RenderEngine : IDisposable
         var stage = compositor.CreateContainerVisual();
         stage.Size = new Vector2(options.Resolution.Width, options.Resolution.Height);
 
+        string sharedFolder = ProfileFolder(options.ProfilesDirectory, null);
         var env = await CoreWebView2Environment.CreateAsync(
-            userDataFolder: options.UserDataFolder,
+            userDataFolder: sharedFolder,
             options: new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = options.BrowserArguments });
-        logger.LogInformation("WebView2 runtime {Version}, profile {Profile}", env.BrowserVersionString, options.UserDataFolder);
+        logger.LogInformation("WebView2 runtime {Version}, profile {Profile}", env.BrowserVersionString, sharedFolder);
 
         var hub = new FrameHub();
         var pool = new FramePool();
@@ -105,6 +111,118 @@ public sealed class RenderEngine : IDisposable
         capturer.Start();
         var pump = new FramePump(hub, options.Fps, loggerFactory.CreateLogger<FramePump>());
         return new RenderEngine(options, queue, compositor, stage, env, hub, pool, capturer, pump, logger);
+    }
+
+    // ---- Profiles (logins) ----
+
+    private static string ProfileFolder(string profilesDirectory, string? profileId)
+        => Path.Combine(profilesDirectory, profileId is null ? SharedProfileKey : "tab-" + profileId);
+
+    private async Task<CoreWebView2Environment> EnvironmentForAsync(string? profileId)
+    {
+        string key = profileId ?? SharedProfileKey;
+        if (_environments.TryGetValue(key, out var existing)) return existing;
+        var env = await CoreWebView2Environment.CreateAsync(
+            userDataFolder: ProfileFolder(_options.ProfilesDirectory, profileId),
+            options: new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = _options.BrowserArguments });
+        _environments[key] = env;
+        _logger.LogInformation("Separate profile {Profile} created", key);
+        return env;
+    }
+
+    /// <summary>
+    /// Gives an existing tab another profile (or the shared one with <c>null</c>): a new browser is created, the page is loaded
+    /// again there, and it takes the old tab's place. The old browser, and the old separate profile's data, are discarded.
+    /// </summary>
+    public async Task<PageTab> ReplaceProfileAsync(PageTab old, string? profileId)
+    {
+        int position = _tabs.IndexOf(old);
+        if (position < 0) throw new ArgumentException("The tab is not part of this engine.", nameof(old));
+        bool wasActive = ReferenceEquals(old, _active);
+        var fresh = await AddTabAsync(Guid.NewGuid(), old.Browser.Source, profileId);
+        _tabs.Remove(fresh);
+        _tabs.Insert(position, fresh);
+        if (wasActive) await SelectAsync(fresh);
+        Guid id = old.Id;
+        CloseTab(old);
+        fresh.Id = id;
+        return fresh;
+    }
+
+    /// <summary>Signs out of every site in every profile (the shared one and all separate ones), then reloads the pages. Returns how many profiles were cleared.</summary>
+    public async Task<int> ClearLoginDataAsync()
+    {
+        var profiles = new Dictionary<string, CoreWebView2Profile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tab in _tabs) profiles[tab.Browser.Profile.ProfilePath] = tab.Browser.Profile;
+
+        // The shared profile may have no tab at the moment (all tabs on separate profiles): borrow a browser just to reach it.
+        string sharedPath = Path.GetFullPath(ProfileFolder(_options.ProfilesDirectory, null));
+        if (!profiles.Keys.Any(k => string.Equals(Path.GetFullPath(k), sharedPath, StringComparison.OrdinalIgnoreCase)))
+        {
+            var borrowed = await _environments[SharedProfileKey].CreateCoreWebView2CompositionControllerAsync(_windowHandle);
+            try
+            {
+                await borrowed.CoreWebView2.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.AllSite);
+            }
+            finally
+            {
+                borrowed.Close();
+            }
+        }
+        foreach (var profile in profiles.Values) await profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.AllSite);
+        foreach (var tab in _tabs) tab.Browser.Reload();
+        _logger.LogInformation("Login data cleared in {Count} profile(s)", profiles.Count);
+        return profiles.Count;
+    }
+
+    /// <summary>How many HttpOnly cookies (the kind used for sessions) the tab's site has. Cookie values are never read into the log.</summary>
+    public async Task<int> SessionCookieCountAsync(PageTab tab)
+    {
+        if (!Uri.TryCreate(tab.Browser.Source, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) return 0;
+        var cookies = await tab.Browser.CookieManager.GetCookiesAsync(uri.GetLeftPart(UriPartial.Authority));
+        return cookies.Count(c => c.IsHttpOnly);
+    }
+
+    /// <summary>Adds a cookie to the tab's profile. Used by tests to stand in for a login.</summary>
+    public void AddCookie(PageTab tab, string name, string value, string domain, DateTime? expires)
+    {
+        var cookie = tab.Browser.CookieManager.CreateCookie(name, value, domain, "/");
+        cookie.IsHttpOnly = true;
+        if (expires is { } e) cookie.Expires = e;
+        tab.Browser.CookieManager.AddOrUpdateCookie(cookie);
+    }
+
+    public Task<IReadOnlyList<CoreWebView2Cookie>> CookiesAsync(PageTab tab, string uri) => GetCookiesAsync(tab, uri);
+
+    private static async Task<IReadOnlyList<CoreWebView2Cookie>> GetCookiesAsync(PageTab tab, string uri)
+        => (await tab.Browser.CookieManager.GetCookiesAsync(uri)).ToList();
+
+    /// <summary>Deletes the folders of separate profiles that no tab refers to any more (left by a crash or an earlier session).</summary>
+    public static void RemoveUnusedProfiles(string profilesDirectory, IEnumerable<string?> inUse)
+    {
+        if (!Directory.Exists(profilesDirectory)) return;
+        var keep = inUse.OfType<string>().Select(id => "tab-" + id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string folder in Directory.GetDirectories(profilesDirectory, "tab-*"))
+        {
+            if (!keep.Contains(Path.GetFileName(folder))) _ = DeleteFolderAsync(folder);
+        }
+    }
+
+    // The browser process can hold files for a moment after its tab closed, so try again for a while.
+    private static async Task DeleteFolderAsync(string folder)
+    {
+        for (int attempt = 0; attempt < 20 && Directory.Exists(folder); attempt++)
+        {
+            try
+            {
+                Directory.Delete(folder, recursive: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                await Task.Delay(500);
+            }
+        }
     }
 
     // ---- Tabs ----
@@ -119,18 +237,19 @@ public sealed class RenderEngine : IDisposable
     /// Creates a tab and starts loading <paramref name="url"/>. The first tab goes on the stage at once; others stay hidden and
     /// muted until <see cref="SelectAsync"/>. Returns without waiting for the page.
     /// </summary>
-    public async Task<PageTab> AddTabAsync(Guid id, string url)
+    public async Task<PageTab> AddTabAsync(Guid id, string url, string? profileId = null)
     {
+        var environment = await EnvironmentForAsync(profileId);
         var visual = _compositor.CreateContainerVisual();
         visual.Size = new Vector2(Resolution.Width, Resolution.Height);
-        var controller = await _environment.CreateCoreWebView2CompositionControllerAsync(_windowHandle);
+        var controller = await environment.CreateCoreWebView2CompositionControllerAsync(_windowHandle);
         controller.RootVisualTarget = visual;
         // The display scale must never decide the render size: we choose it, always 1.0 (see S3).
         controller.ShouldDetectMonitorScaleChanges = false;
         controller.RasterizationScale = 1.0;
         controller.Bounds = new System.Drawing.Rectangle(0, 0, Resolution.Width, Resolution.Height);
 
-        var tab = new PageTab(id, visual, controller);
+        var tab = new PageTab(id, visual, controller, profileId);
         Hook(tab);
         _tabs.Add(tab);
         // Every tab's visual stays on the stage for good and only one is switched on: adding or removing visuals while capturing
@@ -218,6 +337,11 @@ public sealed class RenderEngine : IDisposable
         tab.Controller.Close();
         tab.Visual.Dispose();
         _logger.LogInformation("Tab {Id} closed ({Count} tabs)", tab.Id, _tabs.Count);
+        if (tab.ProfileId is { } profile && !_tabs.Any(t => t.ProfileId == profile))
+        {
+            _environments.Remove(profile);
+            _ = DeleteFolderAsync(ProfileFolder(_options.ProfilesDirectory, profile));
+        }
     }
 
     public PageTab? TabById(Guid id) => _tabs.FirstOrDefault(t => t.Id == id);

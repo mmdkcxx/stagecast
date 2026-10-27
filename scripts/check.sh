@@ -34,7 +34,7 @@ smoke_mode() { # mode, pattern...
 # Run the real application with a throwaway data folder and assert what it logged.
 smoke_app() { # pattern...
   local data='C:\dev\stagecast-data' log="/mnt/c/dev/stagecast-data/logs"
-  winps "dotnet build Stagecast.sln -c Debug -nologo -v q | Out-Null; Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue; Start-Process -Wait -FilePath '.\\src\\Stagecast.App\\bin\\Debug\\$TFM\\Stagecast.exe' -ArgumentList '--autoclose','--data-dir','$data'${APP_EXTRA:-}" || return 1
+  winps "dotnet build Stagecast.sln -c Debug -nologo -v q | Out-Null; $(if [ -n "${KEEP_DATA:-}" ]; then :; else echo "Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue;"; fi) Start-Process -Wait -FilePath '.\\src\\Stagecast.App\\bin\\Debug\\$TFM\\Stagecast.exe' -ArgumentList '--autoclose','--data-dir','$data'${APP_EXTRA:-}" || return 1
   echo "--- app ---"; cat "$log"/stagecast-*.log
   local p
   for p in "$@"; do
@@ -48,6 +48,8 @@ smoke() {
   APP_EXTRA=",'--selftest','a2b'" smoke_app "A2b selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a2c'" smoke_app "A2c selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a3'" smoke_app "A3 selftest ok" "exiting with code 0" || return 1
+  APP_EXTRA=",'--selftest','a3c-set'" smoke_app "A3c set selftest ok" "exiting with code 0" || return 1
+  KEEP_DATA=1 APP_EXTRA=",'--selftest','a3c-check'" smoke_app "A3c check selftest ok" "exiting with code 0" || return 1
   smoke_mode s1 "webview2 runtime " "navigation completed success=True" || return 1
   smoke_mode s2 "composition controller created" "root visual target set" "navigation completed success=True" "page viewport 2520x1080" "S2 ok" || return 1
   smoke_mode s3 "S3 summary pass=16 fail=0" "S3 ok" || return 1

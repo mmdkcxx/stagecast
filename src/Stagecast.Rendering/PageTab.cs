@@ -9,14 +9,18 @@ namespace Stagecast.Rendering;
 /// </summary>
 public sealed class PageTab
 {
-    internal PageTab(Guid id, ContainerVisual visual, CoreWebView2CompositionController controller)
+    internal PageTab(Guid id, ContainerVisual visual, CoreWebView2CompositionController controller, string? profileId)
     {
         Id = id;
+        ProfileId = profileId;
         Visual = visual;
         Controller = controller;
     }
 
-    public Guid Id { get; }
+    public Guid Id { get; internal set; }
+
+    /// <summary>Null on the shared profile; otherwise the id of this tab's own profile (its own login).</summary>
+    public string? ProfileId { get; }
 
     internal ContainerVisual Visual { get; }
 

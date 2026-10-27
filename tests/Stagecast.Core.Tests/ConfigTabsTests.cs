@@ -70,3 +70,31 @@ public sealed class ConfigTabsTests : IDisposable
         Assert.Equal(TabRules.MaxTabs, result.Config.Tabs.Count);
     }
 }
+
+public sealed class ConfigProfileIdTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "stagecast-tests-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+    }
+
+    [Fact]
+    public void OnlyWellFormedAndUniqueProfileIds_Survive()
+    {
+        Directory.CreateDirectory(_dir);
+        string path = Path.Combine(_dir, "config.json");
+        string good = new('a', 32);
+        File.WriteAllText(path, $$"""
+            { "tabs": [
+              { "name": "A", "profileId": "{{good}}" },
+              { "name": "B", "profileId": "{{good}}" },
+              { "name": "C", "profileId": "..\\..\\evil" },
+              { "name": "D" } ] }
+            """);
+        var result = new ConfigStore(path, NullLogger.Instance).Load();
+        Assert.Equal([good, null, null, null], result.Config.Tabs.Select(t => t.ProfileId));
+        Assert.Equal(ConfigLoadStatus.Repaired, result.Status);
+    }
+}

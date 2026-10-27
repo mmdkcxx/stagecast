@@ -22,3 +22,30 @@ public class AppPathsTests
         Assert.True(Path.IsPathRooted(paths.Root));
     }
 }
+
+public class AppPathsProfileTests
+{
+    [Fact]
+    public void ExplicitRoot_KeepsProfilesInsideIt()
+    {
+        var paths = AppPaths.Resolve(Path.Combine(Path.GetTempPath(), "stagecast-x"));
+        Assert.Equal(Path.Combine(paths.Root, "profiles"), paths.ProfilesDirectory);
+    }
+
+    [Fact]
+    public void DefaultRoot_PutsProfilesUnderLocalAppData()
+    {
+        string? previous = Environment.GetEnvironmentVariable(AppPaths.HomeEnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(AppPaths.HomeEnvironmentVariable, null);
+            var paths = AppPaths.Resolve();
+            Assert.EndsWith(Path.Combine("Stagecast", "Profiles"), paths.ProfilesDirectory);
+            Assert.DoesNotContain(paths.Root + Path.DirectorySeparatorChar, paths.ProfilesDirectory + Path.DirectorySeparatorChar);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.HomeEnvironmentVariable, previous);
+        }
+    }
+}

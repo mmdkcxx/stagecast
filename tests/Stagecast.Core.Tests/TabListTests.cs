@@ -133,3 +133,29 @@ public class TabListTests
         Assert.Equal(0, list.ActiveIndex);
     }
 }
+
+public class TabProfileTests
+{
+    [Fact]
+    public void SeparateProfile_GetsAnIdOnce_AndGoesBack()
+    {
+        var list = new TabList([new TabInfo(Guid.NewGuid(), "Tab 1", TabRules.BlankUrl)], 0);
+        var id = list.Items[0].Id;
+        Assert.Null(list.SetSeparateProfile(id, true));
+        string profile = list.Items[0].ProfileId!;
+        Assert.True(TabRules.IsValidProfileId(profile));
+        Assert.Equal(profile, list.SetSeparateProfile(id, true)); // switching on again keeps the same profile
+        Assert.Equal(profile, list.Items[0].ProfileId);
+        Assert.Equal(profile, list.SetSeparateProfile(id, false));
+        Assert.Null(list.Items[0].ProfileId);
+    }
+
+    [Theory]
+    [InlineData("0123456789abcdef0123456789abcdef", true)]
+    [InlineData("0123456789ABCDEF0123456789ABCDEF", false)]
+    [InlineData("..\\..\\windows", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    [InlineData("0123456789abcdef0123456789abcde", false)]
+    public void ProfileIds_AreOnlyTheFormWeMake(string? id, bool valid) => Assert.Equal(valid, TabRules.IsValidProfileId(id));
+}
