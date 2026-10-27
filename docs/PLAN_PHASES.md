@@ -113,6 +113,11 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
 - **Risiko:** tidak ada wrapper siap pakai; kemungkinan P/Invoke sendiri.
 
 ### S9 - Dua WebView, pindah sumber
+- **Status: lulus pada angka, [Anda] belum mendengar (2026-10-27).** Dua tab, masing-masing WebView2 composition dengan profil sendiri (proses browser sendiri), halaman merah+nada 440 Hz dan biru+nada 880 Hz. Satu visual "panggung" tetap berisi tab aktif (`Children.RemoveAll` + `InsertAtTop`), jadi **sesi capture tidak pernah dimulai ulang** saat pindah. Tab non-aktif di-mute (`IsMuted`). Empat kali pindah A-B-A-B, semuanya benar:
+  - Gambar berganti dalam 32-44 ms (resolusi sampel 33 ms); audio: tab aktif -20,0 dBFS, tab non-aktif -120 dBFS (senyap) pada tiap fase, diukur lewat loopback terpisah per tab setelah 0,7 dtk.
+  - **Beban tab latar:** tanpa menyembunyikan, tab non-aktif tetap memakai CPU ~3,5-5% (pohon proses browsernya, dari total semua inti) seperti tab aktif. Dengan `IsVisible=false` pada tab non-aktif turun ke 0,1-1,6%, tetapi pindah tab lebih lambat (58-119 ms). Keputusan desain: sembunyikan tab non-aktif secara bawaan (hemat), kecuali tab itu dipakai sebagai Preview (A3b), yang harus tetap tampil.
+  - **Belum:** 0,7 dtk pertama setelah pindah tidak diukur ketat (kemungkinan ekor suara tab lama bertumpuk sesaat); halaman berat (Canva) belum dipakai; tab yang berbagi profil (satu proses browser) belum diuji; `IsVisible=false` mungkin menghentikan animasi/video di tab latar (memang diinginkan, tetapi kuis Kahoot/Slido di latar mungkin tidak ter-update) [U].
+  - **[Anda]:** `scripts/run-spike.sh` lalu jalankan mode s9 untuk mendengar: nada 440 lalu 880 bergantian tanpa dobel. Perintah: `! cd C:\dev\stagecast\spikes\Stagecast.Spike\bin\Debug\net8.0-windows10.0.22621.0 && Stagecast.Spike.exe --mode s9 --autoclose` (PowerShell).
 - Buat dua WebView (dua tab), capture hanya yang aktif, pindah dengan tombol.
 - Tab non-aktif di-mute; ukur dampak CPU/GPU tab latar belakang.
 - **Lulus:** pindah tab mengganti gambar dan audio tanpa error dan tanpa suara dobel. [Anda]

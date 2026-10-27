@@ -24,16 +24,7 @@ internal sealed class CompositionSpike : IDisposable
     /// <summary>Creates the compositor, the hosted browser and loads <paramref name="url"/> at the given CSS size.</summary>
     public async Task InitializeAsync(IntPtr parentHwnd, string userDataFolder, string url, Resolution css, string? browserArguments = null)
     {
-        // Composition needs a DispatcherQueue on the thread that creates the Compositor.
-        var options = new DispatcherQueueOptions
-        {
-            dwSize = Marshal.SizeOf<DispatcherQueueOptions>(),
-            threadType = 2,     // DQTYPE_THREAD_CURRENT
-            apartmentType = 0,  // DQTAT_COM_NONE: WPF already initialised the STA
-        };
-        int hr = CreateDispatcherQueueController(options, out _dispatcherQueueController);
-        SpikeLog.Write($"dispatcher queue hr=0x{hr:X8}");
-        Marshal.ThrowExceptionForHR(hr);
+        _dispatcherQueueController = DispatcherQueueHelper.Create();
 
         _compositor = new Compositor();
         _root = _compositor.CreateContainerVisual();
@@ -209,15 +200,4 @@ internal sealed class CompositionSpike : IDisposable
         _compositor?.Dispose();
         if (_dispatcherQueueController != IntPtr.Zero) Marshal.Release(_dispatcherQueueController);
     }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct DispatcherQueueOptions
-    {
-        public int dwSize;
-        public int threadType;
-        public int apartmentType;
-    }
-
-    [DllImport("CoreMessaging.dll")]
-    private static extern int CreateDispatcherQueueController(DispatcherQueueOptions options, out IntPtr controller);
 }

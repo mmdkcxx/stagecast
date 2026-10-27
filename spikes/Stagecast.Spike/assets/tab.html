@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stagecast tab test</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font: 700 72px 'Segoe UI', sans-serif; color: #fff; }
+  #bar { position: absolute; top: 0; left: 0; width: 120px; height: 120px; background: #fff; opacity: .35; }
+  #label { position: absolute; left: 160px; top: 20px; }
+</style>
+<div id="bar"></div><div id="label"></div>
+<script>
+  // ?color=red&freq=440 : a solid page (so a frame sample says which tab is on screen), one moving element (so frames keep
+  // arriving) and a tone at a tab-specific pitch (so the loopback level says which tab is audible).
+  const q = new URLSearchParams(location.search);
+  document.body.style.background = q.get('color') || 'red';
+  document.getElementById('label').textContent = 'TAB ' + (q.get('name') || '?') + '  ' + (q.get('freq') || 440) + ' Hz';
+  const ctx = new AudioContext(), osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.frequency.value = +(q.get('freq') || 440); gain.gain.value = 0.1;
+  osc.connect(gain).connect(ctx.destination); osc.start(); ctx.resume();
+  const bar = document.getElementById('bar');
+  requestAnimationFrame(function t(now) { bar.style.transform = 'translateX(' + ((now / 3) % 2000) + 'px)'; requestAnimationFrame(t); });
+</script>

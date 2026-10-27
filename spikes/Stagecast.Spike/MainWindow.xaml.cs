@@ -23,8 +23,36 @@ public partial class MainWindow : Window
 
     private async Task StartAsync()
     {
-        if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i" or "s8") await StartCompositionAsync();
+        if (_mode == "s9") await StartTabsAsync();
+        else if (_mode is "s2" or "s3" or "s4" or "s5" or "s6" or "s6i" or "s8") await StartCompositionAsync();
         else await StartPlainAsync();
+    }
+
+    private TabsSpike? _tabs;
+
+    private async Task StartTabsAsync()
+    {
+        try
+        {
+            SpikeLog.Write("S9 start");
+            Web.Visibility = Visibility.Collapsed;
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
+            string dataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Stagecast", "Spike");
+            bool hide = Environment.GetCommandLineArgs().Contains("--hide");
+            _tabs = new TabsSpike();
+            Status.Text = $"S9: two tabs, switching (inactive tab hidden: {hide})";
+            bool ok = await _tabs.RunAsync(hwnd, dataRoot, hide, Path.Combine(AppContext.BaseDirectory, "assets", "tab.html"));
+            SpikeLog.Write(ok ? $"S9 ok hide={hide}" : $"S9 FAILED hide={hide}");
+        }
+        catch (Exception ex)
+        {
+            SpikeLog.Write($"S9 FAILED {ex.GetType().Name}: {ex.Message}");
+        }
+        if (_autoClose)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            Close();
+        }
     }
 
     private async Task StartCompositionAsync()
@@ -178,6 +206,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _preview?.Dispose();
+        _tabs?.Dispose();
         _composition?.Dispose();
         base.OnClosed(e);
     }
