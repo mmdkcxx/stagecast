@@ -49,6 +49,7 @@ public sealed partial class RenderEngine : IDisposable
     private readonly FrameCapturer _capturer;
     private readonly FramePump _pump;
     private readonly List<StageTab> _tabs = [];
+    private DocumentSurfaces? _documentSurfaces;
     private readonly SemaphoreSlim _switching = new(1, 1);
     private StageTab? _active;  // the tab the operator works on: the program in Direct mode, the preview in Preview + Take
     private StageTab? _program; // the tab on air while in Preview + Take; null in Direct mode
@@ -282,6 +283,20 @@ public sealed partial class RenderEngine : IDisposable
         Register(tab);
         _logger.LogInformation("{Kind} tab {Id} added ({Count} tabs)", kind, id, _tabs.Count);
         return tab;
+    }
+
+    /// <summary>
+    /// Gives a PDF tab the component that draws its pages. Open a file with <see cref="PdfSource.OpenAsync"/>; the tab's visual
+    /// shows the page scaled to fit, with black bars.
+    /// </summary>
+    public PdfSource AttachPdf(DocumentTab tab)
+    {
+        if (tab.Kind != TabKind.Pdf) throw new ArgumentException("Only a PDF tab shows pages.", nameof(tab));
+        if (tab.Pdf is not null) return tab.Pdf;
+        _documentSurfaces ??= new DocumentSurfaces(_compositor);
+        tab.Content.Brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+        tab.Pdf = new PdfSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
+        return tab.Pdf;
     }
 
     private void Register(StageTab tab)
@@ -719,6 +734,7 @@ public sealed partial class RenderEngine : IDisposable
         }
         _tabs.Clear();
         _stage.Dispose();
+        _documentSurfaces?.Dispose();
         _compositor.Dispose();
         if (_dispatcherQueueController != IntPtr.Zero) Marshal.Release(_dispatcherQueueController);
     }

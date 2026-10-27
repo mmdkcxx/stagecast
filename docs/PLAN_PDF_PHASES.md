@@ -70,6 +70,8 @@ D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitCompose
 - Penanganan rotasi, ukuran halaman campuran, dan kegagalan buka (pesan jelas, tidak membuat aplikasi berhenti).
 - Kata sandi: antarmuka sumber menerima kata sandi dari UI, dipakai sekali untuk membuka, tidak disimpan di mana pun.
 
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Dibangun: `FitComposer` (Core, dengan `FitComposerTests`), `PdfSource` (buka salinan sementara, kata sandi sekali pakai, render pada ukuran area fit dengan keluaran BMP, cache halaman sekarang -1/+2, loncat halaman dengan pembatalan permintaan lama, ukuran render berubah memicu render ulang), `DocumentSurfaces` (permukaan komposisi dari perangkat D3D bersama), `RenderEngine.AttachPdf(tab)`. Halaman masuk ke panggung lewat visual komposisi dan ikut ditangkap seperti halaman web, jadi tidak ada penerbitan bingkai ulang. Belum ada: bar transparan (opsi alpha), self test, dan tombol di UI (D2). Hal yang perlu dibuktikan saat diuji: penggambaran lewat `ICompositionDrawingSurfaceInterop`, rotasi halaman, dan pengenalan kata sandi salah.
+
 **Pengujian:** unit test `FitComposer` (4:3 dan 16:9 pada 2520×1080, 1920×1080, 3840×2160: ukuran area, posisi tengah, bar), unit test urutan halaman dan cache. Pengujian visual pada layar penuh, NDI, OMT oleh pemilik.
 
 **Lulus kalau:** angka `FitComposer` sesuai contoh di `docs/PLAN_PPTX.md` (16:9 di 2520×1080 menjadi 1920×1080 dengan bar 300 px; 4:3 menjadi 1440×1080 dengan bar 540 px); halaman tampil tajam; pindah halaman cepat; tidak ada kebocoran memori terlihat pada deretan pindah halaman berulang.

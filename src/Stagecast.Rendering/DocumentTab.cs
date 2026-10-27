@@ -27,13 +27,21 @@ public sealed class DocumentTab : StageTab
 
     public override string Title { get; }
 
+    /// <summary>The pages of a PDF tab, once <see cref="RenderEngine.AttachPdf"/> has been called.</summary>
+    public PdfSource? Pdf { get; internal set; }
+
     internal SpriteVisual Content { get; }
 
     internal override void Resize(int width, int height)
     {
         Visual.Size = new Vector2(width, height);
         Content.Size = new Vector2(width, height);
+        Pdf?.Resize(width, height);
     }
 
-    internal override void Close() => Content.Dispose();
+    internal override void Close()
+    {
+        Pdf?.Dispose();
+        Content.Dispose();
+    }
 }
