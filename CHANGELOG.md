@@ -3,6 +3,15 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [0.1.4] - 2026-10-27
+
+### Diubah
+- Installer sekarang memasang **NDI Runtime** secara otomatis bila belum terpasang (sebelumnya hanya opsi unduh NDI Tools
+  540 MB yang tidak dicentang). Yang diunduh adalah installer runtime-saja resmi dari ndi.video (sekitar 10 MB), diperiksa
+  tanda tangan digital Vizrt-nya sebelum dijalankan, lalu dipasang senyap. Bila runtime sudah ada, langkah ini dilewati.
+  Bila unduhan atau pemasangan gagal, pengguna ditanya mau lanjut tanpa NDI (layar dan OMT tetap bisa dipakai).
+- Saklar uji installer `/SimulateNdiMissing=1`.
+
 ## [0.1.3] - 2026-10-27
 
 ### Diperbaiki

@@ -1,8 +1,8 @@
 ; Stagecast installer (Inno Setup 6). Build with scripts/installer.sh.
 ; Prerequisites: the app is self-contained (.NET 8 is inside), so only the WebView2 Runtime is required (downloaded when missing);
-; the NDI runtime is optional and only offered when it is not installed.
+; the NDI Runtime (about 10 MB, official, signed by Vizrt) is downloaded and installed silently when it is missing.
 #ifndef AppVersion
-  #define AppVersion "0.1.3"
+  #define AppVersion "0.1.4"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\dist\publish"
@@ -47,15 +47,16 @@ id.PrereqNet=.NET 8: sudah termasuk di dalam aplikasi, tidak perlu dipasang.
 id.PrereqWebViewOk=WebView2 Runtime: sudah terpasang (versi %1).
 id.PrereqWebViewMissing=WebView2 Runtime: BELUM terpasang. Akan diunduh dari Microsoft (sekitar 2 MB) dan dipasang otomatis.
 id.PrereqNdiOk=NDI Runtime: sudah terpasang.
-id.PrereqNdiMissing=NDI Runtime: belum terpasang. Hanya dibutuhkan untuk output NDI. Anda bisa memilih untuk mengunduh NDI Tools pada halaman berikutnya, atau memasangnya nanti dari ndi.video.
+id.PrereqNdiMissing=NDI Runtime: BELUM terpasang. Akan diunduh dari ndi.video (sekitar 10 MB, resmi dari NDI) dan dipasang otomatis. Dibutuhkan untuk output NDI.
 id.PrereqInternet=Pengunduhan memerlukan koneksi internet.
 id.TaskDesktop=Buat pintasan di &Desktop
-id.TaskNdi=Unduh dan pasang NDI Tools dari ndi.video (sekitar 540 MB, memuat NDI Runtime) untuk output NDI
 id.TaskGroup=Komponen tambahan:
 id.DownloadingWebView=Mengunduh WebView2 Runtime...
-id.DownloadingNdi=Mengunduh NDI Tools (besar, mohon tunggu)...
+id.DownloadingNdi=Mengunduh NDI Runtime...
 id.InstallingWebView=Memasang WebView2 Runtime...
-id.InstallingNdi=Menjalankan pemasang NDI Tools...
+id.InstallingNdi=Memasang NDI Runtime...
+id.NdiNotSigned=Berkas NDI Runtime yang diunduh tidak memiliki tanda tangan resmi Vizrt dan tidak akan dipasang. Lanjutkan memasang Stagecast tanpa NDI Runtime? Output NDI tidak akan bisa dinyalakan.
+id.NdiFailed=NDI Runtime tidak berhasil dipasang (kode %1). Lanjutkan memasang Stagecast tanpa NDI Runtime? Output NDI tidak akan bisa dinyalakan sampai runtime dipasang.
 id.DownloadFailed=Pengunduhan %1 gagal:%n%n%2%n%nLanjutkan memasang Stagecast tanpa komponen ini? Aplikasi mungkin tidak berjalan sampai komponen itu dipasang.
 id.WebViewFailed=WebView2 Runtime tidak berhasil dipasang (kode %1). Lanjutkan memasang Stagecast tanpa komponen ini? Aplikasi tidak akan berjalan sampai WebView2 Runtime dipasang.
 id.RunApp=Jalankan Stagecast
@@ -66,15 +67,16 @@ en.PrereqNet=.NET 8: included in the application, nothing to install.
 en.PrereqWebViewOk=WebView2 Runtime: already installed (version %1).
 en.PrereqWebViewMissing=WebView2 Runtime: NOT installed. It will be downloaded from Microsoft (about 2 MB) and installed automatically.
 en.PrereqNdiOk=NDI Runtime: already installed.
-en.PrereqNdiMissing=NDI Runtime: not installed. Only needed for the NDI output. You can choose to download NDI Tools on the next page, or install it later from ndi.video.
+en.PrereqNdiMissing=NDI Runtime: NOT installed. It will be downloaded from ndi.video (about 10 MB, official from NDI) and installed automatically. Needed for the NDI output.
 en.PrereqInternet=Downloading needs an internet connection.
 en.TaskDesktop=Create a &desktop shortcut
-en.TaskNdi=Download and install NDI Tools from ndi.video (about 540 MB, contains the NDI Runtime) for the NDI output
 en.TaskGroup=Additional components:
 en.DownloadingWebView=Downloading WebView2 Runtime...
-en.DownloadingNdi=Downloading NDI Tools (large, please wait)...
+en.DownloadingNdi=Downloading the NDI Runtime...
 en.InstallingWebView=Installing WebView2 Runtime...
-en.InstallingNdi=Running the NDI Tools installer...
+en.InstallingNdi=Installing the NDI Runtime...
+en.NdiNotSigned=The downloaded NDI Runtime file does not carry a valid Vizrt signature and will not be installed. Continue installing Stagecast without the NDI Runtime? The NDI output will not be available.
+en.NdiFailed=The NDI Runtime could not be installed (code %1). Continue installing Stagecast without it? The NDI output will not be available until the runtime is installed.
 en.DownloadFailed=Downloading %1 failed:%n%n%2%n%nContinue installing Stagecast without it? The application may not run until it is installed.
 en.WebViewFailed=The WebView2 Runtime could not be installed (code %1). Continue installing Stagecast without it? The application will not run until the WebView2 Runtime is installed.
 en.RunApp=Run Stagecast
@@ -82,7 +84,6 @@ en.RemoveData=Also delete Stagecast settings, login data and logs in %1?%n%nChoo
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:TaskDesktop}"; Flags: unchecked
-Name: "ndi"; Description: "{cm:TaskNdi}"; GroupDescription: "{cm:TaskGroup}"; Flags: unchecked; Check: NdiMissing
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion createallsubdirs
@@ -97,7 +98,7 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:RunApp}"; Flags: nowait postinsta
 [Code]
 const
   WebView2Url = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703';
-  NdiToolsUrl = 'https://downloads.ndi.tv/Tools/NDI%206%20Tools.exe';
+  NdiRuntimeUrl = 'https://downloads.ndi.tv/SDK/NDI_SDK/NDI%206%20Runtime.exe';
 
 var
   PrereqPage: TOutputMsgWizardPage;
@@ -121,6 +122,7 @@ end;
 
 function NdiInstalled(): Boolean;
 begin
+  if ExpandConstant('{param:SimulateNdiMissing|0}') = '1' then begin Result := False; Exit; end;
   Result :=
     (GetEnv('NDI_RUNTIME_DIR_V6') <> '') or (GetEnv('NDI_RUNTIME_DIR_V5') <> '') or
     FileExists(ExpandConstant('{commonpf64}\NDI\NDI 6 Runtime\v6\Processing.NDI.Lib.x64.dll')) or
@@ -198,13 +200,25 @@ begin
     if Abort then Exit;
   end;
 
-  if WizardIsTaskSelected('ndi') and NdiMissing() then
+  if NdiMissing() then
   begin
-    if Fetch('NDI Tools', NdiToolsUrl, 'NDI 6 Tools.exe', 'DownloadingNdi', Abort) then
+    if Fetch('NDI Runtime', NdiRuntimeUrl, 'NDI 6 Runtime.exe', 'DownloadingNdi', Abort) then
     begin
       WizardForm.StatusLabel.Caption := CustomMessage('InstallingNdi');
-      // The NDI installer has its own wizard and licence; the user finishes it before ours goes on.
-      Exec(ExpandConstant('{tmp}\NDI 6 Tools.exe'), '', '', SW_SHOWNORMAL, ewWaitUntilTerminated, Code);
+      // Only run it when it carries a valid Vizrt signature: the file comes from the internet.
+      if not Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "$s = Get-AuthenticodeSignature -LiteralPath ''' + ExpandConstant('{tmp}\NDI 6 Runtime.exe') + '''; if ($s.Status -eq ''Valid'' -and $s.SignerCertificate.Subject -like ''*Vizrt*'') { exit 0 } else { exit 1 }"', '', SW_HIDE, ewWaitUntilTerminated, Code) then
+        Code := 1;
+      if Code <> 0 then
+      begin
+        if SuppressibleMsgBox(CustomMessage('NdiNotSigned'), mbError, MB_YESNO, IDYES) = IDNO then Abort := True;
+      end
+      else
+      begin
+        if not Exec(ExpandConstant('{tmp}\NDI 6 Runtime.exe'), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code) then
+          Code := -1;
+        if (Code <> 0) and (ExpandConstant('{param:SimulateNdiMissing|0}') <> '1') and NdiMissing() then
+          if SuppressibleMsgBox(FmtMessage(CustomMessage('NdiFailed'), [IntToStr(Code)]), mbError, MB_YESNO, IDYES) = IDNO then Abort := True;
+      end;
     end;
     if Abort then Result := SetupMessage(msgSetupAborted);
   end;
