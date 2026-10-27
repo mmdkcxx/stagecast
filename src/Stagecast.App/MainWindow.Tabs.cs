@@ -22,7 +22,11 @@ public partial class MainWindow
 
     private TabList BuildTabList()
     {
-        var items = _config.Tabs.Select(t => new TabInfo(Guid.NewGuid(), t.Name, t.Url, t.ProfileId)).ToList();
+        var items = _config.Tabs.Select(t =>
+        {
+            TabKinds.TryParse(t.Kind, out var kind); // the settings loader already replaced unknown names with web
+            return new TabInfo(Guid.NewGuid(), t.Name, t.Url, t.ProfileId, kind, t.Source);
+        }).ToList();
         var list = new TabList(items, _config.ActiveTab);
         // --url opens that address in the tab that was active.
         if (_context.StartUrl is { } url) list.SetUrl(list.Active.Id, url);
@@ -37,11 +41,18 @@ public partial class MainWindow
 
         // The tab that was active goes first, so it is on the stage from the start; the others load behind it.
         RenderEngine.RemoveUnusedProfiles(_context.Paths.ProfilesDirectory, _tabs.Items.Select(t => t.ProfileId));
-        await engine.AddTabAsync(_tabs.Active.Id, _tabs.Active.Url, _tabs.Active.ProfileId);
+        await AddEngineTabAsync(engine, _tabs.Active);
         // A snapshot: pages start loading while the next tabs are created, and their address changes update the list.
-        foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active.Id).ToList()) await engine.AddTabAsync(info.Id, info.Url, info.ProfileId);
+        foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active.Id).ToList()) await AddEngineTabAsync(engine, info);
         engine.SortTabs(_tabs.Items.Select(t => t.Id).ToList());
         RebuildTabList();
+    }
+
+    // A file tab has no page to load; until the sources that play files exist it only holds its place on the stage.
+    private static async Task AddEngineTabAsync(RenderEngine engine, TabInfo info)
+    {
+        if (TabKinds.IsDocument(info.Kind)) engine.AddDocumentTab(info.Id, info.Kind, info.Source, info.Name);
+        else await engine.AddTabAsync(info.Id, info.Url, info.ProfileId);
     }
 
     private void OnTabNavigated(Rendering.PageTab tab)
@@ -81,7 +92,7 @@ public partial class MainWindow
         _sessions.Clear();
         foreach (var info in _tabs.Items)
         {
-            if (_engine.TabById(info.Id) is not { } tab) continue;
+            if (_engine.PageTabById(info.Id) is not { } tab) continue; // file tabs have no login
             _sessions[info.Id] = SessionHeuristics.Classify(tab.Url, await _engine.SessionCookieCountAsync(tab));
         }
         int needLogin = _sessions.Values.Count(s => s == SessionState.NeedsLogin);
@@ -106,7 +117,7 @@ public partial class MainWindow
     /// <summary>Gives a tab its own login (a separate browser profile) or puts it back on the shared one. The page is loaded again.</summary>
     internal async Task<bool> SetSeparateProfileAsync(Guid id, bool separate)
     {
-        if (_engine is null || _engine.TabById(id) is not { } tab) return false;
+        if (_engine is null || _engine.PageTabById(id) is not { } tab) return false;
         if ((tab.ProfileId is not null) == separate) return true;
         string what = separate
             ? "Tab ini akan memakai login sendiri. Halamannya dimuat ulang dan belum login di profil baru."
@@ -218,6 +229,22 @@ public partial class MainWindow
         }
         TabError.Text = string.Empty;
         await _engine.AddTabAsync(info.Id, url, info.ProfileId); // the list keeps only an address worth restoring; the page gets the real one
+        await SelectTabAsync(info.Id);
+        return true;
+    }
+
+    /// <summary>Adds a tab for a file and selects it. <paramref name="placeholder"/> is the colour its visual shows until the source that plays the file exists (used by tests).</summary>
+    internal async Task<bool> AddDocumentTabAsync(TabKind kind, string? source, Windows.UI.Color? placeholder = null)
+    {
+        if (_engine is null) return false;
+        var info = _tabs.AddDocument(kind, source);
+        if (info is null)
+        {
+            TabError.Text = $"Paling banyak {TabRules.MaxTabs} tab.";
+            return false;
+        }
+        TabError.Text = string.Empty;
+        _engine.AddDocumentTab(info.Id, kind, info.Source, info.Name, placeholder);
         await SelectTabAsync(info.Id);
         return true;
     }

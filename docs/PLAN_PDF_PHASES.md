@@ -44,6 +44,20 @@ D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitCompose
 
 **Lulus kalau:** semua uji lama tetap lulus; konfigurasi lama terbaca; sumber tiruan (uji) bisa dijadikan program dan mengirim bingkai ke layar penuh, NDI, dan OMT.
 
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Unit test dan self test baru sudah ditulis tetapi belum dijalankan (batch penuh hanya saat pemilik meminta).
+
+**Yang dibuat dan keputusan rancangan di dalamnya**
+- Temuan saat membaca mesin: semua tab digambar ke satu "panggung" komposisi yang ditangkap Windows Graphics Capture, dan seluruh logika pindah tab (tumpang tindih, pemanasan), Preview + Take (tata letak panggung, pratinjau), dan thumbnail bergantung pada visual komposisi tiap tab. Maka tab dokumen dibuat sebagai **visual komposisi juga**, bukan sebagai pengirim bingkai ke `FrameHub`. Dengan begitu semua mekanisme panggung dipakai ulang tanpa perubahan, dan sumber dokumen nanti cukup menggambar ke visualnya (PDF: gambar halaman; PowerPoint: bingkai hasil tangkapan jendela). Rencana D1b disesuaikan: `FitComposer` menempatkan visual atau permukaan gambar di panggung, bukan menerbitkan bingkai langsung.
+- Model: `TabKind` (`Web`, `Pdf`, `PowerPoint`, `Video`) dan `TabKinds` di `Stagecast.Core/Tabs`; `TabInfo` mendapat `Kind` dan `Source` (opsional, bawaan web); `TabList.AddDocument`, `SetSource`; `SetUrl` dan `SetSeparateProfile` mengabaikan tab berkas. Batas 12 tab tidak diubah (keputusan pemilik).
+- Konfigurasi: `TabEntry.Kind` (teks, bukan enum, agar nama dari versi lebih baru tidak merusak seluruh berkas) dan `TabEntry.Source`. Berkas lama tanpa `kind` dibaca sebagai web tanpa perbaikan; nama tidak dikenal menjadi web dengan catatan; tab berkas tidak menyimpan alamat atau profil.
+- Mesin: kelas dasar `StageTab` (`Id`, `Kind`, `Visual`, `HasBeenShown`, `IsLoading`, `Problem`, `Resize`, `Close`), `PageTab` (web) dan `DocumentTab` turunannya. `RenderEngine.Tabs`, `Active`, `Program`, `TabById`, `SelectAsync`, `EnterPreviewModeAsync`, `CloseTab` bekerja pada `StageTab`. Tambahan: `ActivePage` dan `PageTabById` (khusus web) dan `AddDocumentTab`. Kontrol khusus halaman (mouse, fokus, zoom, maju/mundur, muat ulang, alamat, skrip) tidak berbuat apa-apa dan tidak melempar kesalahan saat tab berkas ada di panggung. Tab berkas tidak punya proses browser: tidak ikut menangkap audio dan tidak ikut pemulihan jaringan.
+- Visual tab berkas sekarang satu warna (placeholder); sumber yang menggambar isi sebenarnya menyusul di D1b.
+- Aplikasi: `MainWindow.AddDocumentTabAsync` (internal, belum dipanggil dari antarmuka), pemulihan tab berkas dari konfigurasi, penyimpanan `Kind` dan `Source`. Belum ada jalur antarmuka untuk membuat tab berkas (itu D2).
+- Pengujian yang ditulis: unit test model dan konfigurasi (`TabListTests`, `ConfigTabsTests`) dan self test `d1a` di `SelfTest.cs` (tab berkas di panggung, Preview + Take dengan tab berkas sebagai preview lalu Take, kontrol khusus halaman netral, perubahan resolusi, berkas pengaturan, menutup tab). Self test `d1a` ditambahkan ke `scripts/check.sh smoke`.
+
+**Belum dibuktikan (masuk D0/D1b):** apakah tangkapan panggung mempertahankan alpha untuk bar transparan; kinerja menggambar permukaan gambar besar ke visual komposisi.
+
+
 ## D1b - PdfSource dan FitComposer
 
 **Tujuan:** satu PDF tampil di semua output dengan scale to fit.

@@ -38,6 +38,7 @@ internal sealed class SelfTest
 
     public async Task RunAsync(string name, MainWindow window)
     {
+        if (name == "d1a") { await RunDocumentTabsAsync(window); return; }
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
         if (name == "a8") { await RunRecoveryAsync(window); return; }
@@ -141,26 +142,26 @@ internal sealed class SelfTest
             var shared = window.Tabs.Items[0];
             await _engine.NavigateAsync($"{LoginSite}/dologin", TimeSpan.FromSeconds(10));
             await Task.Delay(500);
-            Expect(await CookieNamesAsync(_engine.Active) == "sess", "the shared tab holds the cookie its login set");
+            Expect(await CookieNamesAsync(_engine.ActivePage) == "sess", "the shared tab holds the cookie its login set");
 
             Expect(await window.AddTabAsync($"{LoginSite}/page"), "a second tab can be added");
             var second = window.Tabs.Active;
             window.Confirm = _ => true;
             Expect(await window.SetSeparateProfileAsync(second.Id, true), "the second tab can get its own profile");
             await Task.Delay(1500);
-            var secondTab = _engine.TabById(second.Id)!;
+            var secondTab = _engine.PageTabById(second.Id)!;
             Expect(secondTab.ProfileId is { Length: 32 } && _engine.Active.Id == second.Id, "the second tab runs on its own profile and is still the active one");
             Expect(await CookieNamesAsync(secondTab) == "", "a separate profile does not see the shared login");
 
             await _engine.NavigateAsync($"{LoginSite}/dologin2", TimeSpan.FromSeconds(10));
             Expect(await CookieNamesAsync(secondTab) == "sess2", "the separate tab holds only its own login");
-            Expect(await CookieNamesAsync(_engine.TabById(shared.Id)!) == "sess", "the shared tab does not see the separate login");
+            Expect(await CookieNamesAsync(_engine.PageTabById(shared.Id)!) == "sess", "the shared tab does not see the separate login");
 
             await _engine.NavigateAsync($"{LoginSite}/page", TimeSpan.FromSeconds(10));
             await window.CheckSessionsAsync();
             Expect(window.Sessions[shared.Id] == SessionState.LoggedIn, "the shared tab (a page with a session cookie) is guessed as logged in");
             Expect(window.Sessions[second.Id] == SessionState.LoggedIn, "the separate tab is guessed as logged in");
-            await _engine.NavigateAsync(_engine.TabById(shared.Id)!, $"{LoginSite}/login", TimeSpan.FromSeconds(10));
+            await _engine.NavigateAsync(_engine.PageTabById(shared.Id)!, $"{LoginSite}/login", TimeSpan.FromSeconds(10));
             await window.CheckSessionsAsync();
             Expect(window.Sessions[shared.Id] == SessionState.NeedsLogin, "a login page is guessed as needing login");
 
@@ -174,8 +175,8 @@ internal sealed class SelfTest
         // Second launch: everything was closed and opened again with the same data folder.
         Expect(window.Tabs.Items.Count == 2 && window.Tabs.Items[1].ProfileId is { Length: 32 }, "both tabs and the separate profile were restored");
         Expect(!Directory.Exists(Path.Combine(profiles, "tab-" + new string('f', 32))), "a profile folder no tab refers to was removed at startup");
-        var tab0 = _engine.TabById(window.Tabs.Items[0].Id)!;
-        var tab1 = _engine.TabById(window.Tabs.Items[1].Id)!;
+        var tab0 = _engine.PageTabById(window.Tabs.Items[0].Id)!;
+        var tab1 = _engine.PageTabById(window.Tabs.Items[1].Id)!;
         await Task.Delay(1000);
         Expect(await CookieNamesAsync(tab0) == "sess", "the shared login survived the restart");
         Expect(await CookieNamesAsync(tab1) == "sess2", "the separate login survived the restart");
@@ -192,7 +193,7 @@ internal sealed class SelfTest
         Expect(await window.SetSeparateProfileAsync(window.Tabs.Items[1].Id, false), "the tab can go back to the shared profile");
         for (int i = 0; i < 40 && Directory.Exists(folder); i++) await Task.Delay(500);
         Expect(!Directory.Exists(folder), "the profile folder of a tab that went back to the shared profile is deleted");
-        Expect(_engine.Tabs.Count == 2 && _engine.TabById(window.Tabs.Items[1].Id)?.ProfileId is null, "the engine and the list agree afterwards");
+        Expect(_engine.Tabs.Count == 2 && _engine.PageTabById(window.Tabs.Items[1].Id)?.ProfileId is null, "the engine and the list agree afterwards");
         _logger.LogInformation(_failures.Count == 0 ? "A3c check selftest ok" : "A3c check selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
@@ -311,6 +312,76 @@ internal sealed class SelfTest
         _logger.LogInformation(_failures.Count == 0 ? "A3 selftest ok" : "A3 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
+    /// <summary>
+    /// A tab that is a file instead of a web page (D1a): it goes on the stage, takes part in Preview + Take, follows a resolution change,
+    /// ignores the page-only controls, is closed like any tab, and the settings file records its kind and path.
+    /// </summary>
+    private async Task RunDocumentTabsAsync(MainWindow window)
+    {
+        const string pdfPath = @"C:\Acara\Gala.pdf";
+        var red = Windows.UI.Color.FromArgb(255, 0xE0, 0x30, 0x30);
+        var sink = new ColourSink();
+        _engine.Hub.AddSink(sink);
+        await _engine.NavigateAsync(Page("30B050"), TimeSpan.FromSeconds(10));
+        await Task.Delay(800);
+        Expect(sink.Seen == "30B050", $"the web tab is on air (saw {sink.Seen})");
+
+        Expect(await window.AddDocumentTabAsync(TabKind.Pdf, pdfPath, red), "a file tab can be added");
+        await Task.Delay(800);
+        var docInfo = window.Tabs.Active;
+        Expect(docInfo.Kind == TabKind.Pdf && docInfo.Source == pdfPath && docInfo.Url == TabRules.BlankUrl, "the list records the kind and the path");
+        Expect(_engine.Active is DocumentTab { Kind: TabKind.Pdf } && _engine.Active.Id == docInfo.Id, "the engine has a file tab on the stage");
+        Expect(sink.Seen == "E03030", $"the file tab is on air (saw {sink.Seen})");
+
+        // Page-only controls do nothing (and do not throw) while a file is on the stage.
+        try
+        {
+            _engine.Reload();
+            _engine.GoBack();
+            _engine.FocusPage();
+            _engine.SendMouse(CoreWebView2MouseEventKind.Move, CoreWebView2MouseEventVirtualKeys.None, 0, new System.Drawing.Point(10, 10));
+            _engine.PageZoom = 2.0;
+            Expect(!_engine.CanGoBack && !_engine.CanGoForward && _engine.CurrentUrl.Length == 0 && _engine.PageZoom == 1.0, "page-only state is neutral for a file tab");
+        }
+        catch (Exception ex)
+        {
+            Expect(false, $"page-only controls threw {ex.GetType().Name}");
+        }
+        Expect(await window.SetSeparateProfileAsync(docInfo.Id, true) is false, "a file tab has no login profile to separate");
+
+        // Back to the web tab, then Preview + Take with the file tab as the preview.
+        await window.SelectTabAsync(window.Tabs.Items[0].Id);
+        await Task.Delay(800);
+        Expect(sink.Seen == "30B050", $"selecting the web tab brings it back (saw {sink.Seen})");
+        Expect(await window.SetPreviewModeAsync(true) && _engine.PreviewMode, "Preview + Take can start with a file tab as the preview");
+        await Task.Delay(800);
+        Expect(_engine.Active is DocumentTab && sink.Seen == "30B050", $"the file tab is only the preview (saw {sink.Seen})");
+        Expect(await window.TakeAsync(), "TAKE works");
+        await Task.Delay(800);
+        Expect(_engine.Program is DocumentTab && sink.Seen == "E03030", $"the file tab is on air after TAKE (saw {sink.Seen})");
+        Expect(await window.SetPreviewModeAsync(false) && !_engine.PreviewMode && _engine.Active is DocumentTab, "leaving the mode keeps the file tab on air");
+        await Task.Delay(800);
+        Expect(sink.Seen == "E03030", $"still on air (saw {sink.Seen})");
+
+        window.ApplyFromCode(new Resolution(1920, 1080), 60);
+        await Task.Delay(1500);
+        Expect(sink.Seen == "E03030", $"a resolution change keeps the file tab on air (saw {sink.Seen})");
+
+        // The settings file.
+        await Task.Delay(1500);
+        var saved = window.ReadConfigFromDisk();
+        var entry = saved.Tabs.FirstOrDefault(t => t.Kind == "pdf");
+        Expect(entry is not null && entry.Source == pdfPath && entry.Url == TabRules.BlankUrl && entry.ProfileId is null, "the settings file records the kind and the path");
+
+        // Closing: select the web tab first, then close the file tab.
+        await window.SelectTabAsync(window.Tabs.Items[0].Id);
+        await Task.Delay(500);
+        Expect(await window.CloseTabAsync(docInfo.Id) && _engine.TabById(docInfo.Id) is null, "a file tab can be closed");
+        Expect(_engine.Tabs.Count == window.Tabs.Items.Count, "the engine and the list agree");
+        _engine.Hub.RemoveSink(sink);
+        _logger.LogInformation(_failures.Count == 0 ? "D1a selftest ok" : "D1a selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
     /// <summary>Preview + Take: the output keeps the program colour while another tab is prepared, TAKE swaps without a black frame, audio follows the program.</summary>
     private async Task RunPreviewTakeAsync(MainWindow window)
     {
@@ -336,7 +407,7 @@ internal sealed class SelfTest
         await Task.Delay(800);
         Expect(window.Tabs.Active.Id == window.Tabs.Items[2].Id && window.Tabs.ProgramId == programId, "another tab can be prepared in the preview");
         Expect(sink.Seen == colours[0], $"preparing a tab does not reach the output (saw {sink.Seen})");
-        Expect(_engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "only the program is unmuted");
+        Expect(_engine.Tabs.OfType<PageTab>().All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "only the program is unmuted");
 
         await window.SelectTabAsync(programId);
         Expect(window.Tabs.Active.Id == window.Tabs.Items[2].Id, "clicking the program tab is ignored");
@@ -346,7 +417,7 @@ internal sealed class SelfTest
         await Task.Delay(800);
         Expect(sink.Seen == colours[2], $"the output shows the taken tab (saw {sink.Seen})");
         Expect(window.Tabs.ProgramId == window.Tabs.Items[2].Id && window.Tabs.Active.Id == programId, "program and preview swapped");
-        Expect(_engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "audio follows the program after TAKE");
+        Expect(_engine.Tabs.OfType<PageTab>().All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "audio follows the program after TAKE");
 
         long blackBeforeResize = Interlocked.Read(ref sink.Black) - black;
         window.ApplyFromCode(new Resolution(1920, 1080), 60);
@@ -750,11 +821,11 @@ internal sealed class SelfTest
         await Task.Delay(2500);
         Expect(window.Tabs.Active.Id == otherId, "the new tab is the one on air");
         int before = recovered;
-        int deadPid = (int)_engine.TabById(otherId)!.Browser.BrowserProcessId;
+        int deadPid = (int)_engine.PageTabById(otherId)!.Browser.BrowserProcessId;
         System.Diagnostics.Process.GetProcessById(deadPid).Kill(entireProcessTree: true);
         Expect(await WaitAsync(() => recovered > before, 30), "the tab on air is recovered after its browser died");
         await Task.Delay(1500);
-        var again = _engine.TabById(otherId);
+        var again = _engine.PageTabById(otherId);
         Expect(again is not null && (int)again.Browser.BrowserProcessId != deadPid && again.Problem is null, "it has a new browser process and no problem");
         Expect(_engine.Active.Id == otherId && window.Tabs.Active.Id == otherId, "and is still the active one");
         Expect(sink.Seen == "30B050", $"the output shows the page again (saw {sink.Seen})");
@@ -762,12 +833,12 @@ internal sealed class SelfTest
 
         // The shared browser dies while its tab is not on air.
         var sharedId = window.Tabs.Items[0].Id;
-        int sharedPid = (int)_engine.TabById(sharedId)!.Browser.BrowserProcessId;
+        int sharedPid = (int)_engine.PageTabById(sharedId)!.Browser.BrowserProcessId;
         before = recovered;
         System.Diagnostics.Process.GetProcessById(sharedPid).Kill(entireProcessTree: true);
         Expect(await WaitAsync(() => recovered > before, 30), "the tab on the shared profile is recovered after its browser died");
         await Task.Delay(1500);
-        Expect((int)_engine.TabById(sharedId)!.Browser.BrowserProcessId != sharedPid && _engine.Active.Id == otherId, "it has a new browser and the tab on air did not change");
+        Expect((int)_engine.PageTabById(sharedId)!.Browser.BrowserProcessId != sharedPid && _engine.Active.Id == otherId, "it has a new browser and the tab on air did not change");
         Expect(sink.Seen == "30B050", $"the output was not disturbed (saw {sink.Seen})");
         window.SyncAudioSources();
 
@@ -852,7 +923,7 @@ internal sealed class SelfTest
     private const double LevelMeterFloor = -90;
 
     private bool _tabsAudioOk(MainWindow window)
-        => _engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Active));
+        => _engine.Tabs.OfType<PageTab>().All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Active));
 
     /// <summary>Confirmation of resolution/rate changes while an output is on (simulated), and the resolution presets.</summary>
     private async Task RunChangesAndPresetsAsync(MainWindow window)

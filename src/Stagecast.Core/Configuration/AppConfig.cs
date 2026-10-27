@@ -41,6 +41,15 @@ public sealed class TabEntry
 
     /// <summary>Set when the tab has its own browser profile (a separate login); names a folder, never holds credentials.</summary>
     public string? ProfileId { get; init; }
+
+    /// <summary>
+    /// What the tab shows: "web" (also when missing, as in older files), "pdf", "powerpoint" or "video". A string, not an enum, so a
+    /// name from a newer version does not make the whole file unreadable.
+    /// </summary>
+    public string Kind { get; init; } = "web";
+
+    /// <summary>The path of the file of a pdf, powerpoint or video tab. Never the contents, never a password; null for web tabs.</summary>
+    public string? Source { get; init; }
 }
 
 public sealed class RenderConfig

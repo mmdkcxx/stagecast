@@ -11,6 +11,7 @@ using Stagecast.Core.Display;
 using Stagecast.Core.Output;
 using Stagecast.Core.Presets;
 using Stagecast.Core.Rendering;
+using Stagecast.Core.Tabs;
 using Stagecast.Rendering;
 using Stagecast.Rendering.Capture;
 
@@ -93,7 +94,7 @@ public partial class MainWindow : Window
             RefreshHeader();
             _ = Dispatcher.BeginInvoke(() => SideScroll.ScrollToTop(), DispatcherPriority.ApplicationIdle);
 
-            if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.Active, "about:blank", TimeSpan.FromSeconds(20));
+            if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.ActivePage, "about:blank", TimeSpan.FromSeconds(20));
 
             if (_context.SelfTest is not null) {
                 await new SelfTest(_engine, _context.LoggerFactory.CreateLogger<SelfTest>()).RunAsync(_context.SelfTest, this);
@@ -568,7 +569,7 @@ public partial class MainWindow : Window
             Ndi = _ndiConfig,
             Omt = _omtConfig,
             Presets = _presets.ToEntries(),
-            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
+            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId, Kind = TabKinds.ConfigName(t.Kind), Source = t.Source }).ToList(),
             ActiveTab = _tabs.LiveIndex,
         };
         try

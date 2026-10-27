@@ -49,6 +49,7 @@ smoke() {
   APP_EXTRA=",'--selftest','a2c'" smoke_app "A2c selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a3'" smoke_app "A3 selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a3b'" smoke_app "A3b selftest ok" "exiting with code 0" || return 1
+  APP_EXTRA=",'--selftest','d1a'" smoke_app "D1a selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a4'" smoke_app "A4 selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a5'" smoke_app "A5 selftest ok" "exiting with code 0" || return 1
   APP_EXTRA=",'--selftest','a6'" smoke_app "A6 selftest ok" "exiting with code 0" || return 1

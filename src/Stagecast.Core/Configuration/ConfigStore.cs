@@ -149,6 +149,15 @@ public sealed class ConfigStore
             string name = (entry.Name ?? string.Empty).Trim();
             if (TabRules.ValidateName(name) == TabNameError.Empty) name = TabRules.NextDefaultName(tabs.Select(t => new TabInfo(Guid.Empty, t.Name, t.Url)));
             else if (name.Length > TabRules.MaxNameLength) name = name[..TabRules.MaxNameLength].TrimEnd();
+            if (!TabKinds.TryParse(entry.Kind, out var kind)) notes.Add($"tab '{name}' has an unknown kind '{entry.Kind}'; it is a web tab now");
+            if (TabKinds.IsDocument(kind))
+            {
+                // A file tab has no address and no browser profile; only the path of its file.
+                string? source = TabRules.StorableSource(entry.Source);
+                if (entry.Source is not null && source is null) notes.Add($"tab '{name}' had an unusable file path; the file has to be chosen again");
+                tabs.Add(new TabEntry { Name = name, Url = TabRules.BlankUrl, Kind = TabKinds.ConfigName(kind), Source = source });
+                continue;
+            }
             string? profileId = TabRules.IsValidProfileId(entry.ProfileId) && !tabs.Any(t => t.ProfileId == entry.ProfileId) ? entry.ProfileId : null;
             if (entry.ProfileId is not null && profileId is null) notes.Add($"tab '{name}' had an unusable profile id; it uses the shared profile now");
             tabs.Add(new TabEntry { Name = name, Url = string.IsNullOrWhiteSpace(entry.Url) ? TabRules.BlankUrl : entry.Url.Trim(), ProfileId = profileId });

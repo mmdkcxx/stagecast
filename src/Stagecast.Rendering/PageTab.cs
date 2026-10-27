@@ -1,4 +1,5 @@
 using Microsoft.Web.WebView2.Core;
+using Stagecast.Core.Tabs;
 using Windows.UI.Composition;
 
 namespace Stagecast.Rendering;
@@ -7,35 +8,23 @@ namespace Stagecast.Rendering;
 /// One page: a WebView2 drawing into its own composition visual. Only the active tab's visual is placed on the engine's stage,
 /// so only the active tab is captured. Tabs are created and switched through <see cref="RenderEngine"/>.
 /// </summary>
-public sealed class PageTab
+public sealed class PageTab : StageTab
 {
     internal PageTab(Guid id, ContainerVisual visual, CoreWebView2CompositionController controller, string? profileId)
+        : base(id, visual)
     {
-        Id = id;
         ProfileId = profileId;
-        Visual = visual;
         Controller = controller;
     }
 
-    public Guid Id { get; internal set; }
+    public override TabKind Kind => TabKind.Web;
 
     /// <summary>Null on the shared profile; otherwise the id of this tab's own profile (its own login).</summary>
-    public string? ProfileId { get; }
-
-    internal ContainerVisual Visual { get; }
+    public override string? ProfileId { get; }
 
     internal CoreWebView2CompositionController Controller { get; }
 
     public CoreWebView2 Browser => Controller.CoreWebView2;
-
-    /// <summary>True once the tab has been on the stage, so its visual holds a picture.</summary>
-    public bool HasBeenShown { get; internal set; }
-
-    /// <summary>True from the start of a navigation until it has completed.</summary>
-    public bool IsLoading { get; internal set; }
-
-    /// <summary>True while the page would receive keystrokes.</summary>
-    public bool HasKeyboardFocus { get; internal set; }
 
     public string Url => Browser.Source;
 
@@ -57,8 +46,13 @@ public sealed class PageTab
 
     internal List<DateTimeOffset> Crashes { get; } = [];
 
-    /// <summary>What is wrong with this tab right now, in words for the operator; null when it is fine.</summary>
-    public string? Problem { get; internal set; }
+    public override string Title => Browser.DocumentTitle;
 
-    public string Title => Browser.DocumentTitle;
+    internal override void Resize(int width, int height)
+    {
+        Visual.Size = new System.Numerics.Vector2(width, height);
+        Controller.Bounds = new System.Drawing.Rectangle(0, 0, width, height);
+    }
+
+    internal override void Close() => Controller.Close();
 }

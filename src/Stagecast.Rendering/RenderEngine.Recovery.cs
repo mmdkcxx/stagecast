@@ -108,7 +108,7 @@ public sealed partial class RenderEngine
         Post(async () =>
         {
             await Task.Delay(1000); // the adapter needs a moment before the first request works
-            foreach (var tab in _tabs.ToList())
+            foreach (var tab in _tabs.OfType<PageTab>().ToList())
             {
                 if (tab.FailedUrl is not { } url) continue;
                 tab.RetryAttempt = 0;
@@ -219,11 +219,12 @@ public sealed partial class RenderEngine
         foreach (var tab in tabs) _ = RecoverBrowserAsync(tab);
     }
 
-    private void SetMuted(PageTab tab, bool muted)
+    private void SetMuted(StageTab tab, bool muted)
     {
+        if (tab is not PageTab page) return; // a file tab has no browser to mute (its sound is handled by the source that plays it)
         try
         {
-            tab.Browser.IsMuted = muted;
+            page.Browser.IsMuted = muted;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
         {

@@ -300,4 +300,66 @@ public class TabPreviewTakeTests
         Assert.Equal(program, list.Program);
         Assert.Equal(preview, list.Active);
     }
+
+    [Fact]
+    public void AddDocument_KeepsKindAndSource_AndCountsTowardsTheLimit()
+    {
+        var list = WithTabs(1);
+        var pdf = list.AddDocument(TabKind.Pdf, "  D:\\Acara\\Gala.pdf ");
+        Assert.NotNull(pdf);
+        Assert.Equal(TabKind.Pdf, pdf.Kind);
+        Assert.Equal("D:\\Acara\\Gala.pdf", pdf.Source);
+        Assert.Equal(TabRules.BlankUrl, pdf.Url);
+        Assert.Equal("Tab 2", pdf.Name);
+        for (int i = list.Items.Count; i < TabRules.MaxTabs; i++) Assert.NotNull(list.AddDocument(TabKind.PowerPoint, null));
+        Assert.Null(list.AddDocument(TabKind.Video, null));
+        Assert.Null(list.Add());
+    }
+
+    [Fact]
+    public void AddDocument_RefusesAWebTab_AndKeepsAnEmptyPathAsNull()
+    {
+        var list = WithTabs(1);
+        Assert.Null(list.AddDocument(TabKind.Web, "x"));
+        Assert.Null(list.AddDocument(TabKind.Pdf, "   ")!.Source);
+        Assert.Null(list.AddDocument(TabKind.Pdf, new string('x', TabRules.MaxSourceLength + 1))!.Source);
+    }
+
+    [Fact]
+    public void FileTabs_HaveNoAddressAndNoSeparateProfile()
+    {
+        var list = WithTabs(1);
+        var pdf = list.AddDocument(TabKind.Pdf, "a.pdf")!;
+        list.SetUrl(pdf.Id, "https://example.com");
+        Assert.Equal(TabRules.BlankUrl, list.Items[1].Url);
+        Assert.Null(list.SetSeparateProfile(pdf.Id, separate: true));
+        Assert.Null(list.Items[1].ProfileId);
+    }
+
+    [Fact]
+    public void SetSource_ChangesFileTabsOnly()
+    {
+        var list = WithTabs(1);
+        var pdf = list.AddDocument(TabKind.Pdf, "a.pdf")!;
+        list.SetSource(pdf.Id, "b.pdf");
+        Assert.Equal("b.pdf", list.Items[1].Source);
+        list.SetSource(list.Items[0].Id, "c.pdf");
+        Assert.Null(list.Items[0].Source);
+    }
+
+    [Fact]
+    public void TabKinds_NamesRoundTrip_AndUnknownNamesAreReported()
+    {
+        foreach (var kind in Enum.GetValues<TabKind>())
+        {
+            Assert.True(TabKinds.TryParse(TabKinds.ConfigName(kind), out var back));
+            Assert.Equal(kind, back);
+        }
+        Assert.True(TabKinds.TryParse(null, out var none));
+        Assert.Equal(TabKind.Web, none);
+        Assert.True(TabKinds.TryParse(" PDF ", out var pdf));
+        Assert.Equal(TabKind.Pdf, pdf);
+        Assert.False(TabKinds.TryParse("hologram", out var unknown));
+        Assert.Equal(TabKind.Web, unknown);
+    }
 }

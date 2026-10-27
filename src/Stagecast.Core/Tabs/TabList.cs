@@ -1,8 +1,49 @@
 namespace Stagecast.Core.Tabs;
 
+/// <summary>What a tab shows. A web tab is a browser page; the others are files played by Stagecast itself.</summary>
+public enum TabKind
+{
+    Web,
+    Pdf,
+    PowerPoint,
+    Video,
+}
+
+public static class TabKinds
+{
+    /// <summary>The name stored in the settings file. Names, not numbers, so the file stays readable and survives reordering.</summary>
+    public static string ConfigName(TabKind kind) => kind switch
+    {
+        TabKind.Pdf => "pdf",
+        TabKind.PowerPoint => "powerpoint",
+        TabKind.Video => "video",
+        _ => "web",
+    };
+
+    /// <summary>
+    /// A missing name means <see cref="TabKind.Web"/> (older files have none). False for a name this version does not know (a file
+    /// from a newer version, or hand edited); <paramref name="kind"/> is then <see cref="TabKind.Web"/>.
+    /// </summary>
+    public static bool TryParse(string? name, out TabKind kind)
+    {
+        switch ((name ?? string.Empty).Trim().ToLowerInvariant())
+        {
+            case "" or "web": kind = TabKind.Web; return true;
+            case "pdf": kind = TabKind.Pdf; return true;
+            case "powerpoint": kind = TabKind.PowerPoint; return true;
+            case "video": kind = TabKind.Video; return true;
+            default: kind = TabKind.Web; return false;
+        }
+    }
+
+    public static bool IsDocument(TabKind kind) => kind != TabKind.Web;
+}
+
 /// <summary>One tab as the operator sees it. The name is only a label; the address is where the tab last was.</summary>
-/// <param name="ProfileId">Null when the tab shares the common browser profile; otherwise the id of its own profile (a separate login).</param>
-public sealed record TabInfo(Guid Id, string Name, string Url, string? ProfileId = null);
+/// <param name="ProfileId">Null when the tab shares the common browser profile; otherwise the id of its own profile (a separate login). Only web tabs have one.</param>
+/// <param name="Kind">What the tab shows. Older settings files have no kind and mean <see cref="TabKind.Web"/>.</param>
+/// <param name="Source">For a file tab, the path of the file (null until one is chosen); always null for a web tab.</param>
+public sealed record TabInfo(Guid Id, string Name, string Url, string? ProfileId = null, TabKind Kind = TabKind.Web, string? Source = null);
 
 public enum TabNameError
 {
@@ -19,6 +60,16 @@ public static class TabRules
     public const int MaxTabs = 12;
 
     public const string BlankUrl = "about:blank";
+
+    /// <summary>Longest file path kept in the settings (the Windows long-path limit is far larger, but no real file is near this).</summary>
+    public const int MaxSourceLength = 1024;
+
+    /// <summary>The path to store for a file tab: trimmed, and null when empty or absurdly long.</summary>
+    public static string? StorableSource(string? source)
+    {
+        string trimmed = (source ?? string.Empty).Trim();
+        return trimmed.Length == 0 || trimmed.Length > MaxSourceLength ? null : trimmed;
+    }
 
     /// <summary>A profile id is the name of a folder, so only the exact form this program makes is accepted (32 hex digits).</summary>
     public static bool IsValidProfileId(string? id)
@@ -132,6 +183,15 @@ public sealed class TabList
         return tab;
     }
 
+    /// <summary>Appends a file tab (it counts towards the same limit). Returns null at the limit or for <see cref="TabKind.Web"/>; the new tab is not selected.</summary>
+    public TabInfo? AddDocument(TabKind kind, string? source)
+    {
+        if (!CanAdd || !TabKinds.IsDocument(kind)) return null;
+        var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.BlankUrl, null, kind, TabRules.StorableSource(source));
+        _items.Add(tab);
+        return tab;
+    }
+
     public bool Select(Guid id)
     {
         int index = IndexOf(id);
@@ -165,7 +225,7 @@ public sealed class TabList
     public string? SetSeparateProfile(Guid id, bool separate)
     {
         int index = IndexOf(id);
-        if (index < 0) return null;
+        if (index < 0 || _items[index].Kind != TabKind.Web) return null; // a login belongs to a browser; file tabs have none
         string? old = _items[index].ProfileId;
         string? next = separate ? old ?? TabRules.NewProfileId() : null;
         _items[index] = _items[index] with { ProfileId = next };
@@ -184,7 +244,14 @@ public sealed class TabList
     public void SetUrl(Guid id, string? url)
     {
         int index = IndexOf(id);
-        if (index >= 0) _items[index] = _items[index] with { Url = TabRules.StorableUrl(url) };
+        if (index >= 0 && _items[index].Kind == TabKind.Web) _items[index] = _items[index] with { Url = TabRules.StorableUrl(url) };
+    }
+
+    /// <summary>Changes the file of a file tab (for example after choosing the file again). Web tabs are left alone.</summary>
+    public void SetSource(Guid id, string? source)
+    {
+        int index = IndexOf(id);
+        if (index >= 0 && TabKinds.IsDocument(_items[index].Kind)) _items[index] = _items[index] with { Source = TabRules.StorableSource(source) };
     }
 
     /// <summary>Moves a tab by <paramref name="delta"/> places (negative is towards the start). Returns false at an end.</summary>
