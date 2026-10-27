@@ -124,6 +124,14 @@ internal sealed class CompositionSpike : IDisposable
         return ((int)values[0], (int)values[1], values[2]);
     }
 
+    /// <summary>S4: capture one frame of the hosted page and save it as a PNG.</summary>
+    public async Task<(int Width, int Height)> CaptureFrameAsync(string pngPath)
+    {
+        // Give the page a moment to paint before the first capture.
+        await Task.Delay(1500);
+        return await FrameCapture.CaptureOnceAsync(_root!, pngPath);
+    }
+
     public void Dispose()
     {
         _controller?.Close();

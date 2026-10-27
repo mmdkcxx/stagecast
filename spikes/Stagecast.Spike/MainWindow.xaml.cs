@@ -23,7 +23,7 @@ public partial class MainWindow : Window
 
     private async Task StartAsync()
     {
-        if (_mode is "s2" or "s3") await StartCompositionAsync();
+        if (_mode is "s2" or "s3" or "s4") await StartCompositionAsync();
         else await StartPlainAsync();
     }
 
@@ -46,6 +46,14 @@ public partial class MainWindow : Window
                 await _composition.LogViewportAsync();
                 Status.Text = "S2 ok: page loaded in a composition visual (nothing is shown on screen by design)";
                 SpikeLog.Write("S2 ok");
+            }
+            else if (_mode == "s4")
+            {
+                string png = Path.Combine(AppContext.BaseDirectory, "logs", "s4-frame.png");
+                var (w, h) = await _composition.CaptureFrameAsync(png);
+                bool ok = w == 2520 && h == 1080;
+                Status.Text = $"S4: captured {w}x{h}";
+                SpikeLog.Write(ok ? $"S4 ok {w}x{h}" : $"S4 FAILED size {w}x{h}, expected 2520x1080");
             }
             else
             {

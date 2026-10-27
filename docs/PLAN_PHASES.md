@@ -47,6 +47,7 @@ Tujuan: membuktikan jalur WebView2 + capture layak. Hasilnya angka dan keputusan
   - **Belum teruji:** skala Windows yang asli (DPI jendela WPF, perilaku capture di monitor 150%) tetap perlu dicoba di S4/S5 bila mesin target memakai skala selain 100%.
 
 ### S4 - Capture satu frame
+- **Status: lulus (2026-10-27).** `GraphicsCaptureItem.CreateFromVisual` bekerja untuk visual yang tidak terpasang ke jendela dan lebih lebar dari layar (2520 px). Frame tiba dalam ~35 ms, ukuran konten dan tekstur 2520x1080 (B8G8R8A8), tersimpan sebagai PNG. Saya melihat PNG: berisi halaman example.com yang dirender utuh, bukan hitam. Jalur cadangan CEF tidak diperlukan. Sisa untuk [Anda]: konfirmasi isi PNG di `logs\s4-frame.png`. Belum diuji: frame berkelanjutan (S5), dua capture bersamaan (S12), video H.264.
 - Buat `GraphicsCaptureItem` dari visual, frame pool Direct3D 11, ambil satu frame, simpan sebagai PNG.
 - Ukuran PNG harus 2520x1080.
 - **Lulus:** PNG berisi halaman yang benar dengan ukuran tepat. [Anda untuk isi, Saya untuk ukuran]
