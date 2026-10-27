@@ -1,0 +1,26 @@
+STAGECAST - menayangkan halaman web pada resolusi sendiri ke layar, NDI, dan OMT (vMix)
+
+MENJALANKAN
+  Jalankan Stagecast.exe. Tidak perlu dipasang. Pengaturan dan login disimpan di %LocalAppData%\Stagecast
+  (atau di folder yang ditentukan dengan --data-dir "D:\folder").
+
+KEBUTUHAN
+  - Windows 11 x64.
+  - Microsoft Edge WebView2 Runtime (sudah ada di Windows 11 terbaru; bila belum, pasang dari microsoft.com/edge/webview2).
+  - Untuk NDI: NDI Tools atau NDI Runtime dari ndi.video (tidak ikut dikemas). Tanpa itu tombol NDI memberi tahu.
+  - OMT sudah termasuk (libomtnet.dll, libvmx.dll).
+
+GPU
+  Aplikasi tidak memilih GPU. Atur di Windows: Pengaturan > Sistem > Tampilan > Grafik > Stagecast.exe.
+
+PENTING SAAT ACARA
+  - Output layar, NDI, dan OMT selalu mulai MATI saat aplikasi dibuka; nyalakan sendiri.
+  - Matikan darurat output layar dari mana saja: Ctrl+Alt+H.
+  - Ctrl+Shift+F = Freeze, Ctrl+Shift+B = Blackout, Spasi = TAKE (mode Preview + Take).
+  - Login dilakukan di tab yang sedang tidak tayang.
+
+LOG
+  Folder logs di folder data (mis. %LocalAppData%\Stagecast\logs). Berisi kesalahan; tidak berisi kata sandi.
+
+LISENSI PIHAK KETIGA
+  Lihat THIRD_PARTY_NOTICES.md dan folder licenses.
