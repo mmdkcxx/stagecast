@@ -72,6 +72,13 @@
                         <Button DockPanel.Dock="Right" Content="+ Tab" Style="{StaticResource ToolButton}" Margin="0" Click="OnAddTab" ToolTip="Tab baru (Ctrl+T)"/>
                         <TextBlock Text="TAB" Style="{StaticResource Label}" Margin="0" VerticalAlignment="Center"/>
                     </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <ToggleButton x:Name="ModeDirectButton" Content="Langsung" Style="{StaticResource ToolToggle}" Click="OnModeDirect" ToolTip="Tab yang dipilih langsung tayang"/>
+                        <ToggleButton x:Name="ModePreviewButton" Content="Preview + Take" Style="{StaticResource ToolToggle}" Click="OnModePreview"
+                                      ToolTip="Siapkan tab di preview, lalu TAKE untuk menayangkannya. Butuh minimal dua tab."/>
+                        <Button x:Name="TakeButton" Content="TAKE" Visibility="Collapsed" Margin="6,0,0,0" Padding="16,5" Background="{StaticResource Live}" Foreground="White"
+                                BorderBrush="{StaticResource Live}" FontFamily="Segoe UI" FontSize="13" FontWeight="Bold" Click="OnTake" ToolTip="Tayangkan tab preview (Spasi)"/>
+                    </StackPanel>
                     <StackPanel x:Name="TabListPanel"/>
                     <TextBlock x:Name="TabError" Foreground="{StaticResource Warn}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
                     <Border Height="1" Background="{StaticResource Line}" Margin="0,12,0,16"/>

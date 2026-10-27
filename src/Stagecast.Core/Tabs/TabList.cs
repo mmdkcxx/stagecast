@@ -52,6 +52,11 @@ public static class TabRules
 /// <summary>
 /// The ordered tabs and which one is active. At least one tab always exists. Closing the active tab activates its neighbour;
 /// moving a tab never changes which tab is active.
+/// <para>
+/// Two ways to work. <b>Direct</b> (the default): the active tab is what the audience sees. <b>Preview + Take</b>: the active tab
+/// is only the operator's preview, <see cref="ProgramId"/> names the tab the audience sees, and <see cref="Take"/> swaps them.
+/// The program tab cannot be selected as the preview and cannot be closed while it is on air.
+/// </para>
 /// </summary>
 public sealed class TabList
 {
@@ -70,9 +75,51 @@ public sealed class TabList
 
     public TabInfo Active => _items[ActiveIndex];
 
+    /// <summary>The tab on air while working in Preview + Take; null in Direct mode (where the active tab is on air).</summary>
+    public Guid? ProgramId { get; private set; }
+
+    public bool PreviewMode => ProgramId is not null;
+
+    /// <summary>The tab the audience sees.</summary>
+    public TabInfo Program => ProgramId is { } id ? _items[IndexOf(id)] : Active;
+
+    public int LiveIndex => ProgramId is { } id ? IndexOf(id) : ActiveIndex;
+
+    public bool CanEnterPreviewMode => !PreviewMode && _items.Count >= 2;
+
+    /// <summary>Starts Preview + Take: the active tab stays on air and the next tab becomes the preview.</summary>
+    public bool EnterPreviewMode()
+    {
+        if (!CanEnterPreviewMode) return false;
+        ProgramId = Active.Id;
+        ActiveIndex = (ActiveIndex + 1) % _items.Count;
+        return true;
+    }
+
+    /// <summary>Back to Direct: the tab that was on air stays on air and becomes the active one.</summary>
+    public bool ExitPreviewMode()
+    {
+        if (ProgramId is not { } id) return false;
+        ActiveIndex = IndexOf(id);
+        ProgramId = null;
+        return true;
+    }
+
+    /// <summary>Puts the preview tab on air and the tab that was on air becomes the preview.</summary>
+    public bool Take()
+    {
+        if (ProgramId is not { } onAir || Active.Id == onAir) return false;
+        var next = Active.Id;
+        ActiveIndex = IndexOf(onAir);
+        ProgramId = next;
+        return true;
+    }
+
     public bool CanAdd => _items.Count < TabRules.MaxTabs;
 
     public bool CanClose => _items.Count > 1;
+
+    public bool CanCloseTab(Guid id) => _items.Count > 1 && id != ProgramId && IndexOf(id) >= 0;
 
     public int IndexOf(Guid id) => _items.FindIndex(t => t.Id == id);
 
@@ -88,7 +135,7 @@ public sealed class TabList
     public bool Select(Guid id)
     {
         int index = IndexOf(id);
-        if (index < 0) return false;
+        if (index < 0 || id == ProgramId) return false; // the tab on air cannot be the preview
         ActiveIndex = index;
         return true;
     }
@@ -97,10 +144,20 @@ public sealed class TabList
     public TabInfo? Close(Guid id)
     {
         int index = IndexOf(id);
-        if (index < 0 || !CanClose) return null;
+        if (index < 0 || !CanCloseTab(id)) return null;
         _items.RemoveAt(index);
         if (index < ActiveIndex) ActiveIndex--;
         else if (index == ActiveIndex) ActiveIndex = Math.Min(index, _items.Count - 1);
+        if (ProgramId is { } onAir)
+        {
+            if (_items.Count < 2) ExitPreviewMode();
+            else if (Active.Id == onAir)
+            {
+                // Closing the preview left the tab on air next to it: the preview moves to the nearest other tab.
+                int program = IndexOf(onAir);
+                ActiveIndex = program + 1 < _items.Count ? program + 1 : program - 1;
+            }
+        }
         return Active;
     }
 

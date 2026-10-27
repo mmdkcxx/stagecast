@@ -54,11 +54,41 @@ public partial class PagePreview : UserControl
     /// <summary>The region of the page the last shown picture covers; the self test uses it.</summary>
     internal (int X, int Y, int Mip, int Width, int Height) ShownPicture => _shown;
 
+    private bool _previewMode;
+
+    /// <summary>In Preview + Take this shows the preview tab (green frame, PROGRAM box); otherwise it shows what is live (LIVE).</summary>
+    public bool PreviewMode
+    {
+        get => _previewMode;
+        set
+        {
+            _previewMode = value;
+            ModePill.Background = (Brush)FindResource(value ? "Ok" : "Live");
+            ModeText.Text = value ? "PREVIEW" : "LIVE";
+            ModeText.Foreground = value ? new SolidColorBrush(Color.FromRgb(0x0C, 0x0B, 0x09)) : Brushes.White;
+            ModeFrame.BorderBrush = value ? (Brush)FindResource("Ok") : Brushes.Transparent;
+            ProgramBox.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+            if (!value) ProgramImage.Source = null;
+        }
+    }
+
+    /// <summary>True while 100% shows only part of the page, so Space is used to drag.</summary>
+    public bool CanPanNow => CanPan;
+
+    private void OnProgramThumb(PreviewImage image)
+    {
+        var bitmap = BitmapSource.Create(image.Width, image.Height, 96, 96, PixelFormats.Bgra32, null, image.Pixels, image.Stride);
+        bitmap.Freeze();
+        Dispatcher.BeginInvoke(() => ProgramImage.Source = _previewMode ? bitmap : null, System.Windows.Threading.DispatcherPriority.Background);
+    }
+
     public void Attach(RenderEngine engine)
     {
         _engine = engine;
         _resolution = engine.Resolution;
         engine.PreviewReady += OnPreviewReady;
+        engine.ProgramThumbReady += OnProgramThumb;
+        PreviewMode = false;
         engine.CursorChanged += () => Dispatcher.BeginInvoke(UpdateCursor);
         engine.PageFocusChanged += _ => Dispatcher.BeginInvoke(UpdateOverlays);
         engine.EscapePressed += ReleaseKeyboard;

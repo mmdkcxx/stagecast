@@ -11,6 +11,7 @@
         <SolidColorBrush x:Key="Muted" Color="#AEAAA4"/>
         <SolidColorBrush x:Key="Warn" Color="#F7C243"/>
         <SolidColorBrush x:Key="Ok" Color="#56DC85"/>
+        <SolidColorBrush x:Key="Live" Color="#E5484D"/>
 
         <Style x:Key="Label" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource Muted}"/>

@@ -35,6 +35,7 @@ internal sealed class SelfTest
     {
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
+        if (name == "a3b") { await RunPreviewTakeAsync(window); return; }
         if (name == "a3") { await RunTabsAsync(window); return; }
         if (name == "a2c") { await RunChangesAndPresetsAsync(window); return; }
         if (name != "a2") { _logger.LogError("Unknown self test {Name}", name); return; }
@@ -297,6 +298,59 @@ internal sealed class SelfTest
         Expect(saved.Tabs.Count == 1 && saved.Tabs[0].Name == window.Tabs.Items[0].Name, "the settings file holds the tabs");
         _engine.Hub.RemoveSink(sink);
         _logger.LogInformation(_failures.Count == 0 ? "A3 selftest ok" : "A3 selftest FAILED: {Failures}", string.Join("; ", _failures));
+    }
+
+    /// <summary>Preview + Take: the output keeps the program colour while another tab is prepared, TAKE swaps without a black frame, audio follows the program.</summary>
+    private async Task RunPreviewTakeAsync(MainWindow window)
+    {
+        string[] colours = ["E03030", "3050E0", "30B050"];
+        var sink = new ColourSink();
+        _engine.Hub.AddSink(sink);
+        await _engine.NavigateAsync(Page(colours[0]), TimeSpan.FromSeconds(10));
+        Expect(!window.Tabs.CanEnterPreviewMode && !await window.SetPreviewModeAsync(true), "Preview + Take needs two tabs");
+        await window.AddTabAsync(Page(colours[1]));
+        await window.AddTabAsync(Page(colours[2]));
+        await window.SelectTabAsync(window.Tabs.Items[0].Id);
+        await Task.Delay(800);
+        Expect(sink.Seen == colours[0], $"the first tab is on air (saw {sink.Seen})");
+        long black = Interlocked.Read(ref sink.Black);
+
+        var programId = window.Tabs.Items[0].Id;
+        Expect(await window.SetPreviewModeAsync(true) && _engine.PreviewMode, "Preview + Take can be entered");
+        await Task.Delay(800);
+        Expect(window.Tabs.ProgramId == programId && window.Tabs.Active.Id == window.Tabs.Items[1].Id, "the next tab became the preview");
+        Expect(sink.Seen == colours[0], $"the output still shows the program (saw {sink.Seen})");
+
+        await window.SelectTabAsync(window.Tabs.Items[2].Id);
+        await Task.Delay(800);
+        Expect(window.Tabs.Active.Id == window.Tabs.Items[2].Id && window.Tabs.ProgramId == programId, "another tab can be prepared in the preview");
+        Expect(sink.Seen == colours[0], $"preparing a tab does not reach the output (saw {sink.Seen})");
+        Expect(_engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "only the program is unmuted");
+
+        await window.SelectTabAsync(programId);
+        Expect(window.Tabs.Active.Id == window.Tabs.Items[2].Id, "clicking the program tab is ignored");
+        Expect(!await window.CloseTabAsync(programId) && window.Tabs.Items.Count == 3, "the program tab cannot be closed");
+
+        Expect(await window.TakeAsync(), "TAKE works");
+        await Task.Delay(800);
+        Expect(sink.Seen == colours[2], $"the output shows the taken tab (saw {sink.Seen})");
+        Expect(window.Tabs.ProgramId == window.Tabs.Items[2].Id && window.Tabs.Active.Id == programId, "program and preview swapped");
+        Expect(_engine.Tabs.All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "audio follows the program after TAKE");
+
+        window.ApplyFromCode(new Resolution(1920, 1080), 60);
+        await Task.Delay(1500);
+        Expect(sink.Seen == colours[2], $"a resolution change in the mode keeps the program (saw {sink.Seen})");
+        Expect(await window.TakeAsync(), "TAKE works again");
+        await Task.Delay(800);
+        Expect(sink.Seen == colours[0], $"the output shows the first tab again (saw {sink.Seen})");
+
+        Expect(await window.SetPreviewModeAsync(false) && !_engine.PreviewMode, "back to Langsung");
+        await Task.Delay(500);
+        Expect(window.Tabs.Active.Id == window.Tabs.Items[0].Id && sink.Seen == colours[0], "the tab on air stays on air");
+        Expect(_tabsAudioOk(window), "only the active tab is unmuted after leaving the mode");
+        Expect(Interlocked.Read(ref sink.Black) - black == 0, $"no black frame reached the output ({Interlocked.Read(ref sink.Black) - black} did)");
+        _engine.Hub.RemoveSink(sink);
+        _logger.LogInformation(_failures.Count == 0 ? "A3b selftest ok" : "A3b selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
     private bool _tabsAudioOk(MainWindow window)

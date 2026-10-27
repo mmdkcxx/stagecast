@@ -8,6 +8,20 @@
             <Image x:Name="Picture" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality"/>
         </Canvas>
 
+        <Border x:Name="ModeFrame" BorderThickness="3" BorderBrush="Transparent" IsHitTestVisible="False"/>
+
+        <Border x:Name="ModePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="8,3" CornerRadius="2" IsHitTestVisible="False" Background="#E5484D">
+            <TextBlock x:Name="ModeText" Text="LIVE" Foreground="White" FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"/>
+        </Border>
+
+        <Border x:Name="ProgramBox" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10,44,10,10" Visibility="Collapsed" IsHitTestVisible="False"
+                BorderBrush="#E5484D" BorderThickness="2" Background="Black">
+            <StackPanel>
+                <TextBlock Text="PROGRAM (TAYANG)" Foreground="White" Background="#E5484D" FontFamily="Segoe UI" FontSize="10" FontWeight="Bold" Padding="4,1"/>
+                <Image x:Name="ProgramImage" Width="168" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+            </StackPanel>
+        </Border>
+
         <Border x:Name="Badge" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Padding="8,3" Background="#F7C243" CornerRadius="2" Visibility="Collapsed" IsHitTestVisible="False">
             <TextBlock x:Name="BadgeText" Foreground="#1C1505" FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"/>
         </Border>

@@ -64,6 +64,7 @@ public partial class MainWindow : Window
             _engine = await RenderEngine.CreateAsync(
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
             await StartTabsAsync();
+            UpdateModeButtons();
             PagePreviewView.Attach(_engine);
             ShowControls();
             _engine.NavigationStateChanged += UpdateNavigationState;
@@ -508,7 +509,7 @@ public partial class MainWindow : Window
             Render = render,
             Presets = _presets.ToEntries(),
             Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
-            ActiveTab = _tabs.ActiveIndex,
+            ActiveTab = _tabs.LiveIndex,
         };
         try
         {

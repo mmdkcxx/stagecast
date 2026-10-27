@@ -159,3 +159,145 @@ public class TabProfileTests
     [InlineData("0123456789abcdef0123456789abcde", false)]
     public void ProfileIds_AreOnlyTheFormWeMake(string? id, bool valid) => Assert.Equal(valid, TabRules.IsValidProfileId(id));
 }
+
+public class TabPreviewTakeTests
+{
+    private static TabList WithTabs(int count, int active = 0)
+    {
+        var list = new TabList([new TabInfo(Guid.NewGuid(), "Tab 1", TabRules.BlankUrl)], 0);
+        for (int i = 1; i < count; i++) list.Add();
+        list.Select(list.Items[active].Id);
+        return list;
+    }
+
+    [Fact]
+    public void DirectMode_IsTheDefault_AndTheActiveTabIsOnAir()
+    {
+        var list = WithTabs(3, active: 1);
+        Assert.False(list.PreviewMode);
+        Assert.Null(list.ProgramId);
+        Assert.Equal(list.Active, list.Program);
+        Assert.Equal(1, list.LiveIndex);
+    }
+
+    [Fact]
+    public void EnterPreviewMode_KeepsTheActiveTabOnAir_AndPreviewsTheNextOne()
+    {
+        var list = WithTabs(3, active: 1);
+        var onAir = list.Active;
+        Assert.True(list.EnterPreviewMode());
+        Assert.Equal(onAir, list.Program);
+        Assert.Equal(2, list.ActiveIndex);
+        Assert.Equal(1, list.LiveIndex);
+    }
+
+    [Fact]
+    public void EnterPreviewMode_WrapsAroundFromTheLastTab()
+    {
+        var list = WithTabs(3, active: 2);
+        list.EnterPreviewMode();
+        Assert.Equal(0, list.ActiveIndex);
+    }
+
+    [Fact]
+    public void EnterPreviewMode_NeedsTwoTabs()
+    {
+        var list = WithTabs(1);
+        Assert.False(list.CanEnterPreviewMode);
+        Assert.False(list.EnterPreviewMode());
+        Assert.False(list.PreviewMode);
+    }
+
+    [Fact]
+    public void Select_CannotPickTheTabOnAir_ButCanPickOthers()
+    {
+        var list = WithTabs(3);
+        list.EnterPreviewMode();
+        var onAir = list.Program;
+        Assert.False(list.Select(onAir.Id));
+        Assert.Equal(1, list.ActiveIndex);
+        Assert.True(list.Select(list.Items[2].Id));
+        Assert.Equal(onAir, list.Program);
+    }
+
+    [Fact]
+    public void Take_SwapsPreviewAndProgram()
+    {
+        var list = WithTabs(3);
+        list.EnterPreviewMode();
+        var wasProgram = list.Program;
+        var wasPreview = list.Active;
+        Assert.True(list.Take());
+        Assert.Equal(wasPreview, list.Program);
+        Assert.Equal(wasProgram, list.Active);
+        Assert.True(list.Take()); // and back
+        Assert.Equal(wasProgram, list.Program);
+    }
+
+    [Fact]
+    public void Take_DoesNothingInDirectMode()
+    {
+        var list = WithTabs(2);
+        Assert.False(list.Take());
+    }
+
+    [Fact]
+    public void ExitPreviewMode_LeavesTheTabOnAirOnAir()
+    {
+        var list = WithTabs(3);
+        list.EnterPreviewMode();
+        list.Select(list.Items[2].Id);
+        var onAir = list.Program;
+        Assert.True(list.ExitPreviewMode());
+        Assert.Equal(onAir, list.Active);
+        Assert.False(list.PreviewMode);
+    }
+
+    [Fact]
+    public void TheTabOnAirCannotBeClosed()
+    {
+        var list = WithTabs(3);
+        list.EnterPreviewMode();
+        Assert.False(list.CanCloseTab(list.Program.Id));
+        Assert.Null(list.Close(list.Program.Id));
+        Assert.Equal(3, list.Items.Count);
+    }
+
+    [Fact]
+    public void ClosingThePreview_NeverMakesTheProgramThePreview()
+    {
+        var list = WithTabs(3, active: 0);
+        list.EnterPreviewMode();            // program Tab 1, preview Tab 2
+        var program = list.Program;
+        list.Close(list.Active.Id);         // closes Tab 2; the neighbour is Tab 3
+        Assert.Equal(program, list.Program);
+        Assert.NotEqual(list.Program.Id, list.Active.Id);
+        Assert.True(list.PreviewMode);
+
+        list.Close(list.Active.Id);         // only the program is left
+        Assert.False(list.PreviewMode);
+        Assert.Equal(program, list.Active);
+    }
+
+    [Fact]
+    public void ClosingAtTheEnd_PicksTheTabBeforeTheProgram()
+    {
+        var list = WithTabs(3, active: 1);
+        list.EnterPreviewMode();            // program Tab 2, preview Tab 3
+        list.Close(list.Active.Id);         // Tab 3 closed: the only other tab is Tab 1
+        Assert.Equal("Tab 1", list.Active.Name);
+        Assert.Equal("Tab 2", list.Program.Name);
+    }
+
+    [Fact]
+    public void MovingTabs_KeepsProgramAndPreview()
+    {
+        var list = WithTabs(3);
+        list.EnterPreviewMode();
+        var (program, preview) = (list.Program, list.Active);
+        list.Move(program.Id, +1);
+        list.Move(preview.Id, -1);
+        Assert.Equal(program, list.Program);
+        Assert.Equal(preview, list.Active);
+    }
+}

@@ -49,7 +49,8 @@ public sealed class RenderEngine : IDisposable
     private readonly FramePump _pump;
     private readonly List<PageTab> _tabs = [];
     private readonly SemaphoreSlim _switching = new(1, 1);
-    private PageTab? _active;
+    private PageTab? _active;   // the tab the operator works on: the program in Direct mode, the preview in Preview + Take
+    private PageTab? _program;  // the tab on air while in Preview + Take; null in Direct mode
 
     private RenderEngine(RenderEngineOptions options, IntPtr dispatcherQueueController, Compositor compositor, ContainerVisual stage,
         CoreWebView2Environment sharedEnvironment, FrameHub hub, FramePool pool, FrameCapturer capturer, FramePump pump, ILogger<RenderEngine> logger)
@@ -275,16 +276,18 @@ public sealed class RenderEngine : IDisposable
     }
 
     /// <summary>
-    /// Puts a tab on the stage. A tab that was never shown first gets time to load and draw. Then the new visual is switched on
-    /// underneath the old one and only raised once the compositor has drawn it, so the output never shows an empty picture.
+    /// Picks the tab the operator works on. In Direct mode that is also the tab on air; in Preview + Take it is the preview and
+    /// the tab on air stays as it is. A tab that was never shown first gets time to load and draw. Then the new visual is switched
+    /// on underneath the old one and only raised once the compositor has drawn it, so nothing ever shows an empty picture.
     /// </summary>
     public async Task SelectAsync(PageTab tab)
     {
         await _switching.WaitAsync();
         try
         {
-            if (ReferenceEquals(tab, _active) || !_tabs.Contains(tab)) return;
+            if (ReferenceEquals(tab, _active) || !_tabs.Contains(tab) || ReferenceEquals(tab, _program)) return;
             var previous = _active;
+            var position = PreviewMode ? new Vector3(PreviewOriginX, 0, 0) : Vector3.Zero;
 
             if (!tab.HasBeenShown)
             {
@@ -297,7 +300,9 @@ public sealed class RenderEngine : IDisposable
                 previous.Browser.IsMuted = true;
                 previous.HasKeyboardFocus = false;
             }
-            tab.Browser.IsMuted = false;
+            // Only the tab on air is heard: in Direct mode that is this one, in Preview + Take it is another.
+            tab.Browser.IsMuted = PreviewMode;
+            tab.Visual.Offset = position;
             // Overlap: switch the new visual on underneath the old one, give the compositor a few frames to draw it, and only then
             // raise it and drop the old one. The output never sees a visual that has not been composed yet.
             _stage.Children.Remove(tab.Visual);
@@ -310,7 +315,7 @@ public sealed class RenderEngine : IDisposable
             tab.HasBeenShown = true;
             _active = tab;
             SetPageFocus(false);
-            _logger.LogInformation("Tab {Id} is now on the stage", tab.Id);
+            _logger.LogInformation("Tab {Id} is now {Role}", tab.Id, PreviewMode ? "the preview" : "on the stage");
         }
         finally
         {
@@ -319,6 +324,142 @@ public sealed class RenderEngine : IDisposable
         ActiveTabChanged?.Invoke();
         NavigationStateChanged?.Invoke();
         CursorChanged?.Invoke();
+    }
+
+    // ---- Preview + Take ----
+
+    /// <summary>True while the tab on air (<see cref="Program"/>) and the operator's tab (<see cref="Active"/>) are different tabs.</summary>
+    public bool PreviewMode { get; private set; }
+
+    /// <summary>The tab on air. Same as <see cref="Active"/> in Direct mode.</summary>
+    public PageTab Program => _program ?? Active;
+
+    /// <summary>The program, small, a few times a second, raised on a capture thread. Only in Preview + Take.</summary>
+    public event Action<PreviewImage>? ProgramThumbReady
+    {
+        add => _capturer.ProgramThumbReady += value;
+        remove => _capturer.ProgramThumbReady -= value;
+    }
+
+    // The preview sits to the right of the program on the stage, at an x that is a multiple of 16 so shrunk previews stay aligned.
+    private int PreviewOriginX => (Resolution.Width + 15) / 16 * 16;
+
+    /// <summary>
+    /// Starts Preview + Take: the tab on air stays on air at the left of a wider stage, and <paramref name="preview"/> appears
+    /// at the right for the operator. The output keeps its size; only the capture is restarted once.
+    /// </summary>
+    public async Task EnterPreviewModeAsync(PageTab preview)
+    {
+        await _switching.WaitAsync();
+        try
+        {
+            if (PreviewMode || ReferenceEquals(preview, _active) || !_tabs.Contains(preview)) return;
+            var program = _active!;
+            if (!preview.HasBeenShown)
+            {
+                await WaitForFirstLoadAsync(preview);
+                await Task.Delay(WarmUpMilliseconds);
+            }
+            _program = program;
+            PreviewMode = true;
+            preview.Browser.IsMuted = true;
+            preview.Visual.IsVisible = true;
+            _active = preview;
+            preview.HasBeenShown = true;
+            ApplyStageGeometry(restartCapture: true);
+            SetPageFocus(false);
+            _logger.LogInformation("Preview + Take on: program {Program}, preview {Preview}", program.Id, preview.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
+    /// <summary>Back to Direct mode: the tab on air stays on air and becomes the operator's tab.</summary>
+    public async Task ExitPreviewModeAsync()
+    {
+        await _switching.WaitAsync();
+        try
+        {
+            if (!PreviewMode) return;
+            var preview = _active!;
+            var program = _program!;
+            preview.Visual.IsVisible = false;
+            preview.Browser.IsMuted = true;
+            preview.HasKeyboardFocus = false;
+            PreviewMode = false;
+            _program = null;
+            _active = program;
+            ApplyStageGeometry(restartCapture: true);
+            SetPageFocus(false);
+            _logger.LogInformation("Preview + Take off: {Program} stays on air", program.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Puts the preview on air and the tab that was on air becomes the preview. Both are already drawn, so this only swaps their
+    /// places on the stage (in one compositor change) and their sound; no capture is restarted and nothing is empty for a moment.
+    /// </summary>
+    public async Task TakeAsync()
+    {
+        await _switching.WaitAsync();
+        try
+        {
+            if (!PreviewMode || ReferenceEquals(_active, _program)) return;
+            var onAir = _program!;
+            var next = _active!;
+            next.Visual.Offset = Vector3.Zero;
+            onAir.Visual.Offset = new Vector3(PreviewOriginX, 0, 0);
+            onAir.Browser.IsMuted = true;
+            next.Browser.IsMuted = false;
+            onAir.HasKeyboardFocus = false;
+            _program = next;
+            _active = onAir;
+            SetPageFocus(false);
+            _logger.LogInformation("Take: {Next} is on air, {Old} is the preview", next.Id, onAir.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
+    /// <summary>Sizes the stage and places the program (and the preview) for the current resolution and mode.</summary>
+    private void ApplyStageGeometry(bool restartCapture)
+    {
+        int width = Resolution.Width, height = Resolution.Height, originX = PreviewOriginX;
+        _stage.Size = new Vector2(PreviewMode ? originX + width : width, height);
+        foreach (var tab in _tabs)
+        {
+            tab.Visual.Size = new Vector2(width, height);
+            tab.Controller.Bounds = new System.Drawing.Rectangle(0, 0, width, height);
+        }
+        if (PreviewMode)
+        {
+            _program!.Visual.Offset = Vector3.Zero;
+            _active!.Visual.Offset = new Vector3(originX, 0, 0);
+            _capturer.Layout = new StageLayout(0, 0, width, height, originX, 0);
+        }
+        else
+        {
+            _active!.Visual.Offset = Vector3.Zero;
+            _capturer.Layout = null;
+        }
+        if (restartCapture) _capturer.Restart();
     }
 
     // A hidden tab keeps loading in the background; wait (bounded) for it so the stage does not get an empty picture.
@@ -331,7 +472,7 @@ public sealed class RenderEngine : IDisposable
     /// <summary>Closes a tab that is not on the stage. Select another tab first when closing the active one.</summary>
     public void CloseTab(PageTab tab)
     {
-        if (ReferenceEquals(tab, _active)) throw new InvalidOperationException("Select another tab before closing the active one.");
+        if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab before closing this one (and take another first if it is on air).");
         if (!_tabs.Remove(tab)) return;
         _stage.Children.Remove(tab.Visual);
         tab.Controller.Close();
@@ -468,14 +609,16 @@ public sealed class RenderEngine : IDisposable
     public void SetResolution(Resolution resolution)
     {
         if (resolution == Resolution) return;
-        _stage.Size = new Vector2(resolution.Width, resolution.Height);
-        foreach (var tab in _tabs)
-        {
-            tab.Visual.Size = new Vector2(resolution.Width, resolution.Height);
-            tab.Controller.Bounds = new System.Drawing.Rectangle(0, 0, resolution.Width, resolution.Height);
-        }
         Resolution = resolution;
-        _capturer.Restart();
+        if (_active is null)
+        {
+            _stage.Size = new Vector2(resolution.Width, resolution.Height);
+            _capturer.Restart();
+        }
+        else
+        {
+            ApplyStageGeometry(restartCapture: true);
+        }
         _logger.LogInformation("Resolution set to {Resolution}", resolution);
     }
 

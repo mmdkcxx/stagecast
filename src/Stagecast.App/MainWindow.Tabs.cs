@@ -125,6 +125,63 @@ public partial class MainWindow
 
     private void OnClearLogins(object sender, RoutedEventArgs e) => _ = ClearLoginDataAsync();
 
+    // ---- Langsung / Preview + Take ----
+
+    private void UpdateModeButtons()
+    {
+        ModeDirectButton.IsChecked = !_tabs.PreviewMode;
+        ModePreviewButton.IsChecked = _tabs.PreviewMode;
+        ModePreviewButton.IsEnabled = _tabs.PreviewMode || _tabs.CanEnterPreviewMode;
+        TakeButton.Visibility = _tabs.PreviewMode ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Switches between Langsung and Preview + Take. The tab on air keeps playing; only the operator's view changes.</summary>
+    internal async Task<bool> SetPreviewModeAsync(bool on)
+    {
+        if (_engine is null || _tabs.PreviewMode == on) { UpdateModeButtons(); return _engine is not null; }
+        if (on)
+        {
+            if (!_tabs.EnterPreviewMode())
+            {
+                TabError.Text = "Preview + Take butuh minimal dua tab.";
+                UpdateModeButtons();
+                return false;
+            }
+            await _engine.EnterPreviewModeAsync(_engine.TabById(_tabs.Active.Id)!);
+        }
+        else
+        {
+            _tabs.ExitPreviewMode();
+            await _engine.ExitPreviewModeAsync();
+        }
+        TabError.Text = string.Empty;
+        PagePreviewView.PreviewMode = on;
+        UpdateModeButtons();
+        RebuildTabList();
+        UpdateNavigationState();
+        ShowZoomLabel();
+        SchedulePersist();
+        return true;
+    }
+
+    /// <summary>TAKE: the preview goes on air and the tab that was on air becomes the preview.</summary>
+    internal async Task<bool> TakeAsync()
+    {
+        if (_engine is null || !_tabs.Take()) return false;
+        await _engine.TakeAsync();
+        RebuildTabList();
+        UpdateNavigationState();
+        ShowZoomLabel();
+        SchedulePersist();
+        return true;
+    }
+
+    private void OnModeDirect(object sender, RoutedEventArgs e) => _ = SetPreviewModeAsync(false);
+
+    private void OnModePreview(object sender, RoutedEventArgs e) => _ = SetPreviewModeAsync(true);
+
+    private void OnTake(object sender, RoutedEventArgs e) => _ = TakeAsync();
+
     // ---- operations (used by the buttons, the keys and the self test) ----
 
     internal async Task<bool> AddTabAsync(string url = TabRules.BlankUrl)
@@ -144,7 +201,13 @@ public partial class MainWindow
 
     internal async Task SelectTabAsync(Guid id)
     {
-        if (_engine is null || _engine.TabById(id) is not { } tab || !_tabs.Select(id)) return;
+        if (_engine is null || _engine.TabById(id) is not { } tab) return;
+        if (!_tabs.Select(id))
+        {
+            if (_tabs.PreviewMode && id == _tabs.ProgramId) TabError.Text = "Tab ini sedang tayang. Pilih tab lain untuk preview, lalu TAKE.";
+            return;
+        }
+        TabError.Text = string.Empty;
         RebuildTabList();
         await _engine.SelectAsync(tab);
         // The operator may have clicked another tab meanwhile; the list already shows the newest choice.
@@ -156,10 +219,19 @@ public partial class MainWindow
     internal async Task<bool> CloseTabAsync(Guid id)
     {
         if (_engine is null || _engine.TabById(id) is not { } tab) return false;
+        if (_tabs.PreviewMode && id == _tabs.ProgramId)
+        {
+            TabError.Text = "Tab yang sedang tayang tidak bisa ditutup. Tekan TAKE dulu untuk menukarnya.";
+            return false;
+        }
         bool wasActive = _tabs.Active.Id == id;
         if (_tabs.Close(id) is not { } newActive) return false;
-        if (wasActive && _engine.TabById(newActive.Id) is { } next) await _engine.SelectAsync(next);
+        bool leftPreviewMode = _engine.PreviewMode && !_tabs.PreviewMode; // only the tab on air is left
+        if (leftPreviewMode) await _engine.ExitPreviewModeAsync();
+        else if (wasActive && _engine.TabById(newActive.Id) is { } next) await _engine.SelectAsync(next);
         _engine.CloseTab(tab);
+        if (leftPreviewMode) PagePreviewView.PreviewMode = false;
+        UpdateModeButtons();
         TabError.Text = string.Empty;
         RebuildTabList();
         UpdateNavigationState();
@@ -307,24 +379,26 @@ public partial class MainWindow
                 };
                 buttons.Children.Add(Badge(text, tip, brush));
             }
-            if (active)
+            bool onAir = _tabs.PreviewMode ? tab.Id == _tabs.ProgramId : active;
+            bool previewing = _tabs.PreviewMode && active;
+            if (onAir || previewing)
                 buttons.Children.Add(new TextBlock
                 {
-                    Text = "TAYANG", Foreground = (Brush)FindResource("Warn"), FontFamily = new FontFamily("Segoe UI"), FontSize = 10, FontWeight = FontWeights.Bold,
+                    Text = previewing ? "PREVIEW" : _tabs.PreviewMode ? "PROGRAM" : "TAYANG", Foreground = (Brush)FindResource(previewing ? "Ok" : _tabs.PreviewMode ? "Live" : "Warn"), FontFamily = new FontFamily("Segoe UI"), FontSize = 10, FontWeight = FontWeights.Bold,
                     VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 4, 0),
                 });
             int index = i;
             buttons.Children.Add(SmallButton("✎", "Ganti nama (F2)", () => StartRename(tab.Id)));
             buttons.Children.Add(SmallButton("▲", "Naikkan", () => MoveTab(tab.Id, -1), enabled: index > 0));
             buttons.Children.Add(SmallButton("▼", "Turunkan", () => MoveTab(tab.Id, +1), enabled: index < _tabs.Items.Count - 1));
-            buttons.Children.Add(SmallButton("✕", "Tutup tab (Ctrl+W)", () => _ = CloseTabAsync(tab.Id), enabled: _tabs.CanClose));
+            buttons.Children.Add(SmallButton("✕", "Tutup tab (Ctrl+W)", () => _ = CloseTabAsync(tab.Id), enabled: _tabs.CanCloseTab(tab.Id)));
             Grid.SetColumn(buttons, 2);
             grid.Children.Add(buttons);
 
             var row = new Border
             {
                 Child = grid, Padding = new Thickness(8, 4, 4, 4), Margin = new Thickness(0, 0, 0, 4), Cursor = Cursors.Hand,
-                Background = (Brush)FindResource("Raised"), BorderBrush = (Brush)FindResource(active ? "Warn" : "LineStrong"), BorderThickness = new Thickness(1),
+                Background = (Brush)FindResource("Raised"), BorderBrush = (Brush)FindResource(previewing ? "Ok" : onAir ? (_tabs.PreviewMode ? "Live" : "Warn") : "LineStrong"), BorderThickness = new Thickness(1),
             };
             var menu = new ContextMenu();
             var rename = new MenuItem { Header = "Ganti nama (F2)" };
@@ -349,6 +423,7 @@ public partial class MainWindow
         if (e.Handled || Keyboard.FocusedElement is TextBox) return;
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         if (e.Key == Key.F2 && _renamingId is null) StartRename(_tabs.Active.Id);
+        else if (e.Key == Key.Space && _tabs.PreviewMode && !PagePreviewView.CanPanNow) _ = TakeAsync();
         else if (ctrl && e.Key == Key.T) _ = AddTabAsync();
         else if (ctrl && e.Key == Key.W) _ = CloseTabAsync(_tabs.Active.Id);
         else if (ctrl && e.Key is >= Key.D1 and <= Key.D9)

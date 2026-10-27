@@ -14,6 +14,13 @@ namespace Stagecast.Rendering.Capture;
 
 /// <summary>A small copy of the page for the operator's preview window (BGRA).</summary>
 /// <summary>A copy of part of the page for the operator. <see cref="SourceX"/>/<see cref="SourceY"/> are the page pixel of its top-left corner and each of its pixels covers 2^<see cref="Mip"/> page pixels.</summary>
+/// <summary>
+/// Where things are on the stage when the program and the preview share it (Preview + Take): the frames for the output are cut
+/// from the program rectangle, and the operator's preview is read from the preview origin. Origins that the preview is read
+/// from must be multiples of 16 so shrunk previews stay aligned with the page.
+/// </summary>
+public sealed record StageLayout(int ProgramX, int ProgramY, int ProgramWidth, int ProgramHeight, int PreviewX, int PreviewY);
+
 public sealed record PreviewImage(byte[] Pixels, int Width, int Height, int Stride, int SourceX, int SourceY, int Mip);
 
 /// <summary>What the capture sees, before the hub's pacing.</summary>
@@ -27,6 +34,7 @@ public sealed record CaptureStats(double ArrivedPerSecond, double ReadbackAverag
 public sealed class FrameCapturer : IDisposable
 {
     private const int DefaultPreviewMip = 2;
+    private const int ThumbnailMip = 3;
     private const int PreviewIntervalMs = 66;
 
     private readonly Windows.UI.Composition.ContainerVisual _visual;
@@ -49,6 +57,8 @@ public sealed class FrameCapturer : IDisposable
     private (int Width, int Height) _mipSize;
 
     private PreviewRegion? _previewTarget;
+    private StageLayout? _layout;
+    private int _previewTicks;
     private readonly object _deviceGate = new(); // the D3D context is not thread safe: capture thread and preview refreshes take turns
     private ID3D11Texture2D? _previewSource; // copy of the newest frame used for previews
     private int _refreshQueued;
@@ -103,6 +113,20 @@ public sealed class FrameCapturer : IDisposable
         }
     }
 
+    /// <summary>Null when the whole stage is the program (Direct mode). Changing it refreshes the preview at once.</summary>
+    public StageLayout? Layout
+    {
+        get { lock (_gate) return _layout; }
+        set
+        {
+            lock (_gate) _layout = value;
+            if (Interlocked.Exchange(ref _refreshQueued, 1) == 0) ThreadPool.QueueUserWorkItem(_ => RefreshPreview());
+        }
+    }
+
+    /// <summary>A small picture of the program, a few times a second, raised on a capture thread. Only while a layout is set.</summary>
+    public event Action<PreviewImage>? ProgramThumbReady;
+
     private void RefreshPreview()
     {
         Interlocked.Exchange(ref _refreshQueued, 0);
@@ -111,7 +135,7 @@ public sealed class FrameCapturer : IDisposable
             lock (_deviceGate)
             {
                 if (_previewSource is null || _context is null) return;
-                PreviewReady?.Invoke(ReadPreview(_previewSource));
+                PreviewReady?.Invoke(ReadPreviewImage(_previewSource, PreviewTarget, Layout, thumbnail: false));
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -209,13 +233,17 @@ public sealed class FrameCapturer : IDisposable
             using var texture = Direct3D.TextureOf(frame.Surface);
             lock (_deviceGate)
             {
-                if (deliver) PublishFull(texture);
+                var layout = Layout;
+                if (deliver) PublishFull(texture, layout);
                 long now = Stopwatch.GetTimestamp();
                 if (PreviewReady is { } handler && Stopwatch.GetElapsedTime(_lastPreviewTick, now).TotalMilliseconds >= PreviewIntervalMs)
                 {
                     _lastPreviewTick = now;
                     UpdatePreviewSource(texture);
-                    handler(ReadPreview(_previewSource!));
+                    var target = PreviewTarget;
+                    handler(ReadPreviewImage(_previewSource!, target, layout, thumbnail: false));
+                    if (layout is not null && ProgramThumbReady is { } thumbHandler && ++_previewTicks % 4 == 0)
+                        thumbHandler(ReadPreviewImage(_previewSource!, target, layout, thumbnail: true));
                 }
             }
         }
@@ -225,13 +253,15 @@ public sealed class FrameCapturer : IDisposable
         }
     }
 
-    private void PublishFull(ID3D11Texture2D texture)
+    private void PublishFull(ID3D11Texture2D texture, StageLayout? layout)
     {
         long t0 = Stopwatch.GetTimestamp();
         var desc = texture.Description;
-        int width = (int)desc.Width, height = (int)desc.Height;
+        // Only the program part of the stage goes to the output; the rest of a shared stage is the operator's preview.
+        int width = layout?.ProgramWidth ?? (int)desc.Width, height = layout?.ProgramHeight ?? (int)desc.Height;
         var staging = StagingFor(desc, width, height, 0);
-        _context!.CopyResource(staging, texture);
+        if (layout is null) _context!.CopyResource(staging, texture);
+        else _context!.CopySubresourceRegion(staging, 0, 0, 0, 0, texture, 0, new Box(layout.ProgramX, layout.ProgramY, 0, layout.ProgramX + width, layout.ProgramY + height, 1));
         var map = _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         Frame frame;
         try
@@ -272,11 +302,24 @@ public sealed class FrameCapturer : IDisposable
     }
 
     // The GPU shrinks the frame with mipmaps first, so the CPU copy for the preview is a fraction of the full size.
-    private PreviewImage ReadPreview(ID3D11Texture2D texture)
+    // `target` is relative to the page being previewed; with a layout the page sits at the preview origin of the stage.
+    private PreviewImage ReadPreviewImage(ID3D11Texture2D texture, PreviewRegion? target, StageLayout? layout, bool thumbnail)
     {
         var desc = texture.Description;
         int width = (int)desc.Width, height = (int)desc.Height;
-        var wanted = PreviewTarget ?? new PreviewRegion(0, 0, width, height, DefaultPreviewMip);
+        PreviewRegion wanted;
+        int originX, originY;
+        if (thumbnail)
+        {
+            // The program, small, for the operator to see what is on air.
+            wanted = new PreviewRegion(0, 0, layout!.ProgramWidth, layout.ProgramHeight, ThumbnailMip);
+            (originX, originY) = (layout.ProgramX, layout.ProgramY);
+        }
+        else
+        {
+            wanted = target ?? new PreviewRegion(0, 0, layout?.ProgramWidth ?? width, layout?.ProgramHeight ?? height, DefaultPreviewMip);
+            (originX, originY) = layout is null ? (0, 0) : (layout.PreviewX, layout.PreviewY);
+        }
         int mip = Math.Clamp(wanted.Mip, 0, PreviewRegion.MaxMip);
 
         ID3D11Texture2D source = texture;
@@ -304,7 +347,7 @@ public sealed class FrameCapturer : IDisposable
 
         // The region is given in page pixels; at a deeper level the same area has fewer pixels.
         int levelWidth = Math.Max(1, width >> mip), levelHeight = Math.Max(1, height >> mip);
-        int x = Math.Clamp(wanted.X >> mip, 0, levelWidth - 1), y = Math.Clamp(wanted.Y >> mip, 0, levelHeight - 1);
+        int x = Math.Clamp((wanted.X + originX) >> mip, 0, levelWidth - 1), y = Math.Clamp((wanted.Y + originY) >> mip, 0, levelHeight - 1);
         int w = Math.Clamp(Math.Max(1, wanted.Width >> mip), 1, levelWidth - x), h = Math.Clamp(Math.Max(1, wanted.Height >> mip), 1, levelHeight - y);
 
         var staging = StagingFor(desc, w, h, mip);
@@ -314,7 +357,7 @@ public sealed class FrameCapturer : IDisposable
         {
             var pixels = new byte[(int)map.RowPitch * h];
             Marshal.Copy(map.DataPointer, pixels, 0, pixels.Length);
-            return new PreviewImage(pixels, w, h, (int)map.RowPitch, x << mip, y << mip, mip);
+            return new PreviewImage(pixels, w, h, (int)map.RowPitch, (x << mip) - originX, (y << mip) - originY, mip);
         }
         finally
         {
