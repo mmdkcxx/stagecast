@@ -11,6 +11,8 @@ Tujuan: menangkap kesalahan lewat otomatis sebanyak mungkin, tetapi **dijalankan
 | **Smoke** | Menjalankan exe spike/aplikasi yang menutup dirinya sendiri, lalu memeriksa isi log (runtime ada, navigasi sukses, tidak ada `FAILED`). Membuka jendela beberapa detik dan butuh internet | `scripts/check.sh smoke` | Saya |
 | **Manual** | Hal yang hanya bisa dinilai dengan melihat atau mendengar (ketajaman, kelancaran, suara, kesan visual). Ditandai `[Anda]` di `PLAN_PHASES.md` | daftar periksa per kelompok | Anda |
 
+`scripts/check.sh selftest NAMA` menjalankan satu self test aplikasi saja (mis. `d5`, `a2b`) dan lulus bila lognya memuat "selftest ok". `CONTINUE=1 scripts/check.sh smoke` menjalankan semua langkah smoke walau ada yang gagal, lalu menyebut yang gagal di akhir (bawaan: berhenti di kegagalan pertama, sehingga langkah sesudahnya tidak ikut jalan). `STAGECAST_TEST_PDF=/jalan/ke/berkas.pdf` (path WSL) menambahkan dokumen asli ke self test `d5`.
+
 `scripts/check.sh all` menjalankan tiga lapis pertama berurutan. Typecheck selalu jalan lebih dulu; kalau gagal, lapis berikutnya tidak berarti.
 
 ## Kelompok uji (sekali per kelompok)
