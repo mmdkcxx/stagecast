@@ -62,6 +62,12 @@ internal sealed partial class SelfTest
         Expect(await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Next) && await WaitUntilAsync(() => probe.Row == Pattern("orange", wide: false)), $"slide 4 reaches the output (saw {probe.Row})");
         Expect(await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Previous) && await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Previous) && await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false)), $"two previous take it back to slide 2 (saw {probe.Row})");
 
+        // ---- the program strip: thumbnails of the deck on air, a click on one goes there ----
+        Expect(await WaitUntilAsync(() => window.ProgramStripCount == 5), $"the strip of the deck on air shows five slides (shows {window.ProgramStripCount})");
+        window.ClickProgramStrip(2);
+        Expect(await WaitUntilAsync(() => probe.Row == Pattern("blue", wide: false)), $"a click on a thumbnail of the program strip puts that slide on air (saw {probe.Row})");
+        Expect(await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Previous) && await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false)), $"and back to slide 2 (saw {probe.Row})");
+
         // ---- the program bar turns the deck on air, and asks before a hidden slide goes on air ----
         int asked = 0;
         window.Confirm = _ => { asked++; return false; };

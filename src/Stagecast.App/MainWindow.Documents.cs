@@ -25,10 +25,32 @@ public partial class MainWindow
     private readonly HashSet<Guid> _hookedPdfs = [];
     private readonly HashSet<Guid> _pageFailed = [];
     private readonly Dictionary<Guid, Dictionary<int, ImageSource>> _pageThumbs = [];
-    private readonly List<Border> _stripItems = [];
-    private Guid? _stripTab;
-    private int _stripPages;
-    private int _stripVersion;
+
+    // A strip of page thumbnails: one below the preview for the tab the operator works on, one in the PROGRAM bar for the document on air
+    // while the preview shows another tab.
+    private sealed class StripState
+    {
+        public StackPanel Panel = null!;
+        public readonly List<Border> Items = [];
+        public Guid? Tab;
+        public int Pages;
+        public int Version;
+    }
+
+    private readonly StripState _main = new();
+    private readonly StripState _program = new();
+
+    private void InitStrips()
+    {
+        _main.Panel = DocStripPanel;
+        _program.Panel = ProgramStripPanel;
+    }
+
+    private void ForgetStrips()
+    {
+        _main.Tab = null;
+        _program.Tab = null;
+    }
 
     /// <summary>Asks the operator for a PDF file; null when they cancel. Replaceable so tests need no dialog.</summary>
     internal Func<string?> PickPdf { get; set; } = () =>
@@ -102,7 +124,7 @@ public partial class MainWindow
         if (result == PowerPointOpenResult.Opened)
         {
             _pageThumbs.Remove(tab.Id);
-            _stripTab = null;
+            ForgetStrips();
             Activate(); // the show window flashes up while it starts: the operator's window gets the keyboard back
             SyncAudioSources(); // the deck's PowerPoint process may be new: its sound is captured from the first note
         }
@@ -175,7 +197,7 @@ public partial class MainWindow
         if (result == PdfOpenResult.Opened)
         {
             _pageThumbs.Remove(tab.Id);
-            _stripTab = null;
+            ForgetStrips();
         }
         UpdateNavigationState();
         return result;
@@ -210,7 +232,8 @@ public partial class MainWindow
         _hookedPdfs.Remove(id);
         _pageThumbs.Remove(id);
         _pageFailed.Remove(id);
-        if (_stripTab == id) _stripTab = null;
+        if (_main.Tab == id) _main.Tab = null;
+        if (_program.Tab == id) _program.Tab = null;
     }
 
     private void OnDocPick(object sender, RoutedEventArgs e) => _ = ChangePdfAsync();
@@ -310,9 +333,10 @@ public partial class MainWindow
     {
         if (_pageFailed.Remove(tab.Id)) SetDocMessage(tab, null); // a page drew fine again
         UpdateDocumentControls();
-        UpdateStripHighlight();
+        UpdateStripHighlight(_main, ActivePdf);
         UpdateProgramBar();
-        EnsureStripAround(tab);
+        EnsureStripAround(_main, tab);
+        if (_engine?.Program == tab) EnsureStripAround(_program, tab);
     }
 
     /// <summary>Shows the document bar and the page strip for a document tab, the address bar for a web page.</summary>
@@ -327,12 +351,7 @@ public partial class MainWindow
         if (tab is null)
         {
             DocStrip.Visibility = Visibility.Collapsed;
-            if (_stripTab is not null)
-            {
-                _stripTab = null;
-                DocStripPanel.Children.Clear();
-                _stripItems.Clear();
-            }
+            ClearStrip(_main);
             return;
         }
 
@@ -352,19 +371,18 @@ public partial class MainWindow
         bool strip = open && count <= MaxStripPages;
         DocStrip.Visibility = strip ? Visibility.Visible : Visibility.Collapsed;
         if (open && !strip) DocStatusText.Text += $"  ·  Dokumen besar ({count} halaman): strip thumbnail dimatikan.";
-        if (strip && (_stripTab != tab.Id || _stripPages != count)) BuildStrip(tab, pdf!);
-        UpdateStripHighlight();
+        if (strip && (_main.Tab != tab.Id || _main.Pages != count)) BuildStrip(_main, tab, pdf!);
+        UpdateStripHighlight(_main, pdf);
     }
 
     // ---- page strip ----
 
-    private void BuildStrip(DocumentTab tab, IDocumentSource pdf)
+    private void BuildStrip(StripState st, DocumentTab tab, IDocumentSource pdf)
     {
-        DocStripPanel.Children.Clear();
-        _stripItems.Clear();
-        _stripTab = tab.Id;
-        _stripPages = pdf.PageCount;
-        int version = ++_stripVersion;
+        ClearStrip(st);
+        st.Tab = tab.Id;
+        st.Pages = pdf.PageCount;
+        int version = ++st.Version;
         if (!_pageThumbs.TryGetValue(tab.Id, out var known)) _pageThumbs[tab.Id] = known = [];
 
         for (int i = 0; i < pdf.PageCount; i++)
@@ -397,18 +415,26 @@ public partial class MainWindow
             }
             item.MouseLeftButtonUp += (_, e) =>
             {
-                _ = GoToPageAsync(index);
+                _ = GoToPageAsync(index, pdf);
                 e.Handled = true;
             };
-            _stripItems.Add(item);
-            DocStripPanel.Children.Add(item);
+            st.Items.Add(item);
+            st.Panel.Children.Add(item);
         }
 
-        _ = LoadStripAsync(tab.Id, pdf, version);
+        _ = LoadStripAsync(st, tab.Id, pdf, version);
+    }
+
+    private static void ClearStrip(StripState st)
+    {
+        if (st.Tab is null && st.Items.Count == 0) return;
+        st.Tab = null;
+        st.Panel.Children.Clear();
+        st.Items.Clear();
     }
 
     // Thumbnails are drawn one at a time, starting at the page on screen and moving outwards, so the visible ones come first.
-    private async Task LoadStripAsync(Guid id, IDocumentSource pdf, int version)
+    private async Task LoadStripAsync(StripState st, Guid id, IDocumentSource pdf, int version)
     {
         if (!_pageThumbs.TryGetValue(id, out var known)) return;
         int start = Math.Max(pdf.PageIndex, 0);
@@ -417,28 +443,28 @@ public partial class MainWindow
         {
             if (known.ContainsKey(index)) continue;
             PageThumbnail? thumb = await pdf.RenderThumbnailAsync(index, StripThumbWidth * 2, StripThumbHeight * 2);
-            if (version != _stripVersion || _stripTab != id) return; // another tab or a reload took over the strip
+            if (version != st.Version || st.Tab != id) return; // another tab or a reload took over the strip
             if (thumb is null) continue;
             var bitmap = BitmapSource.Create(thumb.Width, thumb.Height, 96, 96, PixelFormats.Pbgra32, null, thumb.Pixels, thumb.Width * 4);
             bitmap.Freeze();
             known[index] = bitmap;
-            if (index < _stripItems.Count && _stripItems[index].Tag is Image picture) picture.Source = bitmap;
+            if (index < st.Items.Count && st.Items[index].Tag is Image picture) picture.Source = bitmap;
         }
     }
 
     // The pages near the one on screen need their pictures even when the strip started at another page.
-    private void EnsureStripAround(DocumentTab tab)
+    private void EnsureStripAround(StripState st, DocumentTab tab)
     {
-        if (_stripTab != tab.Id || tab.Document is not { PageIndex: >= 0 } pdf || !_pageThumbs.TryGetValue(tab.Id, out var known)) return;
+        if (st.Tab != tab.Id || tab.Document is not { PageIndex: >= 0 } pdf || !_pageThumbs.TryGetValue(tab.Id, out var known)) return;
         if (known.ContainsKey(pdf.PageIndex) && known.ContainsKey(Math.Min(pdf.PageIndex + 3, pdf.PageCount - 1))) return;
-        _ = LoadStripAsync(tab.Id, pdf, ++_stripVersion);
+        _ = LoadStripAsync(st, tab.Id, pdf, ++st.Version);
     }
 
-    private void UpdateStripHighlight()
+    private void UpdateStripHighlight(StripState st, IDocumentSource? source)
     {
-        if (ActivePdf is not { } pdf || _stripItems.Count == 0) return;
-        for (int i = 0; i < _stripItems.Count; i++)
-            _stripItems[i].BorderBrush = i == pdf.PageIndex ? (Brush)FindResource("Live") : i == pdf.PageIndex + 1 ? NextFrame : (Brush)FindResource("Line");
-        if (pdf.PageIndex >= 0 && pdf.PageIndex < _stripItems.Count) _stripItems[pdf.PageIndex].BringIntoView();
+        if (source is not { } pdf || st.Items.Count == 0) return;
+        for (int i = 0; i < st.Items.Count; i++)
+            st.Items[i].BorderBrush = i == pdf.PageIndex ? (Brush)FindResource("Live") : i == pdf.PageIndex + 1 ? NextFrame : (Brush)FindResource("Line");
+        if (pdf.PageIndex >= 0 && pdf.PageIndex < st.Items.Count) st.Items[pdf.PageIndex].BringIntoView();
     }
 }

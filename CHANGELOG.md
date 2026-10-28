@@ -27,13 +27,18 @@ isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
 - Self test `p2`, `p1`, `p4`, `p5` (masuk smoke), `p3` (deck asli operator, manual); spike di `spikes/Stagecast.PptxSpike`, hasil di
   `docs/SPIKE_REPORT.md`.
 
+- Pengaman: selama ada output yang menyala (Layar, NDI, OMT), Windows ditahan agar tidak tidur dan layar tidak mati (permintaan daya
+  dilepas saat semua output mati atau aplikasi ditutup); menutup Stagecast saat output menyala meminta konfirmasi yang menyebut unit
+  yang menyala (Windows mati atau logoff dan uji otomatis tidak ditanya). Tidak mencegah kunci layar dari kebijakan, Win+L, atau tutup laptop.
+- Strip thumbnail di bar PROGRAM: deck atau PDF yang tayang tetap punya strip yang bisa diklik saat preview menampilkan tab lain.
+
 ### Diperbaiki
 - PDF: gambar usang setelah resolusi render diganti (halaman digambar ulang bersamaan dengan capture dimulai ulang).
 
 ### Belum diuji
 Clicker asli, dua monitor dan DPI 150%, kilatan jendela show sekitar 1 detik saat deck mulai, suara PowerPoint ke speaker lokal saat
 tab tidak tayang, penerimaan alpha oleh vMix/Resolume dan tampilan pratinjaunya, dialog tak terduga PowerPoint (Protected View,
-pemulihan, kata sandi), deck sangat panjang, soak, strip thumbnail untuk deck yang tayang saat preview-nya tab lain.
+pemulihan, kata sandi), deck sangat panjang, soak. Konfirmasi tutup dan penahan tidur selama sesi panjang belum diuji manual (`powercfg /requests`).
 
 ## [1.2.0-custom.1] - belum dirilis
 

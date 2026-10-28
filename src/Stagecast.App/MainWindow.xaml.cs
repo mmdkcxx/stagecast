@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     public MainWindow(StartupContext context)
     {
         InitializeComponent();
+        InitStrips();
         _context = context;
         _config = context.Config.Config;
         _logger = context.LoggerFactory.CreateLogger<MainWindow>();
@@ -51,8 +52,12 @@ public partial class MainWindow : Window
         };
         Loaded += async (_, _) => await StartEngineAsync();
         PagePreviewView.ViewChanged += UpdateViewButtons;
+        _sleepGuard = new SleepGuard(_logger);
+        Closing += OnWindowClosing;
+        Application.Current.SessionEnding += (_, _) => _sessionEnding = true;
         Closed += (_, _) =>
         {
+            _sleepGuard.Dispose();
             _clickerHook?.Dispose();
             ShutdownOutput();
             StopNdi(null);
@@ -115,6 +120,7 @@ public partial class MainWindow : Window
     {
         if (_engine is null) return;
         bool screen = _output is not null, ndi = _ndi is not null, omt = _omt is not null;
+        _sleepGuard.Set(screen || ndi || omt);
         string label, fill, foreground;
         if (!(screen || ndi || omt)) (label, fill, foreground) = ("OUTPUT MATI", "Raised", "Muted");
         else if (BlackoutButton.IsChecked == true) (label, fill, foreground) = ("BLACKOUT", "Text", "Bg");
@@ -204,6 +210,25 @@ public partial class MainWindow : Window
     // ---- changing resolution and rate (A2c) ----
 
     private readonly RenderChangeGate _gate = new();
+    private readonly SleepGuard _sleepGuard;
+    private bool _sessionEnding;
+
+    /// <summary>True while Windows is asked not to sleep (an output is on).</summary>
+    internal bool SleepHeldOff => _sleepGuard.Active;
+
+    /// <summary>Which of the outputs are on, as the operator names them.</summary>
+    private string LiveOutputNames() => string.Join(", ", new[] { _output is not null ? "Layar" : null, _ndi is not null ? "NDI" : null, _omt is not null ? "OMT" : null }.Where(n => n is not null));
+
+    // Closing with an output on asks first; Windows shutting down, and the automatic tests, are not asked.
+    private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_sessionEnding || _context.SelfTest is not null) return;
+        string names = LiveOutputNames();
+        if (names.Length == 0) return;
+        var answer = MessageBox.Show(this, $"Output sedang menyala ({names}). Tutup Stagecast dan hentikan semuanya?", "Stagecast",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) e.Cancel = true;
+    }
 
     /// <summary>True when a real output is on, or the test checkbox says so (NDI and OMT will join in A6 and A7).</summary>
     internal bool OutputsLive => LiveSimBox.IsChecked == true || _output is not null || _ndi is not null || _omt is not null;

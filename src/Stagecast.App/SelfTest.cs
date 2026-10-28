@@ -475,6 +475,7 @@ internal sealed partial class SelfTest
         Expect(bounds == (monitor.X, monitor.Y, monitor.Width, monitor.Height), $"the window covers the monitor exactly (window {bounds}, monitor {monitor.X},{monitor.Y} {monitor.Width}x{monitor.Height})");
         Expect(output.FramesShown > 10, $"frames reach the window ({output.FramesShown})");
         Expect(window.OutputsLive, "an output being on counts as live for the change confirmation");
+        Expect(window.SleepHeldOff, "and Windows is kept from sleeping while it is on");
 
         var squeeze = output.Scale;
         Expect(Math.Abs(squeeze.RestoreX - 2520.0 / monitor.Width) < 1e-9 && squeeze.Cropped == false, $"squeeze restores width by {squeeze.RestoreX:0.0000}");
@@ -498,6 +499,7 @@ internal sealed partial class SelfTest
         window.StopOutput(null);
         Expect(window.Output is null && !window.OutputsLive, "the output can be switched off");
         await Task.Delay(500);
+        Expect(!window.SleepHeldOff, "and sleep is allowed again once no output is on");
         var saved = window.ReadConfigFromDisk();
         Expect(saved.Output.Scale == ScaleMode.Squeeze && saved.Output.AlwaysOnTop, "the screen settings are saved");
         _logger.LogInformation(_failures.Count == 0 ? "A4 selftest ok" : "A4 selftest FAILED: {Failures}", string.Join("; ", _failures));

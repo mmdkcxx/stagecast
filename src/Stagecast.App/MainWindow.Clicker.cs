@@ -99,11 +99,22 @@ public partial class MainWindow
 
     internal IDocumentSource? ProgramPdf => _engine is { PreviewMode: true } engine && engine.Program is DocumentTab { Document.PageCount: > 0 } tab && tab != engine.Active ? tab.Document : null;
 
+    internal int ProgramStripCount => _program.Items.Count;
+
+    /// <summary>Clicks a thumbnail of the program strip, as the mouse would.</summary>
+    internal void ClickProgramStrip(int index) =>
+        _program.Items[index].RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
+
     private void UpdateProgramBar()
     {
         IDocumentSource? pdf = ProgramPdf;
         ProgramDocBar.Visibility = pdf is null ? Visibility.Collapsed : Visibility.Visible;
-        if (pdf is null) return;
+        if (pdf is null)
+        {
+            ClearStrip(_program);
+            ProgramStrip.Visibility = Visibility.Collapsed;
+            return;
+        }
         int count = pdf.PageCount;
         ProgramTitleText.Text = "PROGRAM · " + (_tabs.Items.FirstOrDefault(t => t.Id == _engine!.Program.Id)?.Name ?? "");
         if (!ProgramPageBox.IsKeyboardFocusWithin) ProgramPageBox.Text = pdf.PageNumber.ToString();
@@ -111,6 +122,13 @@ public partial class MainWindow
         ProgramPageBox.IsEnabled = count > 1;
         ProgramFirstButton.IsEnabled = ProgramPrevButton.IsEnabled = pdf.PageIndex > FirstIndex(pdf);
         ProgramNextButton.IsEnabled = ProgramLastButton.IsEnabled = pdf.PageIndex < (pdf is PowerPointSource ? LastIndex(pdf) : count - 1);
+
+        bool strip = count > 0 && count <= MaxStripPages && _engine!.Program is DocumentTab;
+        ProgramStrip.Visibility = strip ? Visibility.Visible : Visibility.Collapsed;
+        if (!strip) { ClearStrip(_program); return; }
+        var tab = (DocumentTab)_engine!.Program;
+        if (_program.Tab != tab.Id || _program.Pages != count) BuildStrip(_program, tab, pdf);
+        UpdateStripHighlight(_program, pdf);
     }
 
     private void OnProgFirst(object sender, RoutedEventArgs e) => _ = GoToPageAsync(FirstIndex(ProgramPdf), ProgramPdf);
