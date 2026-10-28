@@ -192,8 +192,8 @@ public sealed class ConfigStore
         return new AppConfig
         {
             SchemaVersion = AppConfig.CurrentSchemaVersion,
-            Omt = new OmtConfig { Name = omtName },
-            Ndi = new NdiConfig { Name = ndiName },
+            Omt = new OmtConfig { Name = omtName, Alpha = omt.Alpha },
+            Ndi = new NdiConfig { Name = ndiName, Alpha = ndi.Alpha },
             Audio = new AudioConfig { DeviceId = deviceId, Volume = volume, Muted = audio.Muted },
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
             Output = new OutputConfig { MonitorId = monitorId, Scale = scale, AlwaysOnTop = output.AlwaysOnTop },

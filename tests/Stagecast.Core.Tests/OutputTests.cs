@@ -200,4 +200,19 @@ public sealed class SourceNameTests : IDisposable
         Assert.Equal(ConfigLoadStatus.Repaired, repaired.Status);
         Assert.Equal(SourceNameRules.DefaultNdiName, repaired.Config.Ndi.Name);
     }
+
+    [Fact]
+    public void Config_KeepsTheAlphaChoiceOfNdiAndOmt_OffByDefault()
+    {
+        var path = Path.Combine(_dir, "config.json");
+        var store = new ConfigStore(path, NullLogger.Instance);
+        var fresh = store.Load().Config;
+        Assert.False(fresh.Ndi.Alpha);
+        Assert.False(fresh.Omt.Alpha);
+
+        store.Save(new AppConfig { Ndi = new NdiConfig { Name = "Panggung 1", Alpha = true }, Omt = new OmtConfig { Name = "Panggung 2", Alpha = true } });
+        var loaded = new ConfigStore(path, NullLogger.Instance).Load().Config;
+        Assert.True(loaded.Ndi.Alpha);
+        Assert.True(loaded.Omt.Alpha);
+    }
 }

@@ -72,6 +72,7 @@ public partial class MainWindow : Window
             var render = _config.Render;
             _engine = await RenderEngine.CreateAsync(
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
+            ApplyAlpha();
             await StartTabsAsync();
             UpdateModeButtons();
             StartAudio();

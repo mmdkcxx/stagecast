@@ -94,6 +94,16 @@ internal sealed partial class SelfTest
         if (ppt is null) { FinishPowerPoint(probe); return; }
         Expect(ppt.Borrowed == wasRunning, $"a PowerPoint that was already running is borrowed, otherwise it is ours (borrowed {ppt.Borrowed}, was running {wasRunning})");
 
+        // ---- transparent bars: only when a network output sends alpha, and never in a blackout ----
+        Expect(probe.BarAlpha == 255, $"the bars are opaque by default (alpha {probe.BarAlpha})");
+        window.SetNdiAlpha(true);
+        Expect(await WaitUntilAsync(() => probe.BarAlpha == 0 && probe.Row == Pattern("green", wide: false), 6000), $"with NDI alpha on the bars are transparent and the slide is untouched (alpha {probe.BarAlpha}, saw {probe.Row})");
+        window.SetGate(Stagecast.Core.Output.GateMode.Blackout);
+        Expect(await WaitUntilAsync(() => probe.BarAlpha == 255, 3000), $"a blackout is opaque black (alpha {probe.BarAlpha})");
+        window.SetGate(Stagecast.Core.Output.GateMode.Live);
+        window.SetNdiAlpha(false);
+        Expect(await WaitUntilAsync(() => probe.BarAlpha == 255 && probe.Row == Pattern("green", wide: false), 6000), $"and opaque again when it is off (alpha {probe.BarAlpha}, saw {probe.Row})");
+
         // ---- turning slides: hidden ones are skipped, and the last slide is not left ----
         Expect(await ppt.NextAsync() && ppt.PageNumber == 3, $"next goes to slide 3 (slide {ppt.PageNumber})");
         Expect(await WaitUntilAsync(() => probe.Row == Pattern("blue", wide: false)), $"slide 3 is blue (saw {probe.Row})");

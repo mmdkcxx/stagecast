@@ -81,11 +81,17 @@ public sealed class OutputConfig
 public sealed class OmtConfig
 {
     public string Name { get; init; } = Stagecast.Core.Output.SourceNameRules.DefaultOmtName;
+
+    /// <summary>Send the picture with transparency: the bars around a document that does not fill the frame are see-through. Only the choice is saved; the output itself is started by hand.</summary>
+    public bool Alpha { get; init; }
 }
 
 public sealed class NdiConfig
 {
     public string Name { get; init; } = Stagecast.Core.Output.SourceNameRules.DefaultNdiName;
+
+    /// <summary>Send the picture with transparency: the bars around a document that does not fill the frame are see-through. Only the choice is saved; the output itself is started by hand.</summary>
+    public bool Alpha { get; init; }
 }
 
 public sealed class AudioConfig

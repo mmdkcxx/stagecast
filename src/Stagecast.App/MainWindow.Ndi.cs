@@ -22,7 +22,28 @@ public partial class MainWindow
     private void InitNdiCard()
     {
         NdiNameBox.Text = _ndiConfig.Name;
+        NdiAlphaBox.IsChecked = _ndiConfig.Alpha;
+        ApplyAlpha();
         ShowNdiStatus();
+    }
+
+    /// <summary>Bars around documents are transparent when either network output sends alpha; the screen output stays black.</summary>
+    private void ApplyAlpha()
+    {
+        if (_engine is not null) _engine.TransparentBars = _ndiConfig.Alpha || _omtConfig.Alpha;
+    }
+
+    private void OnNdiAlphaChanged(object sender, RoutedEventArgs e) => SetNdiAlpha(NdiAlphaBox.IsChecked == true);
+
+    /// <summary>Chooses whether NDI sends transparency. Works while the output runs; only the choice is saved.</summary>
+    internal void SetNdiAlpha(bool alpha)
+    {
+        if (_ndiConfig.Alpha == alpha) return;
+        _ndiConfig = new NdiConfig { Name = _ndiConfig.Name, Alpha = alpha };
+        if (NdiAlphaBox.IsChecked != alpha) NdiAlphaBox.IsChecked = alpha;
+        if (_ndi is not null) _ndi.SendAlpha = alpha;
+        ApplyAlpha();
+        SchedulePersist();
     }
 
     private void OnToggleNdi(object sender, RoutedEventArgs e)
@@ -50,6 +71,7 @@ public partial class MainWindow
             ShowNdiStatus();
             return false;
         }
+        ndi.SendAlpha = _ndiConfig.Alpha;
         _ndi = ndi;
         _ndiError = null;
         _engine.Hub.AddSink(ndi);
@@ -100,7 +122,7 @@ public partial class MainWindow
             NdiNameBox.Text = _ndiConfig.Name;
             return false;
         }
-        _ndiConfig = new NdiConfig { Name = name };
+        _ndiConfig = new NdiConfig { Name = name, Alpha = _ndiConfig.Alpha };
         NdiNameBox.Text = name;
         _ndiError = null;
         SchedulePersist();

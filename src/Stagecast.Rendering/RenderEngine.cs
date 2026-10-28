@@ -295,7 +295,7 @@ public sealed partial class RenderEngine : IDisposable
         if (tab.Pdf is not null) return tab.Pdf;
         PdfSource.CleanOldTempFiles();
         _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
-        tab.Content.Brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+        tab.Content.Brush = BarBrush();
         tab.Pdf = new PdfSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
         // A still page makes no new frames: a capture restarted for a new size can keep the picture from just before the page was
         // drawn again, so once it is drawn the capture starts over and its first frame has the finished page.
@@ -316,7 +316,7 @@ public sealed partial class RenderEngine : IDisposable
         if (tab.PowerPoint is not null) return tab.PowerPoint;
         PowerPointSource.CleanOldTempFiles();
         _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
-        tab.Content.Brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+        tab.Content.Brush = BarBrush();
         tab.PowerPoint = new PowerPointSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
         // Same as a PDF page: a still slide makes no new frames, so a capture started for a new size is started again once the slide is placed.
         tab.PowerPoint.Redrawn += () =>
@@ -421,6 +421,27 @@ public sealed partial class RenderEngine : IDisposable
             return silent;
         }
     }
+
+    private bool _transparentBars;
+
+    /// <summary>
+    /// When true the bars around a document that does not fill the frame are see-through instead of black, so an output that sends
+    /// transparency (NDI or OMT with "Kirim alpha") shows what is behind them. Outputs that do not send it show them black: the
+    /// stage picture is premultiplied, so dropping the alpha is the same as laying it on black. UI thread only.
+    /// </summary>
+    public bool TransparentBars
+    {
+        get => _transparentBars;
+        set
+        {
+            if (_transparentBars == value) return;
+            _transparentBars = value;
+            foreach (var tab in _tabs.OfType<DocumentTab>().Where(t => t.Pdf is not null || t.PowerPoint is not null)) tab.Content.Brush = BarBrush();
+            _logger.LogInformation("Bars around documents are {State}", value ? "transparent" : "black");
+        }
+    }
+
+    private CompositionBrush? BarBrush() => _transparentBars ? null : _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
 
     public bool PreviewMode { get; private set; }
 

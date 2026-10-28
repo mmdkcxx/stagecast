@@ -23,6 +23,9 @@ internal sealed partial class SelfTest
 
         public volatile string Row = "";
 
+        /// <summary>Alpha of the left-most pixel of the middle row (a bar around a 4:3 page), -1 before the first frame.</summary>
+        public volatile int BarAlpha = -1;
+
         public void Deliver(Frame frame, bool repeated)
         {
             var names = new string[ProbeColumns.Length];
@@ -33,6 +36,7 @@ internal sealed partial class SelfTest
                 names[i] = ColourName(frame.Pixels[offset + 2], frame.Pixels[offset + 1], frame.Pixels[offset]);
             }
             Row = string.Join(" ", names);
+            BarAlpha = frame.Pixels[frame.Height / 2 * frame.Stride + 3];
         }
 
         private static string ColourName(int r, int g, int b)
