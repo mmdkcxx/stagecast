@@ -89,7 +89,8 @@ public partial class MainWindow
         HookDocument(tab, deck);
         PowerPointOpenResult result = await deck.OpenAsync(path, startSlide);
         bool hadDocument = tab.PowerPoint is { PageCount: > 0 } && result != PowerPointOpenResult.Opened;
-        if (result == PowerPointOpenResult.Opened) SetDocMessage(tab, null);
+        if (result == PowerPointOpenResult.Opened)
+            SetDocMessage(tab, deck.Warnings.Count == 0 ? null : "Perhatian: " + string.Join(" ", deck.Warnings) + " Tampilan di acara bisa berbeda.");
         else
         {
             string message = result == PowerPointOpenResult.NotInstalled

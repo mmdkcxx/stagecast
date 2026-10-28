@@ -78,6 +78,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private volatile int _pageCount;
     private volatile int _pageIndex = -1;
     private volatile string? _problem;
+    private volatile IReadOnlyList<string> _warnings = [];
 
     internal PowerPointSource(Compositor compositor, DocumentSurfaces surfaces, ContainerVisual host, int canvasWidth, int canvasHeight, ILogger logger)
     {
@@ -102,6 +103,9 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     public int PageNumber => _pageIndex + 1;
 
     public string? Problem => _problem;
+
+    /// <summary>What may look different at the event: fonts that are not embedded and not installed here, and linked media whose file is missing. Empty when all is well.</summary>
+    public IReadOnlyList<string> Warnings => _warnings;
 
     /// <summary>The PowerPoint process that plays this show (0 when none): what the audio capture listens to. A PowerPoint the operator already runs is shared, so its other decks are heard too.</summary>
     public int ProcessId => _processId;
@@ -262,6 +266,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             }
 
             if (hidden.All(h => h)) throw new InvalidOperationException("Every slide is hidden.");
+            IReadOnlyList<string> warnings = CheckDeck(presentation, count);
 
             // The new file is good: the show that was running gives way to it.
             CloseShow();
@@ -271,6 +276,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             _hidden = hidden;
             _pageCount = count;
             _problem = null;
+            _warnings = warnings;
             lock (_frameGate)
             {
                 _slideWidth = width;
@@ -289,6 +295,72 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             try { File.Delete(temp); } catch (IOException) { }
             return Fail(ex is COMException ? "Berkas ini tidak bisa dibuka PowerPoint (rusak, terlindungi, atau bukan .pptx)." : ex.Message);
         }
+    }
+
+    // On the PowerPoint thread: looks for fonts and linked files the event PC may lack. A failed look is no warning.
+    private IReadOnlyList<string> CheckDeck(dynamic presentation, int count)
+    {
+        var warnings = new List<string>();
+        try
+        {
+            var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (System.Windows.Media.FontFamily family in System.Windows.Media.Fonts.SystemFontFamilies)
+                foreach (string name in family.FamilyNames.Values) installed.Add(name);
+            // faces such as "Calibri Light" belong to a family of another name: Windows lists them by face
+            foreach (var hive in new[] { Microsoft.Win32.Registry.LocalMachine, Microsoft.Win32.Registry.CurrentUser })
+            {
+                using var key = hive.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts");
+                if (key is null) continue;
+                foreach (string entry in key.GetValueNames())
+                {
+                    int paren = entry.LastIndexOf(" (", StringComparison.Ordinal);
+                    installed.Add(paren > 0 ? entry[..paren] : entry);
+                }
+            }
+
+            var missing = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            int fonts = Retry(() => (int)presentation.Fonts.Count);
+            for (int i = 1; i <= fonts; i++)
+            {
+                int index = i;
+                dynamic font = Retry(() => presentation.Fonts[index]);
+                string name = Retry(() => (string)font.Name);
+                if (Retry(() => (int)font.Embedded) == 0 && !installed.Contains(name)) missing.Add(name);
+            }
+
+            if (missing.Count > 0) warnings.Add("Font tidak terpasang dan tidak disertakan di berkas: " + string.Join(", ", missing));
+
+            var lost = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 1; i <= count; i++)
+            {
+                int slide = i;
+                int shapes = Retry(() => (int)presentation.Slides[slide].Shapes.Count);
+                for (int j = 1; j <= shapes; j++)
+                {
+                    int shape = j;
+                    int type = Retry(() => (int)presentation.Slides[slide].Shapes[shape].Type);
+                    if (type is not (10 or 11 or 16)) continue; // linked OLE object, linked picture, media
+                    try
+                    {
+                        string source = (string)presentation.Slides[slide].Shapes[shape].LinkFormat.SourceFullName;
+                        if (!string.IsNullOrEmpty(source) && !File.Exists(source)) lost.Add(Path.GetFileName(source));
+                    }
+                    catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+                    {
+                        // an embedded one has no link
+                    }
+                }
+            }
+
+            if (lost.Count > 0) warnings.Add("File tertaut tidak ditemukan: " + string.Join(", ", lost));
+        }
+        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            _logger.LogWarning(ex, "Could not check the fonts and links of the deck");
+        }
+
+        foreach (string warning in warnings) _logger.LogWarning("PowerPoint deck: {Warning}", warning);
+        return warnings;
     }
 
     // On the PowerPoint thread: runs the show of the open presentation off screen and starts capturing it.

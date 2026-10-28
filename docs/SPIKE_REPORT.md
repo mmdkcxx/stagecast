@@ -101,3 +101,8 @@ Alat: mode `audio` di `spikes/Stagecast.PptxSpike` (memakai `ProcessLoopbackCapt
 - Suara deck hanya diteruskan ke output saat tab-nya tayang (`RenderEngine.SilentAudioProcessIds` + `BrowserAudioCapture.SetSilent`); Freeze membisukannya, Blackout tidak. Terbukti di `p1`: terdengar saat tayang, senyap saat tab web tayang (setelah meter turun), terdengar lagi saat kembali.
 - **Batasan:** semua deck di satu PowerPoint memakai satu proses, jadi suara tidak bisa dipisah per deck; dua tab PPT sekaligus berbagi satu aturan (terdengar bila salah satu tayang). PowerPoint milik pengguna yang dipinjam ikut tertangkap suaranya (deck lain yang terbuka).
 - **Belum diperbaiki:** PowerPoint tetap memutar suara ke speaker Windows (perangkat bawaan) walau tab sedang preview atau tidak tayang; Stagecast hanya menahan salinan yang masuk ke output. Perlu keputusan: mematikan sesi suara PowerPoint di Windows saat tidak tayang (belum diuji apakah loopback tetap menerima suara).
+
+## P3a: peringatan font dan berkas tertaut, deck asli lewat aplikasi (2026-10-28)
+
+- Setelah deck dibuka, `PowerPointSource.CheckDeck` memeriksa font yang tidak disematkan dan tidak terpasang di PC ini (daftar WPF + nama face di registri, jadi "Calibri Light" tidak salah dianggap hilang) serta media/gambar/OLE tertaut yang berkasnya tidak ada. Hasilnya `Warnings`, ditampilkan sebagai pesan di tab ("Perhatian: ...").
+- Tes `p2` memakai teks berfont palsu dan memeriksa peringatannya. Tes `p3` (tidak masuk `check.sh`, berkas milik operator, `STAGECAST_DECK` mengganti jalurnya) menjalankan deck asli 32 slide lewat aplikasi: lulus, 37 langkah Next (animasi ikut dihitung) dalam sekitar 4,5 detik, semua thumbnail terbuat, peringatan: font "Gill Sans" (font Mac) tidak ada di Windows.

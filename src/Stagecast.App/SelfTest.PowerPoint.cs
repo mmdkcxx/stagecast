@@ -35,6 +35,13 @@ internal sealed partial class SelfTest
                 slide.FollowMasterBackground = 0;
                 slide.Background.Fill.ForeColor.RGB = colours[i - 1];
                 if (i is 1 or 5) slide.SlideShowTransition.Hidden = -1;
+                if (i == 3)
+                {
+                    // a small text in a font no PC has, in the top left corner where the probe does not look
+                    dynamic text = slide.Shapes.AddTextbox(1, 0f, 0f, 60f, 20f);
+                    text.TextFrame.TextRange.Text = "x";
+                    text.TextFrame.TextRange.Font.Name = "Zzz Tidak Ada";
+                }
             }
 
             presentation.SaveAs(path, 24);
@@ -92,6 +99,7 @@ internal sealed partial class SelfTest
         Expect(ppt is { } d && d.IsHidden(0) && !d.IsHidden(1) && d.IsHidden(4) && d.FirstVisible == 1 && d.LastVisibleIndex == 3, "slides 1 and 5 are hidden");
         Expect(await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false), 10000), $"slide 2 is green, 4:3 with 540 px bars (saw {probe.Row})");
         if (ppt is null) { FinishPowerPoint(probe); return; }
+        Expect(ppt.Warnings.Count == 1 && ppt.Warnings[0].Contains("Zzz Tidak Ada") && tab?.Problem?.Contains("Zzz Tidak Ada") == true, $"a font the PC lacks is warned about on the tab (warnings {string.Join(" | ", ppt.Warnings)}; tab says {tab?.Problem})");
         Expect(ppt.Borrowed == wasRunning, $"a PowerPoint that was already running is borrowed, otherwise it is ours (borrowed {ppt.Borrowed}, was running {wasRunning})");
 
         // ---- transparent bars: only when a network output sends alpha, and never in a blackout ----
