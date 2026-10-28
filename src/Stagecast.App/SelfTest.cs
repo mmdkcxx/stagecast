@@ -152,12 +152,12 @@ internal sealed partial class SelfTest
             Expect(await CookieNamesAsync(_engine.ActivePage) == "sess", "the shared tab holds the cookie its login set");
 
             Expect(await window.AddTabAsync($"{LoginSite}/page"), "a second tab can be added");
-            var second = window.Tabs.Active;
+            var second = window.Tabs.Active!;
             window.Confirm = _ => true;
             Expect(await window.SetSeparateProfileAsync(second.Id, true), "the second tab can get its own profile");
             await Task.Delay(1500);
             var secondTab = _engine.PageTabById(second.Id)!;
-            Expect(secondTab.ProfileId is { Length: 32 } && _engine.Active.Id == second.Id, "the second tab runs on its own profile and is still the active one");
+            Expect(secondTab.ProfileId is { Length: 32 } && _engine.Active!.Id == second.Id, "the second tab runs on its own profile and is still the active one");
             Expect(await CookieNamesAsync(secondTab) == "", "a separate profile does not see the shared login");
 
             await _engine.NavigateAsync($"{LoginSite}/dologin2", TimeSpan.FromSeconds(10));
@@ -292,8 +292,8 @@ internal sealed partial class SelfTest
         Expect(window.RenameTab(first, "  Kuis Kahoot  ") == TabNameError.None && window.Tabs.Items[0].Name == "Kuis Kahoot", "a valid name is trimmed and kept");
 
         // Order: moving does not change which tab is on the stage.
-        var activeBefore = window.Tabs.Active.Id;
-        Expect(window.MoveTab(activeBefore, +1) && window.Tabs.Active.Id == activeBefore, "moving a tab keeps the same tab active");
+        var activeBefore = window.Tabs.Active!.Id;
+        Expect(window.MoveTab(activeBefore, +1) && window.Tabs.Active!.Id == activeBefore, "moving a tab keeps the same tab active");
         Expect(_engine.Tabs.Select(t => t.Id).SequenceEqual(window.Tabs.Items.Select(t => t.Id)), "the engine follows the list order");
 
         // Closing.
@@ -302,19 +302,26 @@ internal sealed partial class SelfTest
         await Task.Delay(400);
         Expect(await window.CloseTabAsync(closing) && window.Tabs.Items.Count == 4 && _engine.Tabs.Count == 4, "closing the active tab removes it");
         await Task.Delay(500);
-        Expect(window.Tabs.Active.Id != closing && _engine.Active.Id == window.Tabs.Active.Id, "a neighbour became active and is on the stage");
+        Expect(window.Tabs.Active!.Id != closing && _engine.Active!.Id == window.Tabs.Active!.Id, "a neighbour became active and is on the stage");
         Expect(sink.Seen is { Length: 6 } && sink.Black == blackAtSwitchStart, "closing the active tab did not flash the output");
 
         // The limit and the last tab.
         while (window.Tabs.CanAdd) await window.AddTabAsync();
         Expect(window.Tabs.Items.Count == TabRules.MaxTabs && !await window.AddTabAsync(), $"at most {TabRules.MaxTabs} tabs");
-        while (window.Tabs.CanClose) await window.CloseTabAsync(window.Tabs.Items[^1].Id);
-        Expect(window.Tabs.Items.Count == 1 && !await window.CloseTabAsync(window.Tabs.Items[0].Id), "the last tab cannot be closed");
+        while (window.Tabs.Items.Count > 1) await window.CloseTabAsync(window.Tabs.Items[^1].Id);
+        Expect(window.Tabs.Items.Count == 1, "closing down to one tab");
 
         // The saved file.
         await Task.Delay(1500);
         var saved = window.ReadConfigFromDisk();
         Expect(saved.Tabs.Count == 1 && saved.Tabs[0].Name == window.Tabs.Items[0].Name, "the settings file holds the tabs");
+
+        // The last tab can be closed too: nothing is on air then, and the outputs would show the test pattern.
+        Expect(await window.CloseTabAsync(window.Tabs.Items[0].Id), "the last tab can be closed");
+        Expect(window.Tabs.Items.Count == 0 && _engine.Active is null && window.NoLive, "no tab is left, none is on the stage, and the pattern takes over");
+        await Task.Delay(1500);
+        Expect(window.ReadConfigFromDisk().Tabs.Count == 0, "the settings file may hold no tab");
+        Expect(await window.AddTabAsync() && window.Tabs.Items.Count == 1 && _engine.Active is not null && !window.NoLive, "a new tab goes on air again");
         _engine.Hub.RemoveSink(sink);
         _logger.LogInformation(_failures.Count == 0 ? "A3 selftest ok" : "A3 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
@@ -335,9 +342,9 @@ internal sealed partial class SelfTest
 
         Expect(await window.AddDocumentTabAsync(TabKind.Pdf, pdfPath, red), "a file tab can be added");
         await Task.Delay(800);
-        var docInfo = window.Tabs.Active;
+        var docInfo = window.Tabs.Active!;
         Expect(docInfo.Kind == TabKind.Pdf && docInfo.Source == pdfPath && docInfo.Url == TabRules.BlankUrl, "the list records the kind and the path");
-        Expect(_engine.Active is DocumentTab { Kind: TabKind.Pdf } && _engine.Active.Id == docInfo.Id, "the engine has a file tab on the stage");
+        Expect(_engine.Active is DocumentTab { Kind: TabKind.Pdf } && _engine.Active!.Id == docInfo.Id, "the engine has a file tab on the stage");
         Expect(sink.Seen == "E03030", $"the file tab is on air (saw {sink.Seen})");
 
         // Page-only controls do nothing (and do not throw) while a file is on the stage.
@@ -407,23 +414,26 @@ internal sealed partial class SelfTest
         var programId = window.Tabs.Items[0].Id;
         Expect(await window.SetPreviewModeAsync(true) && _engine.PreviewMode, "Preview + Take can be entered");
         await Task.Delay(800);
-        Expect(window.Tabs.ProgramId == programId && window.Tabs.Active.Id == window.Tabs.Items[1].Id, "the next tab became the preview");
+        Expect(window.Tabs.ProgramId == programId && window.Tabs.Active!.Id == window.Tabs.Items[1].Id, "the next tab became the preview");
         Expect(sink.Seen == colours[0], $"the output still shows the program (saw {sink.Seen})");
 
         await window.SelectTabAsync(window.Tabs.Items[2].Id);
         await Task.Delay(800);
-        Expect(window.Tabs.Active.Id == window.Tabs.Items[2].Id && window.Tabs.ProgramId == programId, "another tab can be prepared in the preview");
+        Expect(window.Tabs.Active!.Id == window.Tabs.Items[2].Id && window.Tabs.ProgramId == programId, "another tab can be prepared in the preview");
         Expect(sink.Seen == colours[0], $"preparing a tab does not reach the output (saw {sink.Seen})");
         Expect(_engine.Tabs.OfType<PageTab>().All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "only the program is unmuted");
 
         await window.SelectTabAsync(programId);
-        Expect(window.Tabs.Active.Id == window.Tabs.Items[2].Id, "clicking the program tab is ignored");
-        Expect(!await window.CloseTabAsync(programId) && window.Tabs.Items.Count == 3, "the program tab cannot be closed");
+        Expect(window.Tabs.Active!.Id == window.Tabs.Items[2].Id, "clicking the program tab is ignored");
+        window.SetSimulatedLive(true);
+        window.Confirm = _ => false;
+        Expect(!await window.CloseTabAsync(programId) && window.Tabs.Items.Count == 3, "closing the program tab while an output is on asks first, and no keeps it");
+        window.SetSimulatedLive(false);
 
         Expect(await window.TakeAsync(), "TAKE works");
         await Task.Delay(800);
         Expect(sink.Seen == colours[2], $"the output shows the taken tab (saw {sink.Seen})");
-        Expect(window.Tabs.ProgramId == window.Tabs.Items[2].Id && window.Tabs.Active.Id == programId, "program and preview swapped");
+        Expect(window.Tabs.ProgramId == window.Tabs.Items[2].Id && window.Tabs.Active!.Id == programId, "program and preview swapped");
         Expect(_engine.Tabs.OfType<PageTab>().All(t => t.Browser.IsMuted == !ReferenceEquals(t, _engine.Program)), "audio follows the program after TAKE");
 
         long blackBeforeResize = Interlocked.Read(ref sink.Black) - black;
@@ -440,7 +450,7 @@ internal sealed partial class SelfTest
 
         Expect(await window.SetPreviewModeAsync(false) && !_engine.PreviewMode, "back to Langsung");
         await Task.Delay(500);
-        Expect(window.Tabs.Active.Id == window.Tabs.Items[0].Id && sink.Seen == colours[0], "the tab on air stays on air");
+        Expect(window.Tabs.Active!.Id == window.Tabs.Items[0].Id && sink.Seen == colours[0], "the tab on air stays on air");
         Expect(_tabsAudioOk(window), "only the active tab is unmuted after leaving the mode");
         Expect(Interlocked.Read(ref sink.Black) - black == 0, $"no black frame reached the output ({Interlocked.Read(ref sink.Black) - black} did)");
         _engine.Hub.RemoveSink(sink);
@@ -570,7 +580,7 @@ internal sealed partial class SelfTest
         window.SetVolume(1);
 
         // Only the tab on air is heard.
-        var toneTab = window.Tabs.Active.Id;
+        var toneTab = window.Tabs.Active!.Id;
         await window.AddTabAsync(Page(colours[0]));
         await Task.Delay(1500);
         double other = await MaxPeakAsync(800);
@@ -813,12 +823,12 @@ internal sealed partial class SelfTest
         site.Stop();
         site.Close();
         Expect(!await _engine.NavigateAsync(url, TimeSpan.FromSeconds(15)), "loading fails while the site is away");
-        Expect(await WaitAsync(() => _engine.Active.Problem is not null, 5), "the tab reports a problem");
-        _logger.LogInformation("A8 problem message: {Message}", _engine.Active.Problem);
+        Expect(await WaitAsync(() => _engine.Active!.Problem is not null, 5), "the tab reports a problem");
+        _logger.LogInformation("A8 problem message: {Message}", _engine.Active!.Problem);
         await Task.Delay(6000); // at least two failed retries
-        Expect(_engine.Active.Problem is not null, "it is still reported while the site is away");
+        Expect(_engine.Active!.Problem is not null, "it is still reported while the site is away");
         site = StartSite();
-        Expect(await WaitAsync(() => _engine.Active.Problem is null, 40), "the page loads again by itself once the site is back");
+        Expect(await WaitAsync(() => _engine.Active!.Problem is null, 40), "the page loads again by itself once the site is back");
         await Task.Delay(800);
         Expect(sink.Seen == "30B050", $"and shows on the output (saw {sink.Seen})");
         Expect(recovered >= 1, "a recovery was announced");
@@ -828,7 +838,7 @@ internal sealed partial class SelfTest
         var otherId = window.Tabs.Items[^1].Id;
         Expect(await window.SetSeparateProfileAsync(otherId, true), "a second tab gets its own profile");
         await Task.Delay(2500);
-        Expect(window.Tabs.Active.Id == otherId, "the new tab is the one on air");
+        Expect(window.Tabs.Active!.Id == otherId, "the new tab is the one on air");
         int before = recovered;
         int deadPid = (int)_engine.PageTabById(otherId)!.Browser.BrowserProcessId;
         System.Diagnostics.Process.GetProcessById(deadPid).Kill(entireProcessTree: true);
@@ -836,7 +846,7 @@ internal sealed partial class SelfTest
         await Task.Delay(1500);
         var again = _engine.PageTabById(otherId);
         Expect(again is not null && (int)again.Browser.BrowserProcessId != deadPid && again.Problem is null, "it has a new browser process and no problem");
-        Expect(_engine.Active.Id == otherId && window.Tabs.Active.Id == otherId, "and is still the active one");
+        Expect(_engine.Active!.Id == otherId && window.Tabs.Active!.Id == otherId, "and is still the active one");
         Expect(sink.Seen == "30B050", $"the output shows the page again (saw {sink.Seen})");
         Expect(_engine.Tabs.Count == window.Tabs.Items.Count, "the engine and the list still agree");
 
@@ -847,7 +857,7 @@ internal sealed partial class SelfTest
         System.Diagnostics.Process.GetProcessById(sharedPid).Kill(entireProcessTree: true);
         Expect(await WaitAsync(() => recovered > before, 30), "the tab on the shared profile is recovered after its browser died");
         await Task.Delay(1500);
-        Expect((int)_engine.PageTabById(sharedId)!.Browser.BrowserProcessId != sharedPid && _engine.Active.Id == otherId, "it has a new browser and the tab on air did not change");
+        Expect((int)_engine.PageTabById(sharedId)!.Browser.BrowserProcessId != sharedPid && _engine.Active!.Id == otherId, "it has a new browser and the tab on air did not change");
         Expect(sink.Seen == "30B050", $"the output was not disturbed (saw {sink.Seen})");
         window.SyncAudioSources();
 

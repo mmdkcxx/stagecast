@@ -54,7 +54,7 @@ internal sealed partial class SelfTest
         window.SetGate(GateMode.Blackout);
         Expect(await WaitUntilAsync(() => live.Colour == "black"), $"Blackout still wins (saw {live.Colour})");
         window.SetGate(GateMode.Live);
-        await window.SelectTabAsync(window.Tabs.Active.Id);
+        await window.SelectTabAsync(window.Tabs.Active!.Id);
         Expect(!window.NoLive && await WaitUntilAsync(() => live.Colour == "green" && shown.Colour == "green"), $"choosing a tab puts it on air (saw {live.Colour}, {shown.Colour})");
 
         _engine.Hub.RemoveSink(live);

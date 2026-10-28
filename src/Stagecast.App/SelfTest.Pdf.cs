@@ -118,7 +118,7 @@ internal sealed partial class SelfTest
 
         // ---- open ----
         Expect(await window.AddPdfTabAsync(three), "a PDF tab can be added");
-        var info = window.Tabs.Active;
+        var info = window.Tabs.Active!;
         Expect(info.Kind == TabKind.Pdf && info.Source == three && info.Name == "tiga halaman", $"the list records the file and names the tab after it (name {info.Name})");
         var tab = _engine.Active as DocumentTab;
         var pdf = tab?.Pdf;
@@ -167,7 +167,7 @@ internal sealed partial class SelfTest
 
         // ---- files that cannot be opened leave what is on screen alone ----
         Expect(!await window.ChangePdfAsync(broken), "a file that is not a PDF is refused");
-        Expect(window.Tabs.Active.Source == three && tab!.Source == three, "the tab keeps its file after a refused one");
+        Expect(window.Tabs.Active!.Source == three && tab!.Source == three, "the tab keeps its file after a refused one");
         Expect(pdf.PageCount == 3 && await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false)), $"the old document keeps showing (saw {probe.Row})");
         Expect(tab!.Problem is not null, "the tab reports a problem");
         Expect(!await window.ChangePdfAsync(missing), "a file that does not exist is refused");
@@ -187,7 +187,7 @@ internal sealed partial class SelfTest
 
         // ---- change the file ----
         Expect(await window.ChangePdfAsync(single), "another PDF can be chosen");
-        Expect(window.Tabs.Active.Source == single && pdf.PageCount == 1, "the tab now plays the new file");
+        Expect(window.Tabs.Active!.Source == single && pdf.PageCount == 1, "the tab now plays the new file");
         Expect(await WaitUntilAsync(() => probe.Row == Pattern("orange", wide: false)), $"the new file is on screen (saw {probe.Row})");
 
         // ---- the settings file ----

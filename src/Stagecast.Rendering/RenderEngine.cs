@@ -85,7 +85,7 @@ public sealed partial class RenderEngine : IDisposable
     public IReadOnlyList<StageTab> Tabs => _tabs;
 
     /// <summary>The tab on the stage. Throws before the first tab was added.</summary>
-    public StageTab Active => _active ?? throw new InvalidOperationException("The engine has no tab yet.");
+    public StageTab? Active => _active;
 
     /// <summary>The tab on the stage as a web page. Throws when there is no tab or the tab is a file.</summary>
     public PageTab ActivePage => _active as PageTab ?? throw new InvalidOperationException("The active tab is not a web page.");
@@ -447,7 +447,7 @@ public sealed partial class RenderEngine : IDisposable
     public bool PreviewMode { get; private set; }
 
     /// <summary>The tab on air. Same as <see cref="Active"/> in Direct mode.</summary>
-    public StageTab Program => _program ?? Active;
+    public StageTab? Program => _program ?? _active;
 
     /// <summary>The program, small, a few times a second, raised on a capture thread. Only in Preview + Take.</summary>
     public event Action<PreviewImage>? ProgramThumbReady
@@ -568,7 +568,7 @@ public sealed partial class RenderEngine : IDisposable
         }
         else
         {
-            _active!.Visual.Offset = Vector3.Zero;
+            if (_active is not null) _active.Visual.Offset = Vector3.Zero;
             _capturer.Layout = null;
         }
         if (restartCapture) _capturer.Restart();
@@ -581,10 +581,65 @@ public sealed partial class RenderEngine : IDisposable
         while (tab.IsLoading && DateTime.UtcNow < limit) await Task.Delay(20);
     }
 
+    /// <summary>
+    /// Takes the tab on air off the stage when it is the only one (or the operator wants none): afterwards no tab is active and the
+    /// stage is empty, so the outputs show the test pattern. The tab itself is not closed; call <see cref="CloseTab"/> next.
+    /// </summary>
+    public async Task ReleaseActiveAsync()
+    {
+        await _switching.WaitAsync();
+        try
+        {
+            if (_active is not { } tab || PreviewMode) return;
+            tab.Visual.IsVisible = false;
+            SetMuted(tab, true);
+            tab.HasKeyboardFocus = false;
+            _active = null;
+            SetPageFocus(false);
+            _logger.LogInformation("Tab {Id} left the stage: nothing is on air", tab.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Ends Preview + Take by dropping the tab on air (it is about to be closed): the preview tab stays selected, as the only tab
+    /// in Direct mode, and nothing is on air until the operator chooses a tab.
+    /// </summary>
+    public async Task DropProgramAsync()
+    {
+        await _switching.WaitAsync();
+        try
+        {
+            if (!PreviewMode || _program is not { } program || _active is not { } preview) return;
+            program.Visual.IsVisible = false;
+            SetMuted(program, true);
+            program.HasKeyboardFocus = false;
+            PreviewMode = false;
+            _program = null;
+            SetMuted(preview, false);
+            ApplyStageGeometry(restartCapture: true);
+            SetPageFocus(false);
+            _logger.LogInformation("Preview + Take off: the tab on air {Program} was dropped", program.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
     /// <summary>Closes a tab that is not on the stage. Select another tab first when closing the active one.</summary>
     public void CloseTab(StageTab tab)
     {
-        if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab before closing this one (and take another first if it is on air).");
+        if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab or release this one before closing it (and drop it first if it is on air).");
         if (!_tabs.Remove(tab)) return;
         _stage.Children.Remove(tab.Visual);
         try

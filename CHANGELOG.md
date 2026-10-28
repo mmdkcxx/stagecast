@@ -39,6 +39,10 @@ isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
 - Saat aplikasi dibuka tidak ada tab yang tayang: output (bila dinyalakan) menampilkan pola ("POLA UJI" di status) sampai operator
   memilih tab (mode Langsung) atau menekan TAKE (Preview + Take).
 
+- Tab boleh nol: semua tab, termasuk yang terakhir dan yang sedang tayang, bisa ditutup. Menutup tab yang tayang saat output menyala
+  meminta konfirmasi, lalu output menampilkan test pattern; di Preview + Take, menutup tab program mengakhiri mode itu dan tab
+  preview tetap terpilih. Pertama kali dibuka tidak ada tab. Daftar tab kosong menampilkan petunjuk, dan bilah alamat dimatikan.
+
 ### Diperbaiki
 - PDF: gambar usang setelah resolusi render diganti (halaman digambar ulang bersamaan dengan capture dimulai ulang).
 

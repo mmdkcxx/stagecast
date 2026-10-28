@@ -101,7 +101,7 @@ public static class TabRules
 }
 
 /// <summary>
-/// The ordered tabs and which one is active. At least one tab always exists. Closing the active tab activates its neighbour;
+/// The ordered tabs and which one is active (none when the list is empty). Closing the active tab activates its neighbour;
 /// moving a tab never changes which tab is active.
 /// <para>
 /// Two ways to work. <b>Direct</b> (the default): the active tab is what the audience sees. <b>Preview + Take</b>: the active tab
@@ -116,15 +116,15 @@ public sealed class TabList
     public TabList(IEnumerable<TabInfo> items, int activeIndex)
     {
         _items = items.Take(TabRules.MaxTabs).ToList();
-        if (_items.Count == 0) _items.Add(new TabInfo(Guid.NewGuid(), "Tab 1", TabRules.BlankUrl));
-        ActiveIndex = Math.Clamp(activeIndex, 0, _items.Count - 1);
+        ActiveIndex = _items.Count == 0 ? -1 : Math.Clamp(activeIndex, 0, _items.Count - 1);
     }
 
     public IReadOnlyList<TabInfo> Items => _items;
 
     public int ActiveIndex { get; private set; }
 
-    public TabInfo Active => _items[ActiveIndex];
+    /// <summary>The tab the operator works on; null when there are no tabs.</summary>
+    public TabInfo? Active => ActiveIndex >= 0 ? _items[ActiveIndex] : null;
 
     /// <summary>The tab on air while working in Preview + Take; null in Direct mode (where the active tab is on air).</summary>
     public Guid? ProgramId { get; private set; }
@@ -132,7 +132,7 @@ public sealed class TabList
     public bool PreviewMode => ProgramId is not null;
 
     /// <summary>The tab the audience sees.</summary>
-    public TabInfo Program => ProgramId is { } id ? _items[IndexOf(id)] : Active;
+    public TabInfo? Program => ProgramId is { } id ? _items[IndexOf(id)] : Active;
 
     public int LiveIndex => ProgramId is { } id ? IndexOf(id) : ActiveIndex;
 
@@ -142,7 +142,7 @@ public sealed class TabList
     public bool EnterPreviewMode()
     {
         if (!CanEnterPreviewMode) return false;
-        ProgramId = Active.Id;
+        ProgramId = Active!.Id;
         ActiveIndex = (ActiveIndex + 1) % _items.Count;
         return true;
     }
@@ -159,8 +159,8 @@ public sealed class TabList
     /// <summary>Puts the preview tab on air and the tab that was on air becomes the preview.</summary>
     public bool Take()
     {
-        if (ProgramId is not { } onAir || Active.Id == onAir) return false;
-        var next = Active.Id;
+        if (ProgramId is not { } onAir || Active is not { } preview || preview.Id == onAir) return false;
+        var next = preview.Id;
         ActiveIndex = IndexOf(onAir);
         ProgramId = next;
         return true;
@@ -168,9 +168,10 @@ public sealed class TabList
 
     public bool CanAdd => _items.Count < TabRules.MaxTabs;
 
-    public bool CanClose => _items.Count > 1;
+    public bool CanClose => _items.Count > 0;
 
-    public bool CanCloseTab(Guid id) => _items.Count > 1 && id != ProgramId && IndexOf(id) >= 0;
+    /// <summary>Any tab can be closed, including the last and the one on air (the caller asks the operator first when it is on air).</summary>
+    public bool CanCloseTab(Guid id) => IndexOf(id) >= 0;
 
     public int IndexOf(Guid id) => _items.FindIndex(t => t.Id == id);
 
@@ -180,6 +181,7 @@ public sealed class TabList
         if (!CanAdd) return null;
         var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.StorableUrl(url));
         _items.Add(tab);
+        if (_items.Count == 1) ActiveIndex = 0;
         return tab;
     }
 
@@ -189,6 +191,7 @@ public sealed class TabList
         if (!CanAdd || !TabKinds.IsDocument(kind)) return null;
         var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.BlankUrl, null, kind, TabRules.StorableSource(source));
         _items.Add(tab);
+        if (_items.Count == 1) ActiveIndex = 0;
         return tab;
     }
 
@@ -200,18 +203,27 @@ public sealed class TabList
         return true;
     }
 
-    /// <summary>Removes a tab unless it is the last one. Returns the tab that is active afterwards, or null when nothing was removed.</summary>
+    /// <summary>
+    /// Removes a tab. Returns the tab that is active afterwards; null when nothing was removed or when no tab is left (ask <see cref="CanCloseTab"/>
+    /// first to tell the two apart). Closing the tab on air in Preview + Take ends that mode: the preview tab stays selected and nothing is on air.
+    /// </summary>
     public TabInfo? Close(Guid id)
     {
         int index = IndexOf(id);
-        if (index < 0 || !CanCloseTab(id)) return null;
+        if (index < 0) return null;
+        bool wasProgram = id == ProgramId;
         _items.RemoveAt(index);
-        if (index < ActiveIndex) ActiveIndex--;
-        else if (index == ActiveIndex) ActiveIndex = Math.Min(index, _items.Count - 1);
+        if (wasProgram)
+        {
+            ProgramId = null;
+            if (index < ActiveIndex) ActiveIndex--;
+        }
+        else if (index < ActiveIndex) ActiveIndex--;
+        else if (index == ActiveIndex) ActiveIndex = _items.Count == 0 ? -1 : Math.Min(index, _items.Count - 1);
         if (ProgramId is { } onAir)
         {
             if (_items.Count < 2) ExitPreviewMode();
-            else if (Active.Id == onAir)
+            else if (Active?.Id == onAir)
             {
                 // Closing the preview left the tab on air next to it: the preview moves to the nearest other tab.
                 int program = IndexOf(onAir);
@@ -263,7 +275,7 @@ public sealed class TabList
         var tab = _items[from];
         _items.RemoveAt(from);
         _items.Insert(to, tab);
-        ActiveIndex = IndexOf(active.Id);
+        if (active is not null) ActiveIndex = IndexOf(active.Id);
         return true;
     }
 }

@@ -91,7 +91,7 @@ internal sealed partial class SelfTest
 
         // ---- open: the show starts on the first slide that is not hidden ----
         Expect(await window.AddPowerPointTabAsync(deck), "a PowerPoint tab can be added");
-        var info = window.Tabs.Active;
+        var info = window.Tabs.Active!;
         Expect(info.Kind == TabKind.PowerPoint && info.Source == deck && info.Name == "lima slide", $"the list records the file and names the tab after it (name {info.Name})");
         var tab = _engine.Active as DocumentTab;
         var ppt = tab?.PowerPoint;
@@ -152,7 +152,7 @@ internal sealed partial class SelfTest
         Expect(await WaitUntilAsync(() => probe.Row == Pattern("blue", wide: false), 10000), $"and slide 3 shows again (saw {probe.Row})");
         Expect(!await window.ChangePdfAsync(broken) && ppt.PageCount == 5, "a file that is not a deck is refused");
         Expect(await WaitUntilAsync(() => probe.Row == Pattern("blue", wide: false)), $"and the slide on screen stays (saw {probe.Row})");
-        Expect(window.Tabs.Active.Source == deck, "and the tab keeps its file");
+        Expect(window.Tabs.Active!.Source == deck, "and the tab keeps its file");
 
         // ---- closing the tab ends the show and leaves PowerPoint as it was ----
         await window.SelectTabAsync(window.Tabs.Items[0].Id);

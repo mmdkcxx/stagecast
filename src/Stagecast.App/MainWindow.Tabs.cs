@@ -27,9 +27,11 @@ public partial class MainWindow
             TabKinds.TryParse(t.Kind, out var kind); // the settings loader already replaced unknown names with web
             return new TabInfo(Guid.NewGuid(), t.Name, t.Url, t.ProfileId, kind, t.Source);
         }).ToList();
+        // The tests expect a page to start from; a real first start has no tab and shows the test pattern.
+        if (items.Count == 0 && _context.SelfTest is not null) items.Add(new TabInfo(Guid.NewGuid(), "Tab 1", TabRules.BlankUrl));
         var list = new TabList(items, _config.ActiveTab);
         // --url opens that address in the tab that was active.
-        if (_context.StartUrl is { } url) list.SetUrl(list.Active.Id, url);
+        if (_context.StartUrl is { } url && list.Active is { } started) list.SetUrl(started.Id, url);
         return list;
     }
 
@@ -41,9 +43,9 @@ public partial class MainWindow
 
         // The tab that was active goes first, so it is on the stage from the start; the others load behind it.
         RenderEngine.RemoveUnusedProfiles(_context.Paths.ProfilesDirectory, _tabs.Items.Select(t => t.ProfileId));
-        await AddEngineTabAsync(engine, _tabs.Active);
+        if (_tabs.Active is { } first) await AddEngineTabAsync(engine, first);
         // A snapshot: pages start loading while the next tabs are created, and their address changes update the list.
-        foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active.Id).ToList()) await AddEngineTabAsync(engine, info);
+        foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active?.Id).ToList()) await AddEngineTabAsync(engine, info);
         engine.SortTabs(_tabs.Items.Select(t => t.Id).ToList());
         RebuildTabList();
         await OpenStoredPdfsAsync();
@@ -60,7 +62,7 @@ public partial class MainWindow
     {
         if (_tabs.IndexOf(tab.Id) < 0) return;
         _tabs.SetUrl(tab.Id, tab.Url);
-        if (tab.Url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) && tab.Id != _tabs.Active.Id) return;
+        if (tab.Url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) && tab.Id != _tabs.Active?.Id) return;
         SchedulePersist();
     }
 
@@ -182,7 +184,7 @@ public partial class MainWindow
                 UpdateModeButtons();
                 return false;
             }
-            await _engine.EnterPreviewModeAsync(_engine.TabById(_tabs.Active.Id)!);
+            await _engine.EnterPreviewModeAsync(_engine.TabById(_tabs.Active!.Id)!);
         }
         else
         {
@@ -272,16 +274,38 @@ public partial class MainWindow
     internal async Task<bool> CloseTabAsync(Guid id)
     {
         if (_engine is null || _engine.TabById(id) is not { } tab) return false;
-        if (_tabs.PreviewMode && id == _tabs.ProgramId)
+        bool isProgram = _tabs.PreviewMode && id == _tabs.ProgramId;
+        // Closing the tab on air, with no other tab to take over, leaves the outputs on the test pattern: ask first when they are on.
+        bool endsOnAir = isProgram || (!_tabs.PreviewMode && _tabs.Active?.Id == id && _tabs.Items.Count == 1);
+        if (endsOnAir && !_noLive && OutputsLive && !Confirm("Tab ini sedang tayang. Menutupnya membuat output menampilkan test pattern. Tutup?")) return false;
+        bool wasActive = _tabs.Active?.Id == id;
+        if (!_tabs.CanCloseTab(id)) return false;
+        _tabs.Close(id);
+        var newActive = _tabs.Active;
+        bool leftPreviewMode = !isProgram && _engine.PreviewMode && !_tabs.PreviewMode; // only the tab on air is left
+        if (isProgram)
         {
-            TabError.Text = "Tab yang sedang tayang tidak bisa ditutup. Tekan TAKE dulu untuk menukarnya.";
-            return false;
+            await _engine.DropProgramAsync();
+            PagePreviewView.PreviewMode = false;
+            SetNoLive(true);
         }
-        bool wasActive = _tabs.Active.Id == id;
-        if (_tabs.Close(id) is not { } newActive) return false;
-        bool leftPreviewMode = _engine.PreviewMode && !_tabs.PreviewMode; // only the tab on air is left
-        if (leftPreviewMode) await _engine.ExitPreviewModeAsync();
-        else if (wasActive && _engine.TabById(newActive.Id) is { } next) await _engine.SelectAsync(next);
+        else if (leftPreviewMode)
+        {
+            await _engine.ExitPreviewModeAsync();
+        }
+        else if (wasActive)
+        {
+            if (newActive is not null && _engine.TabById(newActive.Id) is { } next)
+            {
+                await _engine.SelectAsync(next);
+            }
+            else
+            {
+                await _engine.ReleaseActiveAsync();
+                SetNoLive(true);
+            }
+        }
+
         _engine.CloseTab(tab);
         ForgetDocument(id);
         if (leftPreviewMode) PagePreviewView.PreviewMode = false;
@@ -355,12 +379,12 @@ public partial class MainWindow
         int mip = 1 << image.Mip;
         bool wholePage = image.SourceX == 0 && image.SourceY == 0
             && image.Width * mip >= engine.Resolution.Width - mip && image.Height * mip >= engine.Resolution.Height - mip;
-        if (wholePage) OfferThumbnail(engine.Active.Id, image);
+        if (wholePage && engine.Active is { } shown) OfferThumbnail(shown.Id, image);
     }
 
     private void OnThumbSourceProgram(Stagecast.Rendering.Capture.PreviewImage image)
     {
-        if (_engine is { } engine) OfferThumbnail(engine.Program.Id, image);
+        if (_engine is { Program: { } program } engine) OfferThumbnail(program.Id, image);
     }
 
     private static string ThumbnailLabel(string url)
@@ -434,6 +458,13 @@ public partial class MainWindow
         TabListPanel.Children.Clear();
         _thumbViews.Clear();
         _thumbs.Keep(_tabs.Items.Select(t => t.Id));
+        if (_tabs.Items.Count == 0)
+        {
+            TabListPanel.Children.Add(new TextBlock
+            {
+                Text = "Belum ada tab. Klik + tab untuk menambah; output menampilkan test pattern.", Style = (Style)FindResource("Hint"), Margin = new Thickness(4, 8, 4, 0), TextWrapping = TextWrapping.Wrap,
+            });
+        }
         for (int i = 0; i < _tabs.Items.Count; i++)
         {
             var tab = _tabs.Items[i];
@@ -566,12 +597,12 @@ public partial class MainWindow
         if (_engine is not null && TryClickerKey(e)) { e.Handled = true; return; }
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
-        if (e.Key == Key.F2 && _renamingId is null) StartRename(_tabs.Active.Id);
+        if (e.Key == Key.F2 && _renamingId is null && _tabs.Active is { } renaming) StartRename(renaming.Id);
         else if (e.Key == Key.Space && _tabs.PreviewMode && !PagePreviewView.CanPanNow) _ = TakeAsync();
         else if (ctrl && shift && e.Key == Key.F) { OnFreeze(this, e); e.Handled = true; }
         else if (ctrl && shift && e.Key == Key.B) { OnBlackout(this, e); e.Handled = true; }
         else if (ctrl && e.Key == Key.T) _ = AddTabAsync();
-        else if (ctrl && e.Key == Key.W) _ = CloseTabAsync(_tabs.Active.Id);
+        else if (ctrl && e.Key == Key.W && _tabs.Active is { } closing) _ = CloseTabAsync(closing.Id);
         else if (ctrl && e.Key is >= Key.D1 and <= Key.D9)
         {
             int index = e.Key - Key.D1;

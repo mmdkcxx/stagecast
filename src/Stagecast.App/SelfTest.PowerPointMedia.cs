@@ -122,13 +122,13 @@ internal sealed partial class SelfTest
         var probe = new ProbeSink();
         _engine.Hub.AddSink(probe);
         await _engine.NavigateAsync(Page("30B050"), TimeSpan.FromSeconds(10));
-        var webTab = window.Tabs.Active.Id;
+        var webTab = window.Tabs.Active!.Id;
         Expect(await WaitUntilAsync(() => probe.Row.Contains("other")), $"the web tab is on air first (saw {probe.Row})");
         Expect(await MaxPeakAsync(600) < -60, "and the output is silent");
 
         // ---- sound: heard while the deck is on air, silent while it is not, heard again when it returns ----
         Expect(await window.AddPowerPointTabAsync(audioDeck), "a deck with a sound can be added");
-        var deckTab = window.Tabs.Active.Id;
+        var deckTab = window.Tabs.Active!.Id;
         var ppt = (_engine.Active as DocumentTab)?.PowerPoint;
         int pid = ppt?.ProcessId ?? 0;
         Expect(ppt is { ProcessId: > 0 }, $"the deck names the PowerPoint process that plays it (pid {ppt?.ProcessId})");

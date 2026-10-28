@@ -52,7 +52,7 @@ public partial class MainWindow
         if (key is Key.Space or Key.Enter && Keyboard.FocusedElement is ButtonBase) return false;
         if (key == Key.Space && _tabs.PreviewMode) return false;
         // A web page in the preview that has the keyboard gets its keys.
-        if (_engine!.Active.HasKeyboardFocus) return false;
+        if (_engine!.Active?.HasKeyboardFocus == true) return false;
         _ = RunClickerAsync(command);
         return true;
     }
@@ -116,7 +116,7 @@ public partial class MainWindow
             return;
         }
         int count = pdf.PageCount;
-        ProgramTitleText.Text = "PROGRAM · " + (_tabs.Items.FirstOrDefault(t => t.Id == _engine!.Program.Id)?.Name ?? "");
+        ProgramTitleText.Text = "PROGRAM · " + (_tabs.Items.FirstOrDefault(t => t.Id == _engine!.Program?.Id)?.Name ?? "");
         if (!ProgramPageBox.IsKeyboardFocusWithin) ProgramPageBox.Text = pdf.PageNumber.ToString();
         ProgramCountText.Text = $"/ {count}";
         ProgramPageBox.IsEnabled = count > 1;
@@ -124,9 +124,10 @@ public partial class MainWindow
         ProgramNextButton.IsEnabled = ProgramLastButton.IsEnabled = pdf.PageIndex < (pdf is PowerPointSource ? LastIndex(pdf) : count - 1);
 
         bool strip = count > 0 && count <= MaxStripPages && _engine!.Program is DocumentTab;
+        DocumentTab? programTab = _engine!.Program as DocumentTab;
         ProgramStrip.Visibility = strip ? Visibility.Visible : Visibility.Collapsed;
         if (!strip) { ClearStrip(_program); return; }
-        var tab = (DocumentTab)_engine!.Program;
+        var tab = programTab!;
         if (_program.Tab != tab.Id || _program.Pages != count) BuildStrip(_program, tab, pdf);
         UpdateStripHighlight(_program, pdf);
     }

@@ -33,12 +33,12 @@ internal sealed partial class SelfTest
         var probe = new ProbeSink();
         _engine.Hub.AddSink(probe);
         await _engine.NavigateAsync(Page("30B050"), TimeSpan.FromSeconds(10));
-        var webTab = window.Tabs.Active.Id;
+        var webTab = window.Tabs.Active!.Id;
         Expect(await WaitUntilAsync(() => probe.Row.Contains("other")), $"the web tab is on air first (saw {probe.Row})");
 
         // ---- a deck in the preview: it runs there, nothing of it reaches the output ----
         Expect(await window.AddPowerPointTabAsync(deck), "a deck can be added");
-        var deckA = window.Tabs.Active.Id;
+        var deckA = window.Tabs.Active!.Id;
         var pptA = (_engine.Active as DocumentTab)?.PowerPoint;
         if (pptA is null) { FinishPreview(probe); return; }
         int pid = pptA.ProcessId;
@@ -80,7 +80,7 @@ internal sealed partial class SelfTest
 
         // ---- a second deck in the preview while the first is on air ----
         Expect(await window.AddPowerPointTabAsync(deck), "a second deck can be added in Preview + Take");
-        var deckB = window.Tabs.Active.Id;
+        var deckB = window.Tabs.Active!.Id;
         var pptB = (_engine.TabById(deckB) as DocumentTab)?.PowerPoint;
         Expect(pptB is { PageCount: 5 }, $"it opens (slides {pptB?.PageCount})");
         _logger.LogInformation("P4 second deck: pid {Pid} borrowed {Borrowed}; first pid {First} borrowed {FirstBorrowed}", pptB?.ProcessId, pptB?.Borrowed, pid, pptA.Borrowed);

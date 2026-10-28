@@ -169,7 +169,7 @@ public partial class MainWindow : Window
 
     private void OnUrlKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || _engine is null) return;
+        if (e.Key != Key.Enter || _engine is null || _engine.Active is not Rendering.PageTab) return;
         string text = UrlBox.Text.Trim();
         if (text.Length == 0) return;
         string url = text.Contains("://") || text.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ? text : "https://" + text;
@@ -508,6 +508,7 @@ public partial class MainWindow : Window
     private void UpdateNavigationState()
     {
         if (_engine is null) return;
+        UrlBox.IsEnabled = ReloadButton.IsEnabled = _engine.Active is Rendering.PageTab;
         BackButton.IsEnabled = _engine.CanGoBack;
         ForwardButton.IsEnabled = _engine.CanGoForward;
         if (!UrlBox.IsKeyboardFocusWithin && _engine.CurrentUrl is { Length: > 0 } url) UrlBox.Text = url;

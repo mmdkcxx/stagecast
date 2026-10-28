@@ -45,7 +45,7 @@ internal sealed partial class SelfTest
         var probe = new ProbeSink();
         _engine.Hub.AddSink(probe);
         await _engine.NavigateAsync(Page("30B050"), TimeSpan.FromSeconds(10));
-        var webTab = window.Tabs.Active.Id;
+        var webTab = window.Tabs.Active!.Id;
 
         // ---- a PowerPoint of the operator with a document that is not saved: the show comes and goes, the document stays ----
         Type type = Type.GetTypeFromProgID("PowerPoint.Application")!;
