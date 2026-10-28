@@ -593,6 +593,12 @@ public partial class MainWindow
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
+        if (e.Key == Key.Escape && OpenModalName is not null)
+        {
+            CloseModal();
+            e.Handled = true;
+            return;
+        }
         if (e.Handled || Keyboard.FocusedElement is TextBox) return;
         if (_engine is not null && TryClickerKey(e)) { e.Handled = true; return; }
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;

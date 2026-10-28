@@ -43,6 +43,15 @@ isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
   meminta konfirmasi, lalu output menampilkan test pattern; di Preview + Take, menutup tab program mengakhiri mode itu dan tab
   preview tetap terpilih. Pertama kali dibuka tidak ada tab. Daftar tab kosong menampilkan petunjuk, dan bilah alamat dimatikan.
 
+### Diubah
+- Antarmuka top bar: sidebar kanan dihapus dan area pratinjau memakai seluruh lebar di kanan daftar tab. Layar, NDI, OMT, Audio,
+  Statistik, dan Render kini jendela pengaturan di dalam aplikasi (lapisan di atas jendela; Esc atau klik di luar menutup) yang dibuka
+  dari tombol di top bar. Tombol Layar/NDI/OMT menampilkan status (mati, nyala, "nyala α" bila kirim alpha, "nyala · TEST" saat pola
+  uji), meter audio L/R ada di top bar dan membuka jendela Audio, tombol ukuran render ("2520 × 1080 · 60 fps") membuka jendela Render.
+  Bingkai jendela menyatu: garis judul Windows dihapus; perkecil/perbesar/tutup ada di ujung kanan top bar, area kosong top bar untuk
+  menggeser dan klik dua kali memperbesar. Tombol **Perbesar** kini menyembunyikan daftar tab. Susunan jendela Windows 11 (snap
+  layouts) di tombol perbesar dan tema kontras tinggi belum diuji.
+
 ### Diperbaiki
 - PDF: gambar usang setelah resolusi render diganti (halaman digambar ulang bersamaan dengan capture dimulai ulang).
 

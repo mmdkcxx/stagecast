@@ -54,6 +54,7 @@ public partial class MainWindow : Window
         PagePreviewView.ViewChanged += UpdateViewButtons;
         _sleepGuard = new SleepGuard(_logger);
         Closing += OnWindowClosing;
+        StateChanged += (_, _) => OnWindowStateChanged();
         Application.Current.SessionEnding += (_, _) => _sessionEnding = true;
         Closed += (_, _) =>
         {
@@ -101,7 +102,6 @@ public partial class MainWindow : Window
             headerTimer.Tick += (_, _) => RefreshHeader();
             headerTimer.Start();
             RefreshHeader();
-            _ = Dispatcher.BeginInvoke(() => SideScroll.ScrollToTop(), DispatcherPriority.ApplicationIdle);
 
             if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.ActivePage, "about:blank", TimeSpan.FromSeconds(20));
 
@@ -133,9 +133,9 @@ public partial class MainWindow : Window
         StatusPillText.Text = label;
         StatusPillText.Foreground = (Brush)FindResource(label == "LIVE" ? "Text" : foreground);
         StatusDot.Fill = (Brush)FindResource(label == "LIVE" ? "Text" : foreground);
-        SetChip(ChipScreenDot, ChipScreenState, screen);
-        SetChip(ChipNdiDot, ChipNdiState, ndi);
-        SetChip(ChipOmtDot, ChipOmtState, omt);
+        SetChip(ChipScreenDot, ChipScreenState, screen, false, _screenPattern || _noLive);
+        SetChip(ChipNdiDot, ChipNdiState, ndi, _ndiConfig.Alpha, _ndiPattern || _noLive);
+        SetChip(ChipOmtDot, ChipOmtState, omt, _omtConfig.Alpha, _omtPattern || _noLive);
         // Direct mode: the preview is what is on air. Preview + Take: it is the tab being prepared, so green.
         string tally = !_tabs.PreviewMode && (screen || ndi || omt)
             ? (BlackoutButton.IsChecked == true ? "Text" : FreezeButton.IsChecked == true ? "Warn" : "LiveBg")
@@ -144,10 +144,11 @@ public partial class MainWindow : Window
         ResText.Text = $"{_engine.Resolution.Width} × {_engine.Resolution.Height} · {_engine.Fps} fps";
     }
 
-    private void SetChip(System.Windows.Shapes.Shape dot, TextBlock state, bool on)
+    // The state a unit's button shows: mati, nyala, "nyala α" when it sends alpha, "nyala · TEST" while it shows the test pattern.
+    private void SetChip(System.Windows.Shapes.Shape dot, TextBlock state, bool on, bool alpha = false, bool pattern = false)
     {
         dot.Fill = (Brush)FindResource(on ? "Ok" : "LineStrong");
-        state.Text = on ? "nyala" : "mati";
+        state.Text = !on ? "mati" : pattern ? "nyala · TEST" : alpha ? "nyala α" : "nyala";
         state.Foreground = (Brush)FindResource(on ? "Text" : "Muted");
     }
 
@@ -548,9 +549,90 @@ public partial class MainWindow : Window
     private void OnEnlarge(object sender, RoutedEventArgs e)
     {
         bool enlarged = EnlargeButton.IsChecked == true;
-        SidePanel.Visibility = enlarged ? Visibility.Collapsed : Visibility.Visible;
-        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(360);
+        TabColumn.Width = enlarged ? new GridLength(0) : new GridLength(320);
     }
+
+    // ---- settings windows (the layer over the window that holds Render, Layar, NDI, OMT, Audio and Statistik) ----
+
+    // ---- the window buttons of the top bar (there is no Windows title bar) ----
+
+    private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximize(object sender, RoutedEventArgs e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
+
+    // A maximized window with a custom frame is drawn a few pixels beyond the screen edge; pull the content back in.
+    private void OnWindowStateChanged()
+    {
+        bool maximized = WindowState == WindowState.Maximized;
+        RootGrid.Margin = maximized ? new Thickness(SystemParameters.WindowResizeBorderThickness.Left + SystemParameters.FixedFrameVerticalBorderWidth) : new Thickness(0);
+        MaximizeButton.Content = maximized ? "\uE923" : "\uE922";
+        MaximizeButton.ToolTip = maximized ? "Kembalikan" : "Perbesar";
+    }
+
+    private UIElement? _modalOpener;
+
+    /// <summary>Saves a picture of the window's controls (not of the page in the preview) to a PNG, for looking at the layout.</summary>
+    internal void SaveWindowShot(string path)
+    {
+        var element = (FrameworkElement)Content;
+        int width = (int)element.ActualWidth, height = (int)element.ActualHeight;
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(element);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
+    }
+
+    /// <summary>Which settings window is open: "render", "screen", "ndi", "omt", "audio", "stats", or null.</summary>
+    internal string? OpenModalName { get; private set; }
+
+    internal void OpenModal(string name)
+    {
+        (UIElement panel, string title) = name switch
+        {
+            "render" => (RenderPanel, "Render · untuk semua output"),
+            "screen" => (ScreenPanel, "Layar penuh"),
+            "ndi" => (NdiPanel, "NDI"),
+            "omt" => (OmtPanel, "OMT (vMix)"),
+            "audio" => (AudioPanel, "Audio"),
+            _ => (StatsPanel, "Statistik"),
+        };
+        _modalOpener ??= Keyboard.FocusedElement as UIElement;
+        foreach (var other in new UIElement[] { RenderPanel, ScreenPanel, NdiPanel, OmtPanel, AudioPanel, StatsPanel }) other.Visibility = Visibility.Collapsed;
+        panel.Visibility = Visibility.Visible;
+        ModalTitle.Text = title;
+        ModalLayer.Visibility = Visibility.Visible;
+        OpenModalName = name == "stats" ? "stats" : name;
+        if (name == "stats") UpdateStats();
+    }
+
+    internal void CloseModal()
+    {
+        if (OpenModalName is null) return;
+        ModalLayer.Visibility = Visibility.Collapsed;
+        OpenModalName = null;
+        _modalOpener?.Focus();
+        _modalOpener = null;
+    }
+
+    private void OnOpenRender(object sender, RoutedEventArgs e) => OpenModal("render");
+
+    private void OnOpenScreen(object sender, RoutedEventArgs e) => OpenModal("screen");
+
+    private void OnOpenNdi(object sender, RoutedEventArgs e) => OpenModal("ndi");
+
+    private void OnOpenOmt(object sender, RoutedEventArgs e) => OpenModal("omt");
+
+    private void OnOpenAudio(object sender, RoutedEventArgs e) => OpenModal("audio");
+
+    private void OnOpenStats(object sender, RoutedEventArgs e) => OpenModal("stats");
+
+    private void OnModalClose(object sender, RoutedEventArgs e) => CloseModal();
+
+    private void OnModalDim(object sender, MouseButtonEventArgs e) => CloseModal();
 
     private void OnMore(object sender, RoutedEventArgs e)
     {

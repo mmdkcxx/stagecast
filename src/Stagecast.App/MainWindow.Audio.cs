@@ -87,6 +87,9 @@ public partial class MainWindow
         double width = (MeterLeft.Parent as Grid)?.ActualWidth ?? 0;
         MeterLeft.Width = Math.Max(0, width * MeterFraction(levels.LeftDb));
         MeterRight.Width = Math.Max(0, width * MeterFraction(levels.RightDb));
+        const double topWidth = 62; // the meter in the top bar, which is always visible
+        TopMeterLeft.Width = Math.Max(0, topWidth * MeterFraction(levels.LeftDb));
+        TopMeterRight.Width = Math.Max(0, topWidth * MeterFraction(levels.RightDb));
 
         string text;
         if (_audio.Muted) text = "SENYAP · BISU";

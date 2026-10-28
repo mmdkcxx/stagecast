@@ -1,6 +1,6 @@
 # Rencana: penahan tidur dan konfirmasi keluar
 
-Status: rencana, belum dikerjakan. Berlaku global untuk seluruh aplikasi (bukan hanya sumber PowerPoint). Dikerjakan hanya di branch `custom`; tidak digabung atau diubah di `main` sampai pemilik meminta. Belum ada kode yang diubah dan belum diuji.
+Status: dikerjakan di `custom` (2026-10-28): tahan tidur lewat permintaan daya Windows dan konfirmasi tutup. Konfirmasi tutup tidak bisa diuji otomatis (dialog). Dulu: rencana, belum dikerjakan. Berlaku global untuk seluruh aplikasi (bukan hanya sumber PowerPoint). Dikerjakan hanya di branch `custom`; tidak digabung atau diubah di `main` sampai pemilik meminta. Belum ada kode yang diubah dan belum diuji.
 
 ## Keputusan pemilik (2026-10-27)
 1. Selama ada output yang menyala, PC tidak boleh tidur dan layar tidak boleh mati.

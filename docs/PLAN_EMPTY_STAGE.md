@@ -1,6 +1,6 @@
 # Rencana: tab boleh nol, output menampilkan test pattern
 
-Status: rencana, belum dikerjakan. Berlaku global (akan digabung ke `main`). Belum ada kode yang diubah dan belum diuji.
+Status: dikerjakan di `custom` (2026-10-28): tab boleh nol, pola uji per unit (Layar/NDI/OMT) dengan burst audio, tanpa tab tayang saat dibuka. Pola memakai font piksel bawaan (bukan Barlow/IBM Plex) dan tanpa gradasi alpha. Dulu: rencana, belum dikerjakan. Berlaku global (akan digabung ke `main`). Belum ada kode yang diubah dan belum diuji.
 
 ## Permintaan pemilik
 
