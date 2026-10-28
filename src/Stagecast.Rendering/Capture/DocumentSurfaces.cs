@@ -16,6 +16,7 @@ internal sealed class DocumentSurfaces : IDisposable
     private readonly Compositor _compositor;
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
+    private Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice? _winrtDevice;
     private CompositionGraphicsDevice? _graphics;
 
     private readonly ILogger _logger;
@@ -34,7 +35,8 @@ internal sealed class DocumentSurfaces : IDisposable
     {
         if (_graphics is not null) return;
         Step("create device");
-        var (device, context, _) = Direct3D.CreateDevice();
+        var (device, context, winrtDevice) = Direct3D.CreateDevice();
+        _winrtDevice = winrtDevice;
         using (var multithread = device.QueryInterface<ID3D11Multithread>()) multithread.SetMultithreadProtected(true);
         _device = device;
         _context = context;
@@ -55,6 +57,16 @@ internal sealed class DocumentSurfaces : IDisposable
         finally
         {
             Marshal.Release(interopPtr);
+        }
+    }
+
+    /// <summary>The same device for Windows Graphics Capture, so a captured frame can be copied into a surface without leaving the GPU.</summary>
+    public Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice WinRtDevice
+    {
+        get
+        {
+            EnsureDevice();
+            return _winrtDevice!;
         }
     }
 
@@ -109,6 +121,39 @@ internal sealed class DocumentSurfaces : IDisposable
             finally
             {
                 Step("EndDraw");
+                interop.EndDraw();
+            }
+        }
+        finally
+        {
+            Marshal.Release(interopPtr);
+        }
+    }
+
+    /// <summary>
+    /// Copies a region of a texture of this device (a captured frame) into the top left of the surface, on the GPU. The surface has
+    /// to be at least <paramref name="width"/> x <paramref name="height"/>.
+    /// </summary>
+    public void CopyFrom(CompositionDrawingSurface surface, ID3D11Texture2D source, int left, int top, int width, int height)
+    {
+        EnsureDevice();
+        IntPtr surfacePtr = ((IWinRTObject)surface).NativeObject.ThisPtr;
+        Guid iid = typeof(ICompositionDrawingSurfaceInterop).GUID;
+        Marshal.ThrowExceptionForHR(Marshal.QueryInterface(surfacePtr, ref iid, out IntPtr interopPtr));
+        try
+        {
+            var interop = (ICompositionDrawingSurfaceInterop)Marshal.GetObjectForIUnknown(interopPtr);
+            Guid textureIid = typeof(ID3D11Texture2D).GUID;
+            interop.BeginDraw(IntPtr.Zero, ref textureIid, out IntPtr texturePtr, out Point offset);
+            try
+            {
+                using var texture = new ID3D11Texture2D(texturePtr);
+                var region = new Vortice.Mathematics.Box(left, top, 0, left + width, top + height, 1);
+                _context!.CopySubresourceRegion(texture, 0, (uint)offset.X, (uint)offset.Y, 0, source, 0, region);
+                _context.Flush();
+            }
+            finally
+            {
                 interop.EndDraw();
             }
         }

@@ -11,9 +11,6 @@ using Windows.UI.Composition;
 
 namespace Stagecast.Rendering;
 
-/// <summary>A small picture of a page: premultiplied BGRA, <c>Width * 4</c> bytes per row.</summary>
-public sealed record PdfThumbnail(byte[] Pixels, int Width, int Height);
-
 public enum PdfOpenResult
 {
     Opened,
@@ -33,7 +30,7 @@ public enum PdfOpenResult
 /// carries them to every output like a web page. Changing page is a hard cut. The file is opened from a temporary copy, and the
 /// password is used once to open it and never kept.
 /// </summary>
-public sealed class PdfSource : IDisposable
+public sealed class PdfSource : IDocumentSource, IDisposable
 {
     // The page on screen plus one before and two after: stepping forward is the common case.
     private const int PagesBefore = 1;
@@ -263,7 +260,7 @@ public sealed class PdfSource : IDisposable
     /// A small picture of page <paramref name="index"/> (zero-based) at most <paramref name="maxWidth"/> x <paramref name="maxHeight"/>,
     /// premultiplied BGRA, for the page strip. Null when no document is open or the page cannot be drawn.
     /// </summary>
-    public async Task<PdfThumbnail?> RenderThumbnailAsync(int index, int maxWidth, int maxHeight)
+    public async Task<PageThumbnail?> RenderThumbnailAsync(int index, int maxWidth, int maxHeight)
     {
         await _renderLock.WaitAsync();
         try
@@ -279,7 +276,7 @@ public sealed class PdfSource : IDisposable
                 BitmapEncoderId = BitmapEncoder.BmpEncoderId,
             };
             (byte[] pixels, int width, int height) = await DrawAsync(page, options);
-            return new PdfThumbnail(pixels, width, height);
+            return new PageThumbnail(pixels, width, height);
         }
         catch (Exception ex)
         {

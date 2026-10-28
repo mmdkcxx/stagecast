@@ -19,11 +19,11 @@ public partial class MainWindow
     internal bool ClickerGlobal => _clickerHook is not null;
 
     /// <summary>The document whose pages the clicker turns: the tab on air first, otherwise the tab in the preview.</summary>
-    internal PdfSource? ClickerTarget()
+    internal IDocumentSource? ClickerTarget()
     {
         if (_engine is null) return null;
-        if (_engine.Program is DocumentTab { Pdf.PageCount: > 0 } program) return program.Pdf;
-        return _engine.Active is DocumentTab { Pdf.PageCount: > 0 } active ? active.Pdf : null;
+        if (_engine.Program is DocumentTab { Document.PageCount: > 0 } program) return program.Document;
+        return _engine.Active is DocumentTab { Document.PageCount: > 0 } active ? active.Document : null;
     }
 
     /// <summary>Does what a clicker key means. Returns false when it does nothing (no document to turn).</summary>
@@ -34,7 +34,7 @@ public partial class MainWindow
         {
             case ClickerCommand.Next: await pdf.NextAsync(); break;
             case ClickerCommand.Previous: await pdf.PreviousAsync(); break;
-            case ClickerCommand.Restart: await pdf.GoToAsync(0); break;
+            case ClickerCommand.Restart: await pdf.GoToAsync(FirstIndex(pdf)); break;
             case ClickerCommand.Blackout: SetGate(Gate == GateMode.Blackout ? GateMode.Live : GateMode.Blackout); break;
         }
         return true;
@@ -97,11 +97,11 @@ public partial class MainWindow
 
     // ---- the tab on air, while the preview shows another tab ----
 
-    private PdfSource? ProgramPdf => _engine is { PreviewMode: true } engine && engine.Program is DocumentTab { Pdf.PageCount: > 0 } tab && tab != engine.Active ? tab.Pdf : null;
+    private IDocumentSource? ProgramPdf => _engine is { PreviewMode: true } engine && engine.Program is DocumentTab { Document.PageCount: > 0 } tab && tab != engine.Active ? tab.Document : null;
 
     private void UpdateProgramBar()
     {
-        PdfSource? pdf = ProgramPdf;
+        IDocumentSource? pdf = ProgramPdf;
         ProgramDocBar.Visibility = pdf is null ? Visibility.Collapsed : Visibility.Visible;
         if (pdf is null) return;
         int count = pdf.PageCount;
@@ -109,17 +109,17 @@ public partial class MainWindow
         if (!ProgramPageBox.IsKeyboardFocusWithin) ProgramPageBox.Text = pdf.PageNumber.ToString();
         ProgramCountText.Text = $"/ {count}";
         ProgramPageBox.IsEnabled = count > 1;
-        ProgramFirstButton.IsEnabled = ProgramPrevButton.IsEnabled = pdf.PageIndex > 0;
-        ProgramNextButton.IsEnabled = ProgramLastButton.IsEnabled = pdf.PageIndex < count - 1;
+        ProgramFirstButton.IsEnabled = ProgramPrevButton.IsEnabled = pdf.PageIndex > FirstIndex(pdf);
+        ProgramNextButton.IsEnabled = ProgramLastButton.IsEnabled = pdf.PageIndex < (pdf is PowerPointSource ? LastIndex(pdf) : count - 1);
     }
 
-    private void OnProgFirst(object sender, RoutedEventArgs e) => _ = ProgramPdf?.GoToAsync(0);
+    private void OnProgFirst(object sender, RoutedEventArgs e) => _ = ProgramPdf?.GoToAsync(FirstIndex(ProgramPdf));
 
     private void OnProgPrev(object sender, RoutedEventArgs e) => _ = ProgramPdf?.PreviousAsync();
 
     private void OnProgNext(object sender, RoutedEventArgs e) => _ = ProgramPdf?.NextAsync();
 
-    private void OnProgLast(object sender, RoutedEventArgs e) => _ = ProgramPdf?.GoToAsync(int.MaxValue);
+    private void OnProgLast(object sender, RoutedEventArgs e) => _ = ProgramPdf?.GoToAsync(LastIndex(ProgramPdf));
 
     private void OnProgPageKeyDown(object sender, KeyEventArgs e)
     {

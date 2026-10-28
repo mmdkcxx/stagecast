@@ -36,6 +36,12 @@ public sealed class DocumentTab : StageTab
     /// <summary>The pages of a PDF tab, once <see cref="RenderEngine.AttachPdf"/> has been called.</summary>
     public PdfSource? Pdf { get; internal set; }
 
+    /// <summary>The slides of a PowerPoint tab, once <see cref="RenderEngine.AttachPowerPoint"/> has been called.</summary>
+    public PowerPointSource? PowerPoint { get; internal set; }
+
+    /// <summary>Whichever source plays this tab's file (null until one is attached); the page controls work on it.</summary>
+    public IDocumentSource? Document => (IDocumentSource?)Pdf ?? PowerPoint;
+
     internal SpriteVisual Content { get; }
 
     internal override void Resize(int width, int height)
@@ -43,11 +49,13 @@ public sealed class DocumentTab : StageTab
         Visual.Size = new Vector2(width, height);
         Content.Size = new Vector2(width, height);
         Pdf?.Resize(width, height);
+        PowerPoint?.Resize(width, height);
     }
 
     internal override void Close()
     {
         Pdf?.Dispose();
+        PowerPoint?.Dispose();
         Content.Dispose();
     }
 }

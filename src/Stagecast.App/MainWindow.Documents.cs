@@ -37,6 +37,13 @@ public partial class MainWindow
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     };
 
+    /// <summary>Asks the operator for a PowerPoint file; null when they cancel. Replaceable so tests need no dialog.</summary>
+    internal Func<string?> PickPowerPoint { get; set; } = () =>
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Presentasi PowerPoint (*.pptx)|*.pptx", CheckFileExists = true, Title = "Pilih berkas PowerPoint" };
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    };
+
     /// <summary>Asks for a password (file name, whether the last one was wrong); null when cancelled. Replaceable for tests.</summary>
     internal Func<string, bool, string?> AskPassword { get; set; } = null!;
 
@@ -48,11 +55,59 @@ public partial class MainWindow
 
     private DocumentTab? ActiveDocument => _engine?.Active as DocumentTab;
 
-    private PdfSource? ActivePdf => ActiveDocument?.Pdf;
+    private IDocumentSource? ActivePdf => ActiveDocument?.Document;
 
-    private static string FileLabel(string? source) => string.IsNullOrEmpty(source) ? "PDF" : Path.GetFileName(source);
+    private static string FileLabel(string? source) => string.IsNullOrEmpty(source) ? "Berkas" : Path.GetFileName(source);
+
+    /// <summary>What one step of the tab's file is called: a page of a PDF, a slide of a deck.</summary>
+    private static string UnitName(DocumentTab tab) => tab.Kind == TabKind.PowerPoint ? "Slide" : "Halaman";
 
     // ---- opening ----
+
+    private void OnAddPowerPoint(object sender, RoutedEventArgs e) => _ = AddPowerPointTabAsync();
+
+    /// <summary>Adds a PowerPoint tab for <paramref name="path"/> (asks for the file when null) and shows its first slide.</summary>
+    internal async Task<bool> AddPowerPointTabAsync(string? path = null)
+    {
+        if (_engine is null) return false;
+        path ??= PickPowerPoint();
+        if (path is null) return false;
+        if (!await AddDocumentTabAsync(TabKind.PowerPoint, path)) return false;
+        var info = _tabs.Items[^1];
+        string name = Path.GetFileNameWithoutExtension(path);
+        _tabs.Rename(info.Id, name.Length > TabRules.MaxNameLength ? name[..TabRules.MaxNameLength] : name);
+        if (_engine.TabById(info.Id) is DocumentTab tab) await OpenPowerPointAsync(tab, path);
+        RebuildTabList();
+        SchedulePersist();
+        return true;
+    }
+
+    /// <summary>Opens <paramref name="path"/> in <paramref name="tab"/> at slide <paramref name="startSlide"/> (zero-based; -1 is the first slide that is not hidden).</summary>
+    internal async Task<PowerPointOpenResult> OpenPowerPointAsync(DocumentTab tab, string path, int startSlide = -1)
+    {
+        PowerPointSource deck = _engine!.AttachPowerPoint(tab);
+        HookDocument(tab, deck);
+        PowerPointOpenResult result = await deck.OpenAsync(path, startSlide);
+        bool hadDocument = tab.PowerPoint is { PageCount: > 0 } && result != PowerPointOpenResult.Opened;
+        if (result == PowerPointOpenResult.Opened) SetDocMessage(tab, null);
+        else
+        {
+            string message = result == PowerPointOpenResult.NotInstalled
+                ? "PowerPoint tidak terpasang di PC ini, jadi berkas ini tidak bisa diputar."
+                : deck.Problem ?? (File.Exists(path) ? "Berkas ini tidak bisa dibuka PowerPoint." : "Berkas tidak ditemukan. Klik Pilih berkas… untuk memilih ulang.");
+            SetDocMessage(tab, hadDocument ? message + " Yang tampil masih berkas sebelumnya." : message);
+        }
+
+        if (result == PowerPointOpenResult.Opened)
+        {
+            _pageThumbs.Remove(tab.Id);
+            _stripTab = null;
+            Activate(); // the show window flashes up while it starts: the operator's window gets the keyboard back
+        }
+
+        UpdateNavigationState();
+        return result;
+    }
 
     private void OnAddPdf(object sender, RoutedEventArgs e) => _ = AddPdfTabAsync();
 
@@ -72,15 +127,16 @@ public partial class MainWindow
         return true;
     }
 
-    /// <summary>Opens the PDF of tabs restored from the saved settings. A password is not asked at start; "Muat ulang" asks for it.</summary>
+    /// <summary>Opens the files of tabs restored from the saved settings. A PDF password is not asked at start; "Muat ulang" asks for it.</summary>
     private async Task OpenStoredPdfsAsync()
     {
         if (_engine is null) return;
-        foreach (var info in _tabs.Items.Where(t => t.Kind == TabKind.Pdf).ToList())
+        foreach (var info in _tabs.Items.Where(t => t.Kind is TabKind.Pdf or TabKind.PowerPoint).ToList())
         {
             if (_engine.TabById(info.Id) is not DocumentTab tab) continue;
             if (string.IsNullOrEmpty(info.Source)) { SetDocMessage(tab, "Belum ada berkas. Klik Pilih berkas…"); continue; }
-            await OpenPdfAsync(tab, info.Source, askPassword: false);
+            if (tab.Kind == TabKind.PowerPoint) await OpenPowerPointAsync(tab, info.Source);
+            else await OpenPdfAsync(tab, info.Source, askPassword: false);
         }
         UpdateNavigationState();
     }
@@ -89,16 +145,7 @@ public partial class MainWindow
     internal async Task<PdfOpenResult> OpenPdfAsync(DocumentTab tab, string path, int startPage = 0, bool askPassword = true)
     {
         PdfSource pdf = _engine!.AttachPdf(tab);
-        if (_hookedPdfs.Add(tab.Id))
-        {
-            pdf.PageChanged += () => OnPdfPageChanged(tab);
-            pdf.PageFailed += page =>
-            {
-                _pageFailed.Add(tab.Id);
-                SetDocMessage(tab, $"Halaman {page} tidak bisa digambar. Gambar yang tampil tetap halaman sebelumnya.");
-                UpdateNavigationState();
-            };
-        }
+        HookDocument(tab, pdf);
         string? password = null;
         PdfOpenResult result;
         while (true)
@@ -132,6 +179,21 @@ public partial class MainWindow
         return result;
     }
 
+    // The page controls and the strip follow the source of a tab, once.
+    private void HookDocument(DocumentTab tab, IDocumentSource source)
+    {
+        if (!_hookedPdfs.Add(tab.Id)) return;
+        source.PageChanged += () => OnPdfPageChanged(tab);
+        source.PageFailed += page =>
+        {
+            _pageFailed.Add(tab.Id);
+            SetDocMessage(tab, tab.Kind == TabKind.PowerPoint
+                ? "PowerPoint tidak menjawab. Klik Muat ulang untuk membuka berkas lagi."
+                : $"Halaman {page} tidak bisa digambar. Gambar yang tampil tetap halaman sebelumnya.");
+            UpdateNavigationState();
+        };
+    }
+
     private void SetDocMessage(DocumentTab tab, string? message)
     {
         if (message is null) _docMessages.Remove(tab.Id);
@@ -151,14 +213,17 @@ public partial class MainWindow
 
     private void OnDocPick(object sender, RoutedEventArgs e) => _ = ChangePdfAsync();
 
-    /// <summary>Chooses another file for the active PDF tab.</summary>
+    /// <summary>Chooses another file for the active document tab.</summary>
     internal async Task<bool> ChangePdfAsync(string? path = null)
     {
-        if (ActiveDocument is not { Kind: TabKind.Pdf } tab) return false;
-        path ??= PickPdf();
+        if (ActiveDocument is not { Kind: TabKind.Pdf or TabKind.PowerPoint } tab) return false;
+        path ??= tab.Kind == TabKind.PowerPoint ? PickPowerPoint() : PickPdf();
         if (path is null) return false;
-        if (IsOnAir(tab.Id) && tab.Pdf is { PageCount: > 0 } && !Confirm("Tab ini sedang tayang. Mengganti berkas mengubah apa yang dilihat penonton. Lanjutkan?")) return false;
-        if (await OpenPdfAsync(tab, path) != PdfOpenResult.Opened) return false; // the old file stays the tab's file
+        if (IsOnAir(tab.Id) && tab.Document is { PageCount: > 0 } && !Confirm("Tab ini sedang tayang. Mengganti berkas mengubah apa yang dilihat penonton. Lanjutkan?")) return false;
+        bool opened = tab.Kind == TabKind.PowerPoint
+            ? await OpenPowerPointAsync(tab, path) == PowerPointOpenResult.Opened
+            : await OpenPdfAsync(tab, path) == PdfOpenResult.Opened;
+        if (!opened) return false; // the old file stays the tab's file
         _tabs.SetSource(tab.Id, path);
         tab.SetSource(path);
         SchedulePersist();
@@ -170,10 +235,11 @@ public partial class MainWindow
     /// <summary>Opens the file again from disk and returns to the same page (asks first when the tab is on air).</summary>
     internal async Task<bool> ReloadPdfAsync()
     {
-        if (ActiveDocument is not { Kind: TabKind.Pdf } tab || string.IsNullOrEmpty(tab.Source)) return false;
-        int page = Math.Max(tab.Pdf?.PageIndex ?? 0, 0);
-        if (IsOnAir(tab.Id) && tab.Pdf is { PageCount: > 0 } && !Confirm($"Tab ini sedang tayang. Berkas dibuka lagi dan kembali ke halaman {page + 1}. Lanjutkan?")) return false;
-        await OpenPdfAsync(tab, tab.Source, page);
+        if (ActiveDocument is not { Kind: TabKind.Pdf or TabKind.PowerPoint } tab || string.IsNullOrEmpty(tab.Source)) return false;
+        int page = Math.Max(tab.Document?.PageIndex ?? 0, 0);
+        if (IsOnAir(tab.Id) && tab.Document is { PageCount: > 0 } && !Confirm($"Tab ini sedang tayang. Berkas dibuka lagi dan kembali ke {UnitName(tab).ToLowerInvariant()} {page + 1}. Lanjutkan?")) return false;
+        if (tab.Kind == TabKind.PowerPoint) await OpenPowerPointAsync(tab, tab.Source, page);
+        else await OpenPdfAsync(tab, tab.Source, page);
         return true;
     }
 
@@ -181,16 +247,28 @@ public partial class MainWindow
 
     // ---- page controls ----
 
-    private void OnDocFirst(object sender, RoutedEventArgs e) => _ = GoToPageAsync(0);
+    // "The first" and "the last" of a deck skip the slides hidden at its ends; of a PDF they are its first and last page.
+    internal static int FirstIndex(IDocumentSource? source) => source is PowerPointSource deck ? deck.FirstVisible : 0;
+
+    internal static int LastIndex(IDocumentSource? source) => source is PowerPointSource deck ? deck.LastVisibleIndex : int.MaxValue;
+
+    private void OnDocFirst(object sender, RoutedEventArgs e) => _ = GoToPageAsync(FirstIndex(ActivePdf));
 
     private void OnDocPrev(object sender, RoutedEventArgs e) => _ = ActivePdf?.PreviousAsync();
 
     private void OnDocNext(object sender, RoutedEventArgs e) => _ = ActivePdf?.NextAsync();
 
-    private void OnDocLast(object sender, RoutedEventArgs e) => _ = GoToPageAsync(int.MaxValue);
+    private void OnDocLast(object sender, RoutedEventArgs e) => _ = GoToPageAsync(LastIndex(ActivePdf));
 
     /// <summary>Shows a page of the active PDF (zero-based; out of range goes to the nearest end).</summary>
-    internal async Task<bool> GoToPageAsync(int index) => ActivePdf is { } pdf && await pdf.GoToAsync(index);
+    internal async Task<bool> GoToPageAsync(int index)
+    {
+        if (ActivePdf is not { } source) return false;
+        // A slide that is hidden in the file may be hidden on purpose: ask before putting it on the screen.
+        if (source is PowerPointSource { PageCount: > 0 } deck && index >= 0 && index < deck.PageCount && deck.IsHidden(index)
+            && !Confirm($"Slide {index + 1} disembunyikan di berkas. Tayangkan?")) return false;
+        return await source.GoToAsync(index);
+    }
 
     /// <summary>The operator typed a page number: goes there, or says what is accepted and leaves the page as it is.</summary>
     internal async Task<bool> JumpToTypedPageAsync(string? text)
@@ -203,7 +281,7 @@ public partial class MainWindow
             DocStatusText.Foreground = (Brush)FindResource("Warn");
             return false;
         }
-        return await pdf.GoToAsync(index);
+        return await GoToPageAsync(index);
     }
 
     private void OnDocPageKeyDown(object sender, KeyEventArgs e)
@@ -256,14 +334,14 @@ public partial class MainWindow
             return;
         }
 
-        PdfSource? pdf = tab.Pdf;
+        IDocumentSource? pdf = tab.Document;
         int count = pdf?.PageCount ?? 0;
         bool open = count > 0;
         if (!DocPageBox.IsKeyboardFocusWithin) DocPageBox.Text = open ? pdf!.PageNumber.ToString() : "";
         DocCountText.Text = open ? $"/ {count}" : "";
         DocPageBox.IsEnabled = open && count > 1;
-        DocFirstButton.IsEnabled = DocPrevButton.IsEnabled = open && pdf!.PageIndex > 0;
-        DocNextButton.IsEnabled = DocLastButton.IsEnabled = open && pdf!.PageIndex < count - 1;
+        DocFirstButton.IsEnabled = DocPrevButton.IsEnabled = open && pdf!.PageIndex > FirstIndex(pdf);
+        DocNextButton.IsEnabled = DocLastButton.IsEnabled = open && pdf!.PageIndex < (pdf is PowerPointSource ? LastIndex(pdf) : count - 1);
         DocReloadButton.IsEnabled = !string.IsNullOrEmpty(tab.Source);
         DocStatusText.Foreground = (Brush)FindResource(_docMessages.ContainsKey(tab.Id) ? "Warn" : "Muted");
         DocStatusText.Text = _docMessages.TryGetValue(tab.Id, out var message) ? message : open ? FileLabel(tab.Source) : "";
@@ -278,7 +356,7 @@ public partial class MainWindow
 
     // ---- page strip ----
 
-    private void BuildStrip(DocumentTab tab, PdfSource pdf)
+    private void BuildStrip(DocumentTab tab, IDocumentSource pdf)
     {
         DocStripPanel.Children.Clear();
         _stripItems.Clear();
@@ -305,8 +383,16 @@ public partial class MainWindow
             var item = new Border
             {
                 Child = grid, Margin = new Thickness(0, 0, 8, 0), BorderThickness = new Thickness(2), BorderBrush = (Brush)FindResource("Line"),
-                Cursor = Cursors.Hand, Tag = picture, ToolTip = $"Halaman {i + 1}",
+                Cursor = Cursors.Hand, Tag = picture, ToolTip = $"{UnitName(tab)} {i + 1}",
             };
+            if (pdf is PowerPointSource deck && deck.IsHidden(i))
+            {
+                // A hidden slide stays in the strip, dimmed and marked: Next skips it, a click asks first.
+                item.Opacity = 0.5;
+                item.BorderThickness = new Thickness(2);
+                number.Text = $"{i + 1} TERSEMBUNYI";
+                item.ToolTip = $"Slide {i + 1} (disembunyikan di berkas)";
+            }
             item.MouseLeftButtonUp += (_, e) =>
             {
                 _ = GoToPageAsync(index);
@@ -320,7 +406,7 @@ public partial class MainWindow
     }
 
     // Thumbnails are drawn one at a time, starting at the page on screen and moving outwards, so the visible ones come first.
-    private async Task LoadStripAsync(Guid id, PdfSource pdf, int version)
+    private async Task LoadStripAsync(Guid id, IDocumentSource pdf, int version)
     {
         if (!_pageThumbs.TryGetValue(id, out var known)) return;
         int start = Math.Max(pdf.PageIndex, 0);
@@ -328,7 +414,7 @@ public partial class MainWindow
                      .OrderBy(i => Math.Abs(i - start)).ThenBy(i => i))
         {
             if (known.ContainsKey(index)) continue;
-            PdfThumbnail? thumb = await pdf.RenderThumbnailAsync(index, StripThumbWidth * 2, StripThumbHeight * 2);
+            PageThumbnail? thumb = await pdf.RenderThumbnailAsync(index, StripThumbWidth * 2, StripThumbHeight * 2);
             if (version != _stripVersion || _stripTab != id) return; // another tab or a reload took over the strip
             if (thumb is null) continue;
             var bitmap = BitmapSource.Create(thumb.Width, thumb.Height, 96, 96, PixelFormats.Pbgra32, null, thumb.Pixels, thumb.Width * 4);
@@ -341,7 +427,7 @@ public partial class MainWindow
     // The pages near the one on screen need their pictures even when the strip started at another page.
     private void EnsureStripAround(DocumentTab tab)
     {
-        if (_stripTab != tab.Id || tab.Pdf is not { PageIndex: >= 0 } pdf || !_pageThumbs.TryGetValue(tab.Id, out var known)) return;
+        if (_stripTab != tab.Id || tab.Document is not { PageIndex: >= 0 } pdf || !_pageThumbs.TryGetValue(tab.Id, out var known)) return;
         if (known.ContainsKey(pdf.PageIndex) && known.ContainsKey(Math.Min(pdf.PageIndex + 3, pdf.PageCount - 1))) return;
         _ = LoadStripAsync(tab.Id, pdf, ++_stripVersion);
     }

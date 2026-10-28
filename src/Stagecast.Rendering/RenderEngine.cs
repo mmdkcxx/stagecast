@@ -306,6 +306,26 @@ public sealed partial class RenderEngine : IDisposable
         return tab.Pdf;
     }
 
+    /// <summary>
+    /// Gives a PowerPoint tab the component that plays its slides with the installed PowerPoint. Open a file with
+    /// <see cref="PowerPointSource.OpenAsync"/>; the tab's visual shows the slide scaled to fit, with black bars.
+    /// </summary>
+    public PowerPointSource AttachPowerPoint(DocumentTab tab)
+    {
+        if (tab.Kind != TabKind.PowerPoint) throw new ArgumentException("Only a PowerPoint tab shows slides.", nameof(tab));
+        if (tab.PowerPoint is not null) return tab.PowerPoint;
+        PowerPointSource.CleanOldTempFiles();
+        _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
+        tab.Content.Brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+        tab.PowerPoint = new PowerPointSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
+        // Same as a PDF page: a still slide makes no new frames, so a capture started for a new size is started again once the slide is placed.
+        tab.PowerPoint.Redrawn += () =>
+        {
+            if (tab == _program || tab == _active) _capturer.Restart();
+        };
+        return tab.PowerPoint;
+    }
+
     private void Register(StageTab tab)
     {
         _tabs.Add(tab);
