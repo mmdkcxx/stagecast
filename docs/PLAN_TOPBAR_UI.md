@@ -1,6 +1,6 @@
 # Rencana: antarmuka top bar (sidebar kanan dihapus)
 
-Status: T1–T4 dikerjakan di `custom` (2026-10-28, versi 1.2.0-custom.2; tes otomatis hijau, tampilan dicek lewat gambar `--selftest shot`). Belum diuji: seret, ubah ukuran, maksimalkan dengan mouse, snap layouts, DPI 125/150%, tema kontras tinggi, teks terpotong di lebar minimum. Dulu: rencana, belum dikerjakan. Berlaku global dan akan digabung ke `main`. Belum ada kode yang diubah dan belum diuji. Mockup interaktif: https://claude.ai/artifact/7nzyWz58G61L9SVPsSBdPW (privat).
+Status: T1–T4 dikerjakan di `custom` (2026-10-28, versi 1.2.0-custom.2; tes otomatis hijau, tampilan dicek lewat gambar `--selftest shot`). Belum diuji: seret, ubah ukuran, maksimalkan dengan mouse, snap layouts, DPI 125/150%, tema kontras tinggi, teks terpotong di lebar minimum. Dulu: rencana, belum dikerjakan. Berlaku global dan akan digabung ke `main`. Mockup interaktif: https://claude.ai/artifact/7nzyWz58G61L9SVPsSBdPW (privat).
 
 ## Keputusan pemilik (2026-10-27)
 - Sidebar kanan (Render, Layar penuh, NDI, OMT, Audio, Statistik) dihapus; area pratinjau memakai seluruh lebar di kanan daftar tab.
