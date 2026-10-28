@@ -3,7 +3,7 @@
 #   typecheck  full rebuild with nullable analysis and warnings as errors
 #   unit       xUnit tests (no window, no network)
 #   smoke      runs the spike exe and asserts its log (opens a window for a few seconds, needs network)
-#   selftest NAME   one app self test only (a2, a2b, d1a, d5, p2, p1, p4, ...): builds, runs it, passes when its log says "selftest ok"
+#   selftest NAME   one app self test only (a2, a2b, d1a, d5, p2, p1, p4, p5, ...): builds, runs it, passes when its log says "selftest ok"
 # Environment: CONTINUE=1 lets smoke run every step and list the failures at the end (default: stop at the first failure).
 #              STAGECAST_TEST_PDF=/path/to/file.pdf (WSL path) adds a real document to the d5 self test.
 # Run this once per test batch (see docs/TESTING.md), not after every small change.
@@ -74,6 +74,7 @@ smoke() {
   APP_EXTRA=",'--selftest','p2'" smoke_app "P2 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','p1'" smoke_app "P1 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','p4'" smoke_app "P4 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
+  APP_EXTRA=",'--selftest','p5'" smoke_app "P5 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','a4'" smoke_app "A4 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','a5'" smoke_app "A5 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','a6'" smoke_app "A6 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }

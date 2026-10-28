@@ -74,6 +74,8 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private int _canvasHeight;
     private bool _disposed;
     private Timer? _settle;
+    private Timer? _watch;
+    private volatile bool _deadReported;
     private bool _nudged;
 
     private volatile int _processId;
@@ -93,6 +95,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         _page.IsVisible = false;
         host.Children.InsertAtTop(_page);
         _settle = new Timer(_ => Nudge(), null, Timeout.Infinite, Timeout.Infinite);
+        _watch = new Timer(_ => Watch(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
         _thread = new Thread(Pump) { IsBackground = true, Name = "PowerPoint" };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
@@ -237,6 +240,16 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         bool newApp = false;
         try
         {
+            if (_app is not null && !AppAlive())
+            {
+                // PowerPoint was closed or crashed under the show: what is left of it is dropped and a new one is started.
+                _logger.LogWarning("PowerPoint is gone; starting it again");
+                CloseShow();
+                _app = null;
+                _ownApp = false;
+                Borrowed = false;
+            }
+
             if (_app is null)
             {
                 Type? type = Type.GetTypeFromProgID("PowerPoint.Application");
@@ -396,6 +409,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         _hwnd = hwnd;
         NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
         _processId = (int)pid;
+        _deadReported = false;
         MoveOffScreen(hwnd);
         if (startSlide >= 0 && startSlide != FirstVisible)
         {
@@ -513,6 +527,24 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     {
         for (int i = _hidden.Length - 1; i >= 0; i--) if (!_hidden[i]) return i + 1;
         return _hidden.Length;
+    }
+
+    // On the PowerPoint thread.
+    private bool AppAlive()
+    {
+        try { _ = (int)_app!.Presentations.Count; return true; }
+        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { return false; }
+    }
+
+    // Every two seconds: a PowerPoint that was closed or killed during a show is said so at once, not at the next slide turn.
+    private void Watch()
+    {
+        int pid = _processId;
+        if (pid == 0 || _disposed || _deadReported || ProcessRunning(pid)) return;
+        _deadReported = true;
+        _logger.LogWarning("PowerPoint (process {Pid}) ended during the show", pid);
+        _problem = "PowerPoint berhenti. Klik Muat ulang untuk membuka berkas lagi. Yang tampil adalah gambar terakhir.";
+        PageFailed?.Invoke(_pageIndex + 1);
     }
 
     private bool IsOpen => _window is not null && _pageCount > 0;
@@ -710,6 +742,8 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         lock (_frameGate) _disposed = true;
         _settle?.Dispose();
         _settle = null;
+        _watch?.Dispose();
+        _watch = null;
         Task closing = Run(() =>
         {
             CloseShow();
