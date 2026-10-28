@@ -74,8 +74,8 @@ public partial class MainWindow
         ndi.SendAlpha = _ndiConfig.Alpha;
         _ndi = ndi;
         _ndiError = null;
-        _engine.Hub.AddSink(ndi);
-        _audio.AddSink(ndi);
+        _engine.Hub.AddSink(ndi, () => _ndiPattern);
+        _audio.AddSink(ndi, () => _ndiPattern);
         NdiButton.Content = "Matikan NDI";
         ShowNdiStatus();
         ShowControls();

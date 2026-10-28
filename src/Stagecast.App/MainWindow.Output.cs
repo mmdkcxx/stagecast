@@ -189,7 +189,7 @@ public partial class MainWindow
         if (warning != OutputWarning.None && !Confirm(OutputGuard.Message(warning))) return false;
 
         _output = new OutputWindow(target, _outputConfig.Scale, _outputConfig.AlwaysOnTop, _engine.Resolution);
-        _engine.Hub.AddSink(_output);
+        _engine.Hub.AddSink(_output, () => _screenPattern);
         _output.Show();
         OutputButton.Content = "Matikan output";
         OutputNote.Text = $"Output nyala di {target.Label}. Matikan darurat: Ctrl+Alt+H.";

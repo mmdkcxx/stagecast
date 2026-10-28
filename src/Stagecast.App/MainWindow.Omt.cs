@@ -68,8 +68,8 @@ public partial class MainWindow
         omt.SendAlpha = _omtConfig.Alpha;
         _omt = omt;
         _omtError = null;
-        _engine.Hub.AddSink(omt);
-        _audio.AddSink(omt);
+        _engine.Hub.AddSink(omt, () => _omtPattern);
+        _audio.AddSink(omt, () => _omtPattern);
         OmtButton.Content = "Matikan OMT";
         ShowOmtStatus();
         ShowControls();

@@ -81,6 +81,8 @@ public partial class MainWindow : Window
             await StartTabsAsync();
             UpdateModeButtons();
             StartAudio();
+            // A start never puts a tab on air by itself: until the operator selects or takes one, the outputs show the test pattern.
+            if (_context.SelfTest is null) SetNoLive(true);
             PagePreviewView.Attach(_engine);
             _engine.PreviewReady += OnThumbSourcePreview;
             _engine.ProgramThumbReady += OnThumbSourceProgram;
@@ -124,6 +126,7 @@ public partial class MainWindow : Window
         string label, fill, foreground;
         if (!(screen || ndi || omt)) (label, fill, foreground) = ("OUTPUT MATI", "Raised", "Muted");
         else if (BlackoutButton.IsChecked == true) (label, fill, foreground) = ("BLACKOUT", "Text", "Bg");
+        else if (_noLive) (label, fill, foreground) = ("POLA UJI", "Warn", "WarnFg");
         else if (FreezeButton.IsChecked == true) (label, fill, foreground) = ("FREEZE", "Warn", "WarnFg");
         else (label, fill, foreground) = ("LIVE", "LiveBg", "Text");
         StatusPill.Background = (Brush)FindResource(fill);
@@ -211,6 +214,42 @@ public partial class MainWindow : Window
 
     private readonly RenderChangeGate _gate = new();
     private readonly SleepGuard _sleepGuard;
+    private bool _noLive;
+
+    /// <summary>True while no tab is live (a start, or every tab closed): the outputs show the test pattern.</summary>
+    internal bool NoLive => _noLive;
+
+    internal void SetNoLive(bool noLive)
+    {
+        if (_noLive == noLive) return;
+        _noLive = noLive;
+        _engine?.Hub.SetNoLiveFlag(noLive);
+        if (_audio is not null) _audio.NoLive = noLive;
+        _logger.LogInformation(noLive ? "No tab is live: the outputs show the test pattern" : "A tab is live");
+        RefreshHeader();
+    }
+
+    // Which units show the test pattern instead of the live picture. Not saved: every start begins on the live picture.
+    private volatile bool _screenPattern, _ndiPattern, _omtPattern;
+
+    internal bool ScreenPattern => _screenPattern;
+
+    internal bool NdiPattern => _ndiPattern;
+
+    internal bool OmtPattern => _omtPattern;
+
+    private void OnPatternChanged(object sender, RoutedEventArgs e)
+    {
+        _screenPattern = ScreenPatternBox.IsChecked == true;
+        _ndiPattern = NdiPatternBox.IsChecked == true;
+        _omtPattern = OmtPatternBox.IsChecked == true;
+    }
+
+    /// <summary>Shows or hides the test pattern on one unit ("screen", "ndi" or "omt").</summary>
+    internal void SetPattern(string unit, bool on)
+    {
+        (unit switch { "screen" => ScreenPatternBox, "ndi" => NdiPatternBox, _ => OmtPatternBox }).IsChecked = on;
+    }
     private bool _sessionEnding;
 
     /// <summary>True while Windows is asked not to sleep (an output is on).</summary>

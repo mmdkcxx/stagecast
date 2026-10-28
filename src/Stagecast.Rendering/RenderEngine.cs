@@ -70,6 +70,7 @@ public sealed partial class RenderEngine : IDisposable
         _logger = logger;
         Resolution = options.Resolution;
         Fps = options.Fps;
+        Hub.SetPatternFormat(Resolution.Width, Resolution.Height, Fps);
     }
 
     public FrameHub Hub { get; }
@@ -749,6 +750,7 @@ public sealed partial class RenderEngine : IDisposable
     {
         if (resolution == Resolution) return;
         Resolution = resolution;
+        Hub.SetPatternFormat(resolution.Width, resolution.Height, Fps);
         if (_active is null)
         {
             _stage.Size = new Vector2(resolution.Width, resolution.Height);
@@ -772,6 +774,7 @@ public sealed partial class RenderEngine : IDisposable
     {
         if (fps == Fps) return;
         Fps = fps;
+        Hub.SetPatternFormat(Resolution.Width, Resolution.Height, fps);
         _capturer.TargetFps = fps;
         _pump.Fps = fps;
         Hub.ResetStats();

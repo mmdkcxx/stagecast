@@ -32,6 +32,13 @@ isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
   yang menyala (Windows mati atau logoff dan uji otomatis tidak ditanya). Tidak mencegah kunci layar dari kebijakan, Win+L, atau tutup laptop.
 - Strip thumbnail di bar PROGRAM: deck atau PDF yang tayang tetap punya strip yang bisa diklik saat preview menampilkan tab lain.
 
+- Test pattern: bar warna, gradasi abu-abu, petak, lingkaran dan garis silang, bingkai tepi, serta bagian bergerak (timecode, bar yang
+  menyapu, kotak BEEP) yang dihitung dari ukuran render. Tiap unit (Layar, NDI, OMT) punya saklar sendiri, tidak tersimpan; unit
+  yang memintanya menampilkan pola sementara unit lain tetap live. Blackout menang atas pola dan Freeze tidak membekukannya. Suara
+  pola berupa burst 1 kHz (-20 dBFS) 100 ms tiap detik pada jam yang sama dengan kotak BEEP.
+- Saat aplikasi dibuka tidak ada tab yang tayang: output (bila dinyalakan) menampilkan pola ("POLA UJI" di status) sampai operator
+  memilih tab (mode Langsung) atau menekan TAKE (Preview + Take).
+
 ### Diperbaiki
 - PDF: gambar usang setelah resolusi render diganti (halaman digambar ulang bersamaan dengan capture dimulai ulang).
 

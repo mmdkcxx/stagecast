@@ -34,7 +34,7 @@ public partial class MainWindow
         _audio = new AudioHub { Volume = _audioConfig.Volume, Muted = _audioConfig.Muted, Silenced = () => _engine?.Hub.Gate == GateMode.Freeze };
         _audioCapture = new BrowserAudioCapture(_audio, _context.LoggerFactory.CreateLogger("Audio"));
         _localAudio = new LocalAudioOutput();
-        _audio.AddSink(_localAudio);
+        _audio.AddSink(_localAudio, () => _screenPattern);
         _localAudio.Open(_audioConfig.DeviceId);
         _audio.Start();
 

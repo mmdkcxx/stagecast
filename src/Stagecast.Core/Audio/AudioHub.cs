@@ -27,13 +27,24 @@ public sealed class AudioHub : IDisposable
     private readonly ToneGenerator _tone = new();
     private readonly LevelMeter _meter = new();
     private readonly TimeProvider _time;
-    private IAudioSink[] _sinks = [];
+    private SinkEntry[] _sinks = [];
+    private float[] _beep = new float[AudioFormat.SampleRate / 10 * AudioFormat.Channels];
+    private bool _noLive;
     private float[] _mix = new float[AudioFormat.SampleRate / 10 * AudioFormat.Channels];
     private double _gain = 1;
     private long _toneUntil;
     private bool _toneOn;
     private Thread? _thread;
     private volatile bool _stop;
+
+    private sealed record SinkEntry(IAudioSink Sink, Func<bool>? WantsBeep);
+
+    /// <summary>True when no tab is live: every sink then gets the beep of the test pattern instead of page audio.</summary>
+    public bool NoLive
+    {
+        get { lock (_gate) return _noLive; }
+        set { lock (_gate) _noLive = value; }
+    }
 
     public AudioHub(TimeProvider? time = null) => _time = time ?? TimeProvider.System;
 
@@ -85,14 +96,15 @@ public sealed class AudioHub : IDisposable
         get { lock (_gate) return _sources.Keys.ToArray(); }
     }
 
-    public void AddSink(IAudioSink sink)
+    /// <param name="wantsBeep">Asked on every chunk; true gives this sink the beep of the test pattern (a short 1 kHz burst once a second) instead of the program.</param>
+    public void AddSink(IAudioSink sink, Func<bool>? wantsBeep = null)
     {
-        lock (_gate) _sinks = [.. _sinks, sink];
+        lock (_gate) _sinks = [.. _sinks, new SinkEntry(sink, wantsBeep)];
     }
 
     public void RemoveSink(IAudioSink sink)
     {
-        lock (_gate) _sinks = _sinks.Where(s => !ReferenceEquals(s, sink)).ToArray();
+        lock (_gate) _sinks = _sinks.Where(s => !ReferenceEquals(s.Sink, sink)).ToArray();
     }
 
     public void StartTone(ToneChannel channel)
@@ -116,14 +128,15 @@ public sealed class AudioHub : IDisposable
         if (frames <= 0) return;
         if (frames * AudioFormat.Channels > _mix.Length) _mix = new float[frames * AudioFormat.Channels];
         SampleRing[] rings;
-        IAudioSink[] sinks;
-        bool tone;
+        SinkEntry[] sinks;
+        bool tone, noLive;
         lock (_gate)
         {
             rings = [.. _sources.Values];
             sinks = _sinks;
             if (_toneOn && _time.GetTimestamp() >= _toneUntil) _toneOn = false;
             tone = _toneOn;
+            noLive = _noLive;
         }
 
         Array.Clear(_mix, 0, frames * AudioFormat.Channels);
@@ -156,16 +169,32 @@ public sealed class AudioHub : IDisposable
         if (silent && target == 0) _meter.Reset(); // the meter drops to zero at once when the program is silent
         else _meter.Update(_mix, frames, (double)frames / AudioFormat.SampleRate);
 
-        foreach (var sink in sinks)
+        bool beepNeeded = noLive || sinks.Any(s => s.WantsBeep?.Invoke() == true);
+        if (beepNeeded) FillBeep(frames, Muted ? 0 : Math.Clamp(Volume, 0, 1));
+        foreach (var entry in sinks)
         {
             try
             {
-                sink.Write(_mix, frames);
+                entry.Sink.Write(beepNeeded && (noLive || entry.WantsBeep?.Invoke() == true) ? _beep : _mix, frames);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                Debug.WriteLine($"Audio sink {sink.Name} failed: {ex.Message}");
+                Debug.WriteLine($"Audio sink {entry.Sink.Name} failed: {ex.Message}");
             }
+        }
+    }
+
+    // The beep of the test pattern: 1 kHz at -20 dBFS for the first 100 ms of every second, on the clock the picture uses.
+    private void FillBeep(int frames, double volume)
+    {
+        if (frames * AudioFormat.Channels > _beep.Length) _beep = new float[frames * AudioFormat.Channels];
+        double end = Frames.TestPattern.Now().TotalSeconds, start = end - (double)frames / AudioFormat.SampleRate;
+        double step = 2 * Math.PI * ToneGenerator.Frequency;
+        for (int i = 0; i < frames; i++)
+        {
+            double t = start + (double)i / AudioFormat.SampleRate;
+            float v = Frames.TestPattern.BeepOn(TimeSpan.FromSeconds(t)) ? (float)(Math.Sin(step * t) * ToneGenerator.Amplitude * volume) : 0;
+            _beep[i * 2] = _beep[i * 2 + 1] = v;
         }
     }
 

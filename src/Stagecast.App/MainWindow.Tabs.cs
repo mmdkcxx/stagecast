@@ -204,6 +204,7 @@ public partial class MainWindow
     {
         if (_engine is null || !_tabs.Take()) return false;
         await _engine.TakeAsync();
+        SetNoLive(false);
         RebuildTabList();
         UpdateNavigationState();
         ShowZoomLabel();
@@ -261,6 +262,7 @@ public partial class MainWindow
         TabError.Text = string.Empty;
         RebuildTabList();
         await _engine.SelectAsync(tab);
+        if (!_tabs.PreviewMode) SetNoLive(false); // choosing a tab in Direct mode puts it on air
         // The operator may have clicked another tab meanwhile; the list already shows the newest choice.
         UpdateNavigationState();
         ShowZoomLabel();
