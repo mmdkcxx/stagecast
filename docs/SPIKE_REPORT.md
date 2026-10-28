@@ -84,3 +84,9 @@ Alat: `spikes/Stagecast.PptxSpike` (di luar solusi aplikasi; mode `make`, `probe
 4. `Quit` pada instance yang dijalankan spike tidak pernah selesai (proses harus dimatikan paksa); aplikasi nyata hanya menutup presentasi miliknya dan tidak memanggil `Quit` pada PowerPoint milik pengguna (sudah diputuskan).
 
 **Belum dibuktikan:** video MP4 dan audio (P1), pengaturan "animasi sesudah-sebelumnya dan video otomatis tetap jalan" selain fade, DPI 150%, PowerPoint sudah terbuka dengan dokumen lain, dua slide show sekaligus, penempatan show di monitor kedua, dan cara menyembunyikan toolbar mengambang.
+
+**Tambahan P0 (2026-10-28, deck asli pemilik dan jendela di luar layar)**
+- Deck asli (`PPT Komunikasi Pemasaran Sesi 7.pptx`): 32 slide, 4:3 (1024×768 pt), tanpa slide tersembunyi. Buka 493 ms, ekspor 32 thumbnail 928 ms (832 ms saat show berjalan), `Next`/`GotoSlide`/`First`/`Last` normal (slide 4 butuh 2 kali `Next` karena animasi).
+- **Show layar penuh dipindah ke luar layar (`SetWindowPos` ke x = −4000) tetap dirender dan tertangkap penuh** oleh Windows Graphics Capture: frame 1920×1080 benar dengan slide 4:3 1440×1080 di tengah, animasi fade-in terlihat di tengah gerak (203–212 frame saat navigasi). Jadi tidak perlu monitor kedua atau jendela penutup, dan operator tidak melihat jendela PowerPoint, seperti web render.
+- Konsekuensi: mouse tidak pernah berada di atas jendela show, sehingga toolbar mengambang PowerPoint (temuan 3) kemungkinan besar tidak muncul. Perlu dibuktikan dengan clicker/mouse sungguhan.
+- Belum diuji: jendela show sempat tampil di layar sebelum dipindah (kilatan sekitar 1 s saat mulai); apakah ada ikon di taskbar; deck dengan video MP4 dan audio; DPI 150% dan dua monitor (pindah ke x = −4000 pada konfigurasi monitor kiri-kanan bisa jatuh di monitor lain, perlu koordinat di luar semua monitor).

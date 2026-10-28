@@ -205,6 +205,14 @@ static void Grab(string deck, string outDir, int showType)
         Console.WriteLine("sized: " + Describe(hwnd) + $" (chrome {chromeW}x{chromeH})");
         }
 
+        // Optional: park the show window somewhere else before capturing (PPTXSPIKE_MOVE="x,y"), to see if it is still drawn.
+        if (Environment.GetEnvironmentVariable("PPTXSPIKE_MOVE") is { Length: > 0 } move)
+        {
+            string[] xy = move.Split(',');
+            SetWindowPos(hwnd, IntPtr.Zero, int.Parse(xy[0]), int.Parse(xy[1]), 0, 0, 0x0001 | 0x0004); // SWP_NOSIZE | SWP_NOZORDER
+            Thread.Sleep(1000);
+            Console.WriteLine("moved: " + Describe(hwnd));
+        }
         grab = new WindowGrab(hwnd);
         Thread.Sleep(1500);
         Console.WriteLine($"frames in 1.5 s of a still slide: {grab.Frames}");
@@ -324,6 +332,7 @@ static class Win32
 {
     [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
