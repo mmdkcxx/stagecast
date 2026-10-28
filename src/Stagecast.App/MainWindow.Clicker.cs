@@ -97,7 +97,7 @@ public partial class MainWindow
 
     // ---- the tab on air, while the preview shows another tab ----
 
-    private IDocumentSource? ProgramPdf => _engine is { PreviewMode: true } engine && engine.Program is DocumentTab { Document.PageCount: > 0 } tab && tab != engine.Active ? tab.Document : null;
+    internal IDocumentSource? ProgramPdf => _engine is { PreviewMode: true } engine && engine.Program is DocumentTab { Document.PageCount: > 0 } tab && tab != engine.Active ? tab.Document : null;
 
     private void UpdateProgramBar()
     {
@@ -113,13 +113,13 @@ public partial class MainWindow
         ProgramNextButton.IsEnabled = ProgramLastButton.IsEnabled = pdf.PageIndex < (pdf is PowerPointSource ? LastIndex(pdf) : count - 1);
     }
 
-    private void OnProgFirst(object sender, RoutedEventArgs e) => _ = ProgramPdf?.GoToAsync(FirstIndex(ProgramPdf));
+    private void OnProgFirst(object sender, RoutedEventArgs e) => _ = GoToPageAsync(FirstIndex(ProgramPdf), ProgramPdf);
 
     private void OnProgPrev(object sender, RoutedEventArgs e) => _ = ProgramPdf?.PreviousAsync();
 
     private void OnProgNext(object sender, RoutedEventArgs e) => _ = ProgramPdf?.NextAsync();
 
-    private void OnProgLast(object sender, RoutedEventArgs e) => _ = ProgramPdf?.GoToAsync(LastIndex(ProgramPdf));
+    private void OnProgLast(object sender, RoutedEventArgs e) => _ = GoToPageAsync(LastIndex(ProgramPdf), ProgramPdf);
 
     private void OnProgPageKeyDown(object sender, KeyEventArgs e)
     {
@@ -127,7 +127,7 @@ public partial class MainWindow
         {
             if (ProgramPdf is { } pdf)
             {
-                if (PageJump.TryParse(ProgramPageBox.Text, pdf.PageCount, out int index)) _ = pdf.GoToAsync(index);
+                if (PageJump.TryParse(ProgramPageBox.Text, pdf.PageCount, out int index)) _ = GoToPageAsync(index, pdf); // a hidden slide asks first, as in the main bar
                 else
                 {
                     ProgramPageBox.Text = pdf.PageNumber.ToString();

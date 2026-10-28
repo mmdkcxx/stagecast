@@ -62,6 +62,16 @@ internal sealed partial class SelfTest
         Expect(await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Next) && await WaitUntilAsync(() => probe.Row == Pattern("orange", wide: false)), $"slide 4 reaches the output (saw {probe.Row})");
         Expect(await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Previous) && await window.RunClickerAsync(Stagecast.Core.Input.ClickerCommand.Previous) && await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false)), $"two previous take it back to slide 2 (saw {probe.Row})");
 
+        // ---- the program bar turns the deck on air, and asks before a hidden slide goes on air ----
+        int asked = 0;
+        window.Confirm = _ => { asked++; return false; };
+        Expect(window.ProgramPdf == pptA, "the program bar belongs to the deck on air");
+        Expect(!await window.GoToPageAsync(0, window.ProgramPdf) && asked == 1 && pptA.PageNumber == 2, $"a hidden slide asks first, and no stays on slide 2 (asked {asked}, slide {pptA.PageNumber})");
+        window.Confirm = _ => { asked++; return true; };
+        Expect(await window.GoToPageAsync(0, window.ProgramPdf) && await WaitUntilAsync(() => probe.Row == Pattern("red", wide: false)), $"yes puts the hidden slide on air (asked {asked}, saw {probe.Row})");
+        Expect(await window.GoToPageAsync(1, window.ProgramPdf) && await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false)), $"and back to slide 2 (saw {probe.Row})");
+        window.Confirm = _ => true;
+
         // ---- a second deck in the preview while the first is on air ----
         Expect(await window.AddPowerPointTabAsync(deck), "a second deck can be added in Preview + Take");
         var deckB = window.Tabs.Active.Id;

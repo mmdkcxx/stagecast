@@ -263,9 +263,9 @@ public partial class MainWindow
     private void OnDocLast(object sender, RoutedEventArgs e) => _ = GoToPageAsync(LastIndex(ActivePdf));
 
     /// <summary>Shows a page of the active PDF (zero-based; out of range goes to the nearest end).</summary>
-    internal async Task<bool> GoToPageAsync(int index)
+    internal async Task<bool> GoToPageAsync(int index, IDocumentSource? target = null)
     {
-        if (ActivePdf is not { } source) return false;
+        if ((target ?? ActivePdf) is not { } source) return false;
         // A slide that is hidden in the file may be hidden on purpose: ask before putting it on the screen.
         if (source is PowerPointSource { PageCount: > 0 } deck && index >= 0 && index < deck.PageCount && deck.IsHidden(index)
             && !Confirm($"Slide {index + 1} disembunyikan di berkas. Tayangkan?")) return false;
