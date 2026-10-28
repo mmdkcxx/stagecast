@@ -3,6 +3,38 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.2.0-custom.2] - belum dirilis
+
+Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`. Menambahkan sumber PowerPoint di atas
+isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
+
+### Ditambahkan
+- Sumber PowerPoint: tab PPT (tombol **+ PPT**) memutar berkas `.pptx` lewat PowerPoint yang terpasang (otomasi COM). Slide show
+  layar penuh dijalankan di luar layar lalu ditangkap, jadi tidak ada jendela tambahan; animasi, transisi, dan video adalah milik
+  PowerPoint. Scale to fit dengan bar hitam. Slide maju hanya saat diperintah (waktu di berkas diabaikan); slide tersembunyi
+  dilewati, dan meloncat ke slide tersembunyi meminta konfirmasi. Next di slide terakhir tidak menutup show.
+  Kontrol halaman, strip thumbnail (slide tersembunyi ditandai TERSEMBUNYI), Muat ulang, Pilih berkas, dan clicker memakai
+  antarmuka dokumen yang sama dengan PDF. Berkas dibuka sebagai salinan sementara hanya-baca, makro dimatikan.
+- PowerPoint milik operator tidak pernah ditutup: hanya presentasi salinan milik Stagecast yang ditutup. PowerPoint yang dimulai
+  Stagecast dipakai bersama semua tab PPT dan ditutup oleh tab terakhir.
+- Suara dan video di dalam slide: suara proses PowerPoint diteruskan ke output hanya saat tab PPT tayang; Freeze membisukannya.
+- Preview + Take untuk tab PPT: deck disiapkan di preview, Take tidak memulai ulang show, dua deck bisa berjalan bersamaan.
+  Bar PROGRAM meminta konfirmasi sebelum menayangkan slide tersembunyi.
+- Opsi **Kirim alpha (bar tembus pandang)** di kartu NDI dan OMT (mati secara bawaan, terpisah, tersimpan). Bar di sekitar PDF atau
+  PPT dikirim transparan; Blackout tetap hitam pekat, output layar tetap hitam.
+- Peringatan di tab PPT bila font tidak terpasang dan tidak disertakan di berkas, atau media tertaut tidak ditemukan.
+- Ketahanan: PowerPoint yang mati di tengah show dilaporkan dalam sekitar 2 detik, Muat ulang menyalakannya lagi.
+- Self test `p2`, `p1`, `p4`, `p5` (masuk smoke), `p3` (deck asli operator, manual); spike di `spikes/Stagecast.PptxSpike`, hasil di
+  `docs/SPIKE_REPORT.md`.
+
+### Diperbaiki
+- PDF: gambar usang setelah resolusi render diganti (halaman digambar ulang bersamaan dengan capture dimulai ulang).
+
+### Belum diuji
+Clicker asli, dua monitor dan DPI 150%, kilatan jendela show sekitar 1 detik saat deck mulai, suara PowerPoint ke speaker lokal saat
+tab tidak tayang, penerimaan alpha oleh vMix/Resolume dan tampilan pratinjaunya, dialog tak terduga PowerPoint (Protected View,
+pemulihan, kata sandi), deck sangat panjang, soak, strip thumbnail untuk deck yang tayang saat preview-nya tab lain.
+
 ## [1.2.0-custom.1] - belum dirilis
 
 Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`.
@@ -19,7 +51,7 @@ Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `m
 
 ### Belum diuji
 Tampilan UI (strip, DPI 125/150%), kata sandi, rotasi dan ukuran halaman campuran, PDF ratusan halaman, soak dengan output menyala,
-dan alpha untuk bar transparan (belum dibangun).
+dan alpha untuk bar transparan (dibangun di `1.2.0-custom.2`).
 
 ## [1.1.6] - 2026-10-27
 
