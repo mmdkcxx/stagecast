@@ -61,3 +61,26 @@ Alat: `spikes/Stagecast.PdfSpike` (di luar solusi aplikasi). Dijalankan sekali p
 **Keputusan sementara: opsi A (Windows.Data.Pdf) cukup**; opsi D (pdf.js) dan PDFium tidak dicoba karena A memenuhi kriteria kecepatan dan ketajaman pada file-file ini. Dengan 50–110 ms per halaman, pindah halaman terasa instan bila halaman berikutnya dirender lebih dulu di latar belakang.
 
 **Belum dibuktikan** (file contoh tidak ada): PDF berkata sandi, halaman berotasi, ukuran halaman campuran (potret dan lanskap), PDF 100+ halaman, PDF dengan font langka atau lapisan, perbandingan dengan Edge, 4:3. Itu masuk D1b/D4 dan diuji bila ada file. Alpha pada bar transparan juga belum dibuktikan (bukan bagian spike ini).
+
+## P0 - Spike PPTX dengan PowerPoint COM + Windows Graphics Capture (2026-10-28)
+
+Alat: `spikes/Stagecast.PptxSpike` (di luar solusi aplikasi; mode `make`, `probe`, `grab`). Dijalankan di PC ini: Office16 (build 20527), monitor tunggal 1920×1080, DPI 100%, dengan 2 deck uji buatan sendiri (16:9 dan 4:3, 8 slide, slide 1/4/8 tersembunyi, slide 3 punya animasi fade klik + sesudah-sebelumnya). Belum diuji: video MP4, deck asli pemilik, DPI 150%, dua monitor, suara.
+
+**Terbukti (COM, late-binding tanpa pustaka Office)**
+- Buka salinan sementara read-only tanpa jendela: 70–200 ms. `AutomationSecurity = 3` bisa dipasang. Memulai PowerPoint: sekitar 0,6 s.
+- `Slide.Export` PNG 320×180 berhasil untuk **semua** slide termasuk yang tersembunyi: 8 slide dalam 70–210 ms, dan juga aman dipanggil **saat show berjalan** (87 ms).
+- Slide tersembunyi: show mulai di slide 2 (slide 1 tersembunyi), `Next` melewati slide 4 (3→5) dan slide 8, `First()` menuju 2, `Last()` menuju 7. `GotoSlide` **bisa** menuju slide tersembunyi (1, 4, 8). Sesuai keputusan pemilik.
+- `Next` juga memajukan animasi: slide 3 (dua efek) butuh 3 kali `Next` sebelum pindah ke slide 5. Maju otomatis memang dimatikan (`AdvanceMode = 1`).
+- Setelah slide tampil terakhir, `Next` pindah ke posisi `jumlah+1` (layar "akhir show"); `Next` sekali lagi **mengakhiri show dan menutup presentasi tanpa jendela**. Aplikasi harus berhenti di slide terakhir, bukan memanggil `Next` melewatinya.
+- PowerPoint sering menjawab `RPC_E_SERVERCALL_RETRYLATER` (0x8001010A) saat animasi atau pindah slide: semua panggilan COM harus diulang dengan jeda (bungkus `Retry`).
+- `SlideShowWindow.HWND` **ditolak** COM di sini; jendela dicari lewat proses PowerPoint dan judul "PowerPoint Slide Show".
+- Windows Graphics Capture dari HWND jendela show jalan: `IsCursorCaptureEnabled = false` menghilangkan kursor, `IsBorderRequired = false` tidak error, warna slide persis (hijau 40,160,60; ungu 160,60,180), animasi menghasilkan puluhan frame (22–57) dan slide diam hanya 1 frame (seperti halaman PDF).
+- Dengan show layar penuh, capture **tetap mengikuti slide dan animasi saat jendela lain (topmost, seukuran layar) menutupinya**, dan `Next` lewat COM bekerja walau show bukan jendela depan.
+
+**Temuan yang mengubah rancangan**
+1. **Mode windowed tidak bisa dipakai untuk piksel penuh.** Jendelanya berbingkai (title bar 31 px, scrollbar, tepi 16 px lebar), area isi lebih kecil dari ukuran luar yang diminta (1456×1119 diminta, 1456×1100 didapat), dan bagian jendela di luar layar tidak dirender sehingga tertangkap hitam. Pada monitor 1080 px tidak mungkin mendapat slide setinggi 1080 px tanpa bingkai.
+2. **Mode layar penuh bersih dan tepat:** jendela `screenClass` 1920×1080 di (0,0), slide 4:3 tepat 1440×1080 di tengah (x 240–1680) dengan bar hitam di sisi. Kelemahan: show menutupi monitor tempat ia dimulai.
+3. **Toolbar mengambang PowerPoint (panah, pena, dll.) muncul di kiri bawah frame** setelah mouse digerakkan di atas show, dan ikut tertangkap. Kursor sendiri tidak tertangkap. Cara mematikan toolbar lewat COM belum ditemukan.
+4. `Quit` pada instance yang dijalankan spike tidak pernah selesai (proses harus dimatikan paksa); aplikasi nyata hanya menutup presentasi miliknya dan tidak memanggil `Quit` pada PowerPoint milik pengguna (sudah diputuskan).
+
+**Belum dibuktikan:** video MP4 dan audio (P1), pengaturan "animasi sesudah-sebelumnya dan video otomatis tetap jalan" selain fade, DPI 150%, PowerPoint sudah terbuka dengan dokumen lain, dua slide show sekaligus, penempatan show di monitor kedua, dan cara menyembunyikan toolbar mengambang.
