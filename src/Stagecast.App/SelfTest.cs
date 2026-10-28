@@ -40,6 +40,7 @@ internal sealed partial class SelfTest
     {
         if (name == "d5") { await RunPdfAsync(window); return; }
         if (name == "p2") { await RunPowerPointAsync(window); return; }
+        if (name == "p1") { await RunPowerPointMediaAsync(window); return; }
         if (name == "d1a") { await RunDocumentTabsAsync(window); return; }
         if (name == "a2b") { await RunControlsAsync(window); return; }
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }

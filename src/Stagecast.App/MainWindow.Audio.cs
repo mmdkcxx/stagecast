@@ -67,7 +67,8 @@ public partial class MainWindow
         if (_engine is null || _audioCapture is null) return;
         try
         {
-            _audioCapture.Sync(_engine.BrowserProcessIds);
+            _audioCapture.Sync(_engine.AudioProcessIds);
+            _audioCapture.SetSilent(_engine.SilentAudioProcessIds);
         }
         catch (InvalidOperationException ex)
         {
@@ -79,6 +80,7 @@ public partial class MainWindow
     {
         if (_audio is null) return;
         if (++_audioTick % 40 == 0) SyncAudioSources();
+        else if (_audioTick % 4 == 0 && _engine is not null) _audioCapture?.SetSilent(_engine.SilentAudioProcessIds); // a deck is heard only while it is on air
         if (_audioTick % 20 == 0) { ShowNdiStatus(); ShowOmtStatus(); }
 
         var levels = _audio.Levels;

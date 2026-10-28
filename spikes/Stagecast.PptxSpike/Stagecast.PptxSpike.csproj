@@ -13,4 +13,10 @@
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The audio spike uses the app's own process loopback capture, linked so it is the code that will ship. -->
+    <Compile Include="..\..\src\Stagecast.Rendering\Audio\ProcessLoopbackCapture.cs" Link="ProcessLoopbackCapture.cs" />
+    <ProjectReference Include="..\..\src\Stagecast.Core\Stagecast.Core.csproj" />
+  </ItemGroup>
+
 </Project>

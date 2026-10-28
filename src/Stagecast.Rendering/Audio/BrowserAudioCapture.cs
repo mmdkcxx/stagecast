@@ -4,7 +4,7 @@ using Stagecast.Core.Audio;
 namespace Stagecast.Rendering.Audio;
 
 /// <summary>
-/// Keeps one process-loopback capture per WebView2 browser process and feeds each into the <see cref="AudioHub"/>. Tabs of the
+/// Keeps one process-loopback capture per WebView2 browser process (and per PowerPoint process that plays a deck) and feeds each into the <see cref="AudioHub"/>. Tabs of the
 /// same profile share a process; which tab is heard is decided by <c>IsMuted</c> on the tabs, not here.
 /// </summary>
 public sealed class BrowserAudioCapture : IDisposable
@@ -14,6 +14,7 @@ public sealed class BrowserAudioCapture : IDisposable
     private readonly object _gate = new();
     private readonly Dictionary<int, ProcessLoopbackCapture> _captures = [];
     private readonly HashSet<int> _failed = [];
+    private volatile IReadOnlySet<int> _silent = new HashSet<int>();
 
     public BrowserAudioCapture(AudioHub hub, ILogger logger)
     {
@@ -46,7 +47,10 @@ public sealed class BrowserAudioCapture : IDisposable
                 var ring = _hub.AddSource(KeyOf(pid));
                 try
                 {
-                    _captures[pid] = new ProcessLoopbackCapture(pid, (samples, frames) => ring.Write(samples, frames));
+                    _captures[pid] = new ProcessLoopbackCapture(pid, (samples, frames) =>
+                    {
+                        if (!_silent.Contains(pid)) ring.Write(samples, frames);
+                    });
                     _logger.LogInformation("Audio capture of browser process {Pid} started", pid);
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
@@ -58,6 +62,9 @@ public sealed class BrowserAudioCapture : IDisposable
             }
         }
     }
+
+    /// <summary>Processes whose sound is dropped for now (a deck that is not on air). They stay captured, so the sound is there at once when it is let through.</summary>
+    public void SetSilent(IReadOnlySet<int> processIds) => _silent = processIds;
 
     public int FailedCount
     {

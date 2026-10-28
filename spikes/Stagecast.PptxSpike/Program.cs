@@ -9,6 +9,7 @@ args = args.Where(a => a != "--").ToArray();
 SetProcessDpiAwarenessContext(new IntPtr(-4)); // per-monitor v2, so window sizes are real pixels
 if (args.Length >= 2 && args[0] == "make") Make(args[1]);
 else if (args.Length >= 3 && args[0] == "probe") Probe(args[1], args[2]);
+else if (args.Length >= 2 && args[0] == "audio") AudioSpike.Run(args[1]);
 else if (args.Length >= 3 && args[0] == "grab") Grab(args[1], args[2], args.Length > 3 ? int.Parse(args[3]) : 2);
 else Console.WriteLine("usage: make <outDir> | probe <deck.pptx> <outDir> | grab <deck.pptx> <outDir>");
 
@@ -335,6 +336,7 @@ static class Win32
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out RECT rect);

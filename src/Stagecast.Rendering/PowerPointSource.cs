@@ -74,6 +74,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private Timer? _settle;
     private bool _nudged;
 
+    private volatile int _processId;
     private volatile int _pageCount;
     private volatile int _pageIndex = -1;
     private volatile string? _problem;
@@ -101,6 +102,9 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     public int PageNumber => _pageIndex + 1;
 
     public string? Problem => _problem;
+
+    /// <summary>The PowerPoint process that plays this show (0 when none): what the audio capture listens to. A PowerPoint the operator already runs is shared, so its other decks are heard too.</summary>
+    public int ProcessId => _processId;
 
     /// <summary>True when the operator's own PowerPoint was already running and this source uses it without ever closing it.</summary>
     public bool Borrowed { get; private set; }
@@ -309,6 +313,8 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
 
         if (hwnd == IntPtr.Zero) throw new InvalidOperationException("The slide show window was not found.");
         _hwnd = hwnd;
+        NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+        _processId = (int)pid;
         MoveOffScreen(hwnd);
         if (startSlide >= 0 && startSlide != FirstVisible)
         {
@@ -575,6 +581,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         _window = null;
         _presentation = null;
         _hwnd = IntPtr.Zero;
+        _processId = 0;
         _pageCount = 0;
         _pageIndex = -1;
         if (_tempFile is not null)

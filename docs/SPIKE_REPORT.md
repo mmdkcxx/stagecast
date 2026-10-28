@@ -90,3 +90,14 @@ Alat: `spikes/Stagecast.PptxSpike` (di luar solusi aplikasi; mode `make`, `probe
 - **Show layar penuh dipindah ke luar layar (`SetWindowPos` ke x = −4000) tetap dirender dan tertangkap penuh** oleh Windows Graphics Capture: frame 1920×1080 benar dengan slide 4:3 1440×1080 di tengah, animasi fade-in terlihat di tengah gerak (203–212 frame saat navigasi). Jadi tidak perlu monitor kedua atau jendela penutup, dan operator tidak melihat jendela PowerPoint, seperti web render.
 - Konsekuensi: mouse tidak pernah berada di atas jendela show, sehingga toolbar mengambang PowerPoint (temuan 3) kemungkinan besar tidak muncul. Perlu dibuktikan dengan clicker/mouse sungguhan.
 - Belum diuji: jendela show sempat tampil di layar sebelum dipindah (kilatan sekitar 1 s saat mulai); apakah ada ikon di taskbar; deck dengan video MP4 dan audio; DPI 150% dan dua monitor (pindah ke x = −4000 pada konfigurasi monitor kiri-kanan bisa jatuh di monitor lain, perlu koordinat di luar semua monitor).
+
+## P1 - Audio dan video PowerPoint (2026-10-28)
+
+Alat: mode `audio` di `spikes/Stagecast.PptxSpike` (memakai `ProcessLoopbackCapture` milik aplikasi, ditautkan) dan self test `p1` di aplikasi. Bahan uji dibuat PowerPoint sendiri: deck dengan WAV 440 Hz, dan MP4 hasil `CreateVideo` dari dua slide (merah 2 dtk, hijau 2 dtk).
+
+- **Loopback pada proses `POWERPNT.EXE` menangkap suara show** (peak 0,29 untuk WAV, 0,235 untuk MP4). Catatan S8 (proses aplikasi senyap) hanya berlaku untuk WebView2; PowerPoint tidak perlu proses anak.
+- **Video MP4 dalam show yang dipindah ke luar layar tertangkap dan bergerak** lewat jalur GPU (143 frame/dtk selama klip; frame bukan hitam). Di aplikasi, output berganti merah lalu hijau mengikuti klip.
+- **Media hanya main sendiri bila diberi efek animasi "play"** (`msoAnimEffectMediaPlay` = 83, setelah sebelumnya); `AnimationSettings.PlaySettings.PlayOnEntry` saja tidak cukup. Deck pemilik yang dibuat di PowerPoint biasanya sudah punya efek itu.
+- Suara deck hanya diteruskan ke output saat tab-nya tayang (`RenderEngine.SilentAudioProcessIds` + `BrowserAudioCapture.SetSilent`); Freeze membisukannya, Blackout tidak. Terbukti di `p1`: terdengar saat tayang, senyap saat tab web tayang (setelah meter turun), terdengar lagi saat kembali.
+- **Batasan:** semua deck di satu PowerPoint memakai satu proses, jadi suara tidak bisa dipisah per deck; dua tab PPT sekaligus berbagi satu aturan (terdengar bila salah satu tayang). PowerPoint milik pengguna yang dipinjam ikut tertangkap suaranya (deck lain yang terbuka).
+- **Belum diperbaiki:** PowerPoint tetap memutar suara ke speaker Windows (perangkat bawaan) walau tab sedang preview atau tidak tayang; Stagecast hanya menahan salinan yang masuk ke output. Perlu keputusan: mematikan sesi suara PowerPoint di Windows saat tidak tayang (belum diuji apakah loopback tetap menerima suara).

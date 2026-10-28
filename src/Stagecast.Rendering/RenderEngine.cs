@@ -404,6 +404,24 @@ public sealed partial class RenderEngine : IDisposable
     /// <summary>The WebView2 browser processes in use (one per profile); the audio capture follows these. UI thread only.</summary>
     public IReadOnlyList<int> BrowserProcessIds => _tabs.OfType<PageTab>().Select(t => (int)t.Browser.BrowserProcessId).Distinct().ToList();
 
+    /// <summary>The processes whose sound is captured: the browsers, and the PowerPoint that plays a deck. UI thread only.</summary>
+    public IReadOnlyList<int> AudioProcessIds => BrowserProcessIds
+        .Concat(_tabs.OfType<DocumentTab>().Select(t => t.PowerPoint?.ProcessId ?? 0).Where(id => id > 0)).Distinct().ToList();
+
+    /// <summary>
+    /// The PowerPoint processes that must not be heard right now: a web tab is muted at its browser, but a deck's sound comes from
+    /// the PowerPoint process, so it is let through only while a deck is the tab on air. UI thread only.
+    /// </summary>
+    public IReadOnlySet<int> SilentAudioProcessIds
+    {
+        get
+        {
+            var silent = _tabs.OfType<DocumentTab>().Select(t => t.PowerPoint?.ProcessId ?? 0).Where(id => id > 0).ToHashSet();
+            if (Program is DocumentTab { PowerPoint.ProcessId: > 0 } onAir) silent.Remove(onAir.PowerPoint.ProcessId);
+            return silent;
+        }
+    }
+
     public bool PreviewMode { get; private set; }
 
     /// <summary>The tab on air. Same as <see cref="Active"/> in Direct mode.</summary>

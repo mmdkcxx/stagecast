@@ -103,6 +103,7 @@ public partial class MainWindow
             _pageThumbs.Remove(tab.Id);
             _stripTab = null;
             Activate(); // the show window flashes up while it starts: the operator's window gets the keyboard back
+            SyncAudioSources(); // the deck's PowerPoint process may be new: its sound is captured from the first note
         }
 
         UpdateNavigationState();
