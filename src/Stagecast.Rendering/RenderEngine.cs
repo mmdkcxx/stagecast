@@ -297,6 +297,12 @@ public sealed partial class RenderEngine : IDisposable
         _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
         tab.Content.Brush = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
         tab.Pdf = new PdfSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
+        // A still page makes no new frames: a capture restarted for a new size can keep the picture from just before the page was
+        // drawn again, so once it is drawn the capture starts over and its first frame has the finished page.
+        tab.Pdf.Redrawn += () =>
+        {
+            if (tab == _program || tab == _active) _capturer.Restart();
+        };
         return tab.Pdf;
     }
 

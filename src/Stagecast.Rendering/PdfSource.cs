@@ -62,6 +62,7 @@ public sealed class PdfSource : IDisposable
     private int _canvasHeight;
     private int _version;
     private int _target = -1;
+    private bool _redrawPending;
     private bool _disposed;
 
     internal PdfSource(Compositor compositor, DocumentSurfaces surfaces, ContainerVisual host, int canvasWidth, int canvasHeight, ILogger logger)
@@ -91,6 +92,9 @@ public sealed class PdfSource : IDisposable
 
     /// <summary>A page could not be drawn (damaged page, out of memory); the picture on screen stays as it was. The argument is the one-based page number.</summary>
     public event Action<int>? PageFailed;
+
+    /// <summary>The page was drawn again after a render size change. A capture started meanwhile may hold the old picture of a still page, so the engine restarts it.</summary>
+    internal event Action? Redrawn;
 
     internal static void CleanOldTempFiles()
     {
@@ -178,6 +182,11 @@ public sealed class PdfSource : IDisposable
 
         Show(rendered);
         PageIndex = index;
+        if (_redrawPending)
+        {
+            _redrawPending = false;
+            Redrawn?.Invoke();
+        }
         PageChanged?.Invoke();
         _ = PrepareNeighboursAsync(index, version);
         return true;
@@ -199,6 +208,7 @@ public sealed class PdfSource : IDisposable
         _canvasHeight = canvasHeight;
         _cache.Clear();
         if (_document is null || PageIndex < 0) return;
+        _redrawPending = true;
         _ = GoToAsync(PageIndex);
     }
 
