@@ -57,6 +57,8 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private string? _tempFile;
     private string? _thumbDir;
     private IntPtr _hwnd;
+    private static readonly object StartedGate = new();
+    private static int s_startedPid; // the PowerPoint process a deck of ours started, 0 when the operator's own runs
     private bool _ownApp;
     private int _ownPid;
     private bool[] _hidden = [];
@@ -243,8 +245,15 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
                 app = Activator.CreateInstance(type);
                 newApp = true;
                 var started = Process.GetProcessesByName("POWERPNT").Select(p => p.Id).Where(id => !before.Contains(id)).ToList();
-                _ownApp = before.Count == 0 && started.Count > 0;
-                _ownPid = _ownApp ? started[0] : 0;
+                lock (StartedGate)
+                {
+                    // The PowerPoint a deck started is shared with the decks opened after it: whichever closes last ends it.
+                    if (before.Count == 0 && started.Count > 0) s_startedPid = started[0];
+                    else if (s_startedPid != 0 && !before.Contains(s_startedPid)) s_startedPid = 0;
+                    _ownApp = s_startedPid != 0;
+                    _ownPid = s_startedPid;
+                }
+
                 Borrowed = !_ownApp;
                 Retry(() => app!.AutomationSecurity = 3); // msoAutomationSecurityForceDisable: no macros run
             }
@@ -666,14 +675,20 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private void TryQuit(dynamic? app, int ownPid)
     {
         if (app is null || !_ownApp) return;
+        bool quitting = false;
         try
         {
-            if ((int)app.Presentations.Count == 0) app.Quit();
+            // Another deck of ours may still be open in it: then it stays, and the last one to close ends it.
+            if ((int)app.Presentations.Count == 0)
+            {
+                app.Quit();
+                quitting = true;
+            }
         }
         catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
 
-        // PowerPoint is slow to leave: wait, and only for an instance this source started itself, end it.
-        if (ownPid == 0) return;
+        // PowerPoint is slow to leave: wait, and only for an instance our decks started, end it.
+        if (!quitting || ownPid == 0) return;
         for (int i = 0; i < 40; i++)
         {
             if (!ProcessRunning(ownPid)) return;

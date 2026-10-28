@@ -106,3 +106,9 @@ Alat: mode `audio` di `spikes/Stagecast.PptxSpike` (memakai `ProcessLoopbackCapt
 
 - Setelah deck dibuka, `PowerPointSource.CheckDeck` memeriksa font yang tidak disematkan dan tidak terpasang di PC ini (daftar WPF + nama face di registri, jadi "Calibri Light" tidak salah dianggap hilang) serta media/gambar/OLE tertaut yang berkasnya tidak ada. Hasilnya `Warnings`, ditampilkan sebagai pesan di tab ("Perhatian: ...").
 - Tes `p2` memakai teks berfont palsu dan memeriksa peringatannya. Tes `p3` (tidak masuk `check.sh`, berkas milik operator, `STAGECAST_DECK` mengganti jalurnya) menjalankan deck asli 32 slide lewat aplikasi: lulus, 37 langkah Next (animasi ikut dihitung) dalam sekitar 4,5 detik, semua thumbnail terbuat, peringatan: font "Gill Sans" (font Mac) tidak ada di Windows.
+
+## P3c: PowerPoint di Preview + Take (2026-10-28)
+
+- Tes `p4` (masuk smoke): deck di preview berjalan dan bisa digerakkan tanpa apa pun masuk ke output, suaranya tidak diteruskan; Take memasukkan slide yang sudah disiapkan tanpa memulai ulang show (proses dan nomor slide sama) dan suaranya mulai diteruskan; clicker menggerakkan deck program. Dua deck sekaligus (satu program, satu preview) bekerja dalam satu PowerPoint, Take menukarnya.
+- Bug yang ditemukan: deck pertama yang memulai PowerPoint, saat ditutup, menunggu 4 detik lalu membunuh prosesnya walau deck kedua masih berjalan. Sekarang PowerPoint yang dimulai deck kita dipakai bersama; hanya deck terakhir yang menutup yang memerintahkan Quit (dan hanya itu yang boleh membunuh bila Quit macet).
+- Celah yang tersisa: bar dokumen (Berikutnya/Sebelumnya/loncat/strip) mengikuti tab yang aktif (preview). Bila preview adalah tab web dan program adalah PPT, tombolnya tidak menggerakkan deck program; hanya clicker yang melakukannya. Keputusan pemilik 2026-10-27 membolehkan navigasi slide pada tab program, jadi bar itu perlu diarahkan ke deck program dalam kasus ini (belum dibuat).
