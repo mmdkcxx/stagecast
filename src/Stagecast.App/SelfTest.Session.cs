@@ -23,6 +23,17 @@ internal sealed partial class SelfTest
         WritePdf(b, (800, 600, "1 0.6 0"));
         string sessionPath = Path.Combine(home, "Misa.stagecast");
 
+        // A deck too, when PowerPoint can be driven on this PC (the file is written by the test, like the one of P2).
+        string deck = Path.Combine(home, "Pembuka.pptx");
+        string? written = null;
+        try { written = WriteDeck(deck); }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            _logger.LogWarning(ex, "F1 could not write the test deck; the session is tested with PDFs only");
+        }
+        bool ppt = written is not null;
+        int count = ppt ? 5 : 4;
+
         var messages = new List<string>();
         var asked = new List<string>();
         window.Notify = messages.Add;
@@ -48,6 +59,7 @@ internal sealed partial class SelfTest
         string profile = window.Tabs.Items[1].ProfileId!;
         Expect(await window.AddPdfTabAsync(a) && await window.AddPdfTabAsync(b), "two PDF tabs");
         Expect(await WaitUntilAsync(() => Doc(2) is { Pdf.PageCount: 3 } && Doc(3) is { Pdf.PageCount: 1 }), "both PDFs are open");
+        if (ppt) Expect(await window.AddPowerPointTabAsync(deck) && Doc(4) is { PowerPoint.PageCount: 5 }, "and a PowerPoint tab with five slides");
         window.RenameTab(window.Tabs.Items[0].Id, "Awal");
         window.RenameTab(window.Tabs.Items[2].Id, "Khotbah");
         await window.SelectTabAsync(window.Tabs.Items[2].Id);
@@ -57,20 +69,21 @@ internal sealed partial class SelfTest
         Expect(window.SaveSession(), "the session can be saved");
         var saved = SessionStore.Load(sessionPath);
         var file = saved.Session;
-        Expect(saved.Status == SessionLoadStatus.Loaded && file is { Tabs.Count: 4, ActiveTab: 2 }, "the file holds four tabs and the live one");
+        Expect(saved.Status == SessionLoadStatus.Loaded && file is { ActiveTab: 2 } && file.Tabs.Count == count, $"the file holds {count} tabs and the live one");
         Expect(file is not null && file.Tabs[1].ProfileId == profile && file.Tabs[0].Url == TabRules.BlankUrl, "a web tab keeps its profile id and address");
         Expect(file is not null && file.Tabs[2].Source == a && file.Tabs[2].RelativeSource == "a.pdf" && file.Tabs[3].Kind == "pdf", "a document keeps its path, also relative to the file");
         Expect(file?.Render is { } r && r.Width == _engine.Resolution.Width && r.Height == _engine.Resolution.Height && r.Fps == _engine.Fps, "and the render size");
         Expect(window.SessionPath == sessionPath && !window.SessionDirty, "the window now knows the file, with nothing changed");
         Expect(window.ReadConfigFromDisk().RecentSessions.FirstOrDefault() == sessionPath, "the recent list in the settings has it first");
+        if (ppt) Expect(file is not null && file.Tabs[4].Kind == "powerpoint" && file.Tabs[4].Source == deck && file.Tabs[4].RelativeSource == "Pembuka.pptx", "a deck is saved the same way");
         Expect(!File.ReadAllText(sessionPath).Contains("password", StringComparison.OrdinalIgnoreCase), "the file holds no password");
 
         window.RenameTab(window.Tabs.Items[0].Id, "Awal");
         Expect(!window.SessionDirty, "naming a tab what it is called already changes nothing");
-        window.RenameTab(window.Tabs.Items[0].Id, "Pembuka");
+        window.RenameTab(window.Tabs.Items[0].Id, "Berubah");
         Expect(window.SessionDirty, "a change marks the session");
         window.AskSaveChanges = _ => SaveAnswer.Cancel;
-        Expect(!await window.NewSessionAsync() && window.Tabs.Items.Count == 4, "cancelling the question keeps everything");
+        Expect(!await window.NewSessionAsync() && window.Tabs.Items.Count == count, "cancelling the question keeps everything");
         window.AskSaveChanges = _ => SaveAnswer.Save;
         window.RenameTab(window.Tabs.Items[0].Id, "Awal");
         names[0] = "Awal";
@@ -88,17 +101,24 @@ internal sealed partial class SelfTest
         Expect(window.Tabs.Items.Select(t => t.Name).SequenceEqual(names), $"the tabs are back with their names ({string.Join(", ", window.Tabs.Items.Select(t => t.Name))})");
         Expect(window.Tabs.Items[1].ProfileId == profile, "and the web tab is on its own profile again");
         Expect(await WaitUntilAsync(() => Doc(2) is { Pdf.PageCount: 3 } && Doc(3) is { Pdf.PageCount: 1 }), "the PDFs are open again");
+        if (ppt) Expect(await WaitUntilAsync(() => Doc(4) is { PowerPoint.PageCount: 5 }, 25000), "and the deck is open again");
         Expect(window.Tabs.ActiveIndex == 2 && window.NoLive, "the live tab is selected but nothing goes on air by itself");
         Expect(window.SessionPath == sessionPath && !window.SessionDirty && window.MissingDocumentCount == 0, "the session is the open one, unchanged, nothing missing");
 
         // ---- add to the tabs that exist ----
+        string extra = Path.Combine(root, "tambahan.stagecast");
+        SessionStore.Save(extra, new SessionFile
+        {
+            Tabs = [new SessionTab { Name = "Web ekstra", Url = TabRules.BlankUrl, ProfileId = profile }, new SessionTab { Name = "PDF ekstra", Kind = "pdf", Url = TabRules.BlankUrl, Source = b }],
+        });
         replace = false;
-        Expect(await window.OpenSessionAsync(sessionPath), "a session can be added to the tabs that exist");
-        Expect(openAsked == (4, 4) && window.Tabs.Items.Count == 8, $"the question knew the counts and eight tabs exist ({window.Tabs.Items.Count})");
-        Expect(window.Tabs.Items[1].ProfileId == profile && window.Tabs.Items[5].ProfileId is null, "a profile in use is not given to a second tab");
-        Expect(window.SessionDirty, "adding changes the open session");
+        Expect(await window.OpenSessionAsync(extra), "a session can be added to the tabs that exist");
+        Expect(openAsked == (count, 2) && window.Tabs.Items.Count == count + 2, $"the question knew the counts and the tabs were added ({window.Tabs.Items.Count})");
+        Expect(window.Tabs.Items[1].ProfileId == profile && window.Tabs.Items[count].ProfileId is null, "a profile in use is not given to a second tab");
+        Expect(window.SessionDirty && window.SessionPath == sessionPath, "adding changes the open session");
         replace = true;
-        Expect(await window.OpenSessionAsync(sessionPath) && window.Tabs.Items.Count == 4 && !window.SessionDirty, "replacing goes back to four tabs");
+        Expect(await window.OpenSessionAsync(sessionPath) && window.Tabs.Items.Count == count && !window.SessionDirty, "replacing goes back to the saved tabs");
+        if (ppt) Expect(await WaitUntilAsync(() => Doc(4) is { PowerPoint.PageCount: 5 }, 25000), "with the deck open");
 
         // ---- another computer: the folder moved, b.pdf left behind ----
         Expect(await window.NewSessionAsync(), "a new session before moving");
@@ -109,6 +129,7 @@ internal sealed partial class SelfTest
         Expect(await window.OpenSessionAsync(moved), "the moved session opens");
         Expect(relinkAsked == 1 && lastPlan is { MissingCount: 1 }, "one document is asked about");
         Expect(lastPlan?.Tabs[2].Match == SourceMatch.RelativeToSession && lastPlan.Tabs[3].IsMissing, "a.pdf was found through the path relative to the session file, b.pdf was not");
+        if (ppt) Expect(lastPlan?.Tabs[4].Match == SourceMatch.RelativeToSession && await WaitUntilAsync(() => Doc(4) is { PowerPoint.PageCount: 5 }, 25000), "the deck was found the same way and plays");
         Expect(window.Tabs.Items[2].Source == Path.Combine(other, "a.pdf") && await WaitUntilAsync(() => Doc(2) is { Pdf.PageCount: 3 }), "and a.pdf plays from its new place");
         Expect(window.MissingDocumentCount == 1 && Doc(3) is { Pdf: null or { PageCount: 0 } }, "the tab for b.pdf exists without a file, and the banner counts it");
         resolver = (plan, files) => plan.WithFolder(spare, files);
