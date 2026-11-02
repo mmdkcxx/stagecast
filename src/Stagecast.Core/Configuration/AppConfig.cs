@@ -26,10 +26,10 @@ public sealed class AppConfig
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
-    /// <summary>The tabs open when the application was closed. Only names and addresses; never credentials.</summary>
+    /// <summary>Not written any more and ignored at start: the application always starts without tabs. Old files may still hold a list; it is read only so such a file stays valid.</summary>
     public List<TabEntry> Tabs { get; init; } = [];
 
-    /// <summary>Position in <see cref="Tabs"/> of the tab that was active.</summary>
+    /// <summary>Position in <see cref="Tabs"/>; see there.</summary>
     public int ActiveTab { get; init; }
 }
 

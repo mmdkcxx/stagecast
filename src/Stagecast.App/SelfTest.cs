@@ -175,14 +175,17 @@ internal sealed partial class SelfTest
 
             await Task.Delay(1800); // let the tabs reach config.json
             var saved = window.ReadConfigFromDisk();
-            Expect(saved.Tabs.Count == 2 && saved.Tabs[0].ProfileId is null && saved.Tabs[1].ProfileId == secondTab.ProfileId, "the settings file knows which tab has its own profile (and holds no cookie)");
+            Expect(saved.Tabs.Count == 0 && Directory.Exists(Path.Combine(profiles, "tab-" + secondTab.ProfileId)), "the settings file holds no tab, and the separate profile is on disk");
             _logger.LogInformation(_failures.Count == 0 ? "A3c set selftest ok" : "A3c set selftest FAILED: {Failures}", string.Join("; ", _failures));
             return;
         }
 
         // Second launch: everything was closed and opened again with the same data folder.
-        Expect(window.Tabs.Items.Count == 2 && window.Tabs.Items[1].ProfileId is { Length: 32 }, "both tabs and the separate profile were restored");
-        Expect(!Directory.Exists(Path.Combine(profiles, "tab-" + new string('f', 32))), "a profile folder no tab refers to was removed at startup");
+        Expect(window.Tabs.Items.Count == 1, "a start has no tab of the last run (only the first one the test adds)");
+        Expect(Directory.Exists(Path.Combine(profiles, "tab-" + new string('f', 32))), "profile folders are kept at startup, also one no tab refers to");
+        string? kept = Directory.GetDirectories(profiles, "tab-*").Select(Path.GetFileName).Select(n => n![4..]).FirstOrDefault(id => id != new string('f', 32));
+        Expect(kept is { Length: 32 }, "the separate profile of the last run is still on disk");
+        Expect(await window.AddTabAsync($"{LoginSite}/page", kept) && window.Tabs.Active!.ProfileId == kept, "a tab can be opened on that profile again");
         var tab0 = _engine.PageTabById(window.Tabs.Items[0].Id)!;
         var tab1 = _engine.PageTabById(window.Tabs.Items[1].Id)!;
         await Task.Delay(1000);
@@ -315,7 +318,7 @@ internal sealed partial class SelfTest
         // The saved file.
         await Task.Delay(1500);
         var saved = window.ReadConfigFromDisk();
-        Expect(saved.Tabs.Count == 1 && saved.Tabs[0].Name == window.Tabs.Items[0].Name, "the settings file holds the tabs");
+        Expect(saved.Tabs.Count == 0, "the settings file holds no tab (every start is empty)");
 
         // The last tab can be closed too: nothing is on air then, and the outputs would show the test pattern.
         Expect(await window.CloseTabAsync(window.Tabs.Items[0].Id), "the last tab can be closed");
@@ -385,8 +388,7 @@ internal sealed partial class SelfTest
         // The settings file.
         await Task.Delay(1500);
         var saved = window.ReadConfigFromDisk();
-        var entry = saved.Tabs.FirstOrDefault(t => t.Kind == "pdf");
-        Expect(entry is not null && entry.Source == pdfPath && entry.Url == TabRules.BlankUrl && entry.ProfileId is null, "the settings file records the kind and the path");
+        Expect(saved.Tabs.Count == 0, "the settings file holds no file tab either");
 
         // Closing: select the web tab first, then close the file tab.
         await window.SelectTabAsync(window.Tabs.Items[0].Id);

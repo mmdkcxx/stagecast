@@ -175,11 +175,11 @@ public sealed class TabList
 
     public int IndexOf(Guid id) => _items.FindIndex(t => t.Id == id);
 
-    /// <summary>Appends a tab. Returns null at the limit. The new tab is not selected.</summary>
-    public TabInfo? Add(string? url = null)
+    /// <summary>Appends a tab. Returns null at the limit. The new tab is not selected. A valid <paramref name="profileId"/> gives it that separate profile; anything else leaves it on the shared one.</summary>
+    public TabInfo? Add(string? url = null, string? profileId = null)
     {
         if (!CanAdd) return null;
-        var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.StorableUrl(url));
+        var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.StorableUrl(url), TabRules.IsValidProfileId(profileId) ? profileId : null);
         _items.Add(tab);
         if (_items.Count == 1) ActiveIndex = 0;
         return tab;

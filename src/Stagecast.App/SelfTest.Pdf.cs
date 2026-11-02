@@ -192,8 +192,7 @@ internal sealed partial class SelfTest
 
         // ---- the settings file ----
         await Task.Delay(1500);
-        var entry = window.ReadConfigFromDisk().Tabs.FirstOrDefault(t => t.Kind == "pdf");
-        Expect(entry is not null && entry.Source == single && entry.Url == TabRules.BlankUrl, "the settings file records the PDF tab and its file");
+        Expect(window.ReadConfigFromDisk().Tabs.Count == 0, "the settings file holds no tab, also no PDF tab");
 
         // ---- close during a render, and a PDF tab can be added again ----
         _ = pdf.GoToAsync(0);

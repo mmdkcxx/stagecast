@@ -22,17 +22,11 @@ public partial class MainWindow
 
     private TabList BuildTabList()
     {
-        var items = _config.Tabs.Select(t =>
-        {
-            TabKinds.TryParse(t.Kind, out var kind); // the settings loader already replaced unknown names with web
-            return new TabInfo(Guid.NewGuid(), t.Name, t.Url, t.ProfileId, kind, t.Source);
-        }).ToList();
-        // The tests expect a page to start from; a real first start has no tab and shows the test pattern.
-        if (items.Count == 0 && _context.SelfTest is not null) items.Add(new TabInfo(Guid.NewGuid(), "Tab 1", TabRules.BlankUrl));
-        var list = new TabList(items, _config.ActiveTab);
-        // --url opens that address in the tab that was active.
-        if (_context.StartUrl is { } url && list.Active is { } started) list.SetUrl(started.Id, url);
-        return list;
+        // Every start is empty (the outputs show the test pattern): tabs come back only by opening a saved session. The tests expect
+        // a page to start from, and --url opens that address in a first tab.
+        var items = new List<TabInfo>();
+        if (_context.SelfTest is not null || _context.StartUrl is not null) items.Add(new TabInfo(Guid.NewGuid(), "Tab 1", _context.StartUrl is { } url ? TabRules.StorableUrl(url) : TabRules.BlankUrl));
+        return new TabList(items, 0);
     }
 
     private async Task StartTabsAsync()
@@ -42,7 +36,6 @@ public partial class MainWindow
         engine.ActiveTabChanged += () => ShowZoomLabel();
 
         // The tab that was active goes first, so it is on the stage from the start; the others load behind it.
-        RenderEngine.RemoveUnusedProfiles(_context.Paths.ProfilesDirectory, _tabs.Items.Select(t => t.ProfileId));
         if (_tabs.Active is { } first) await AddEngineTabAsync(engine, first);
         // A snapshot: pages start loading while the next tabs are created, and their address changes update the list.
         foreach (var info in _tabs.Items.Where(t => t.Id != _tabs.Active?.Id).ToList()) await AddEngineTabAsync(engine, info);
@@ -222,10 +215,11 @@ public partial class MainWindow
 
     // ---- operations (used by the buttons, the keys and the self test) ----
 
-    internal async Task<bool> AddTabAsync(string url = TabRules.BlankUrl)
+    /// <summary>Adds a web tab. <paramref name="profileId"/> reuses a separate profile (login) that is still on disk, as a saved session does.</summary>
+    internal async Task<bool> AddTabAsync(string url = TabRules.BlankUrl, string? profileId = null)
     {
         if (_engine is null) return false;
-        var info = _tabs.Add(url);
+        var info = _tabs.Add(url, profileId);
         if (info is null)
         {
             TabError.Text = $"Paling banyak {TabRules.MaxTabs} tab.";

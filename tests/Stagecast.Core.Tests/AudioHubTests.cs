@@ -253,17 +253,41 @@ public class AudioHubBeepTests
     }
 
     [Fact]
-    public void NoLive_GivesEverySinkTheBeep()
+    public void WithoutARequest_NoSinkHearsABeep_AndTheBeepStartsAndStopsWithTheRequest()
     {
-        using var hub = new Stagecast.Core.Audio.AudioHub { NoLive = true };
-        var sink = new Peak();
-        hub.AddSink(sink);
+        using var hub = new Stagecast.Core.Audio.AudioHub();
+        var plain = new Peak();
+        var asking = new Peak();
+        bool wantsBeep = false;
+        hub.AddSink(plain);
+        hub.AddSink(asking, () => wantsBeep);
         for (int i = 0; i < 125; i++)
         {
             hub.Step(480);
             Thread.Sleep(10);
         }
 
-        Assert.True(sink.Loud > 3);
+        Assert.Equal(0, plain.Loud); // no page audio and no request: a start or an empty stage is silent
+        Assert.Equal(0, asking.Loud);
+
+        wantsBeep = true;
+        for (int i = 0; i < 125; i++)
+        {
+            hub.Step(480);
+            Thread.Sleep(10);
+        }
+
+        Assert.True(asking.Loud > 3, "the sink that asks hears the beep");
+        Assert.Equal(0, plain.Loud);
+
+        wantsBeep = false;
+        int loud = asking.Loud;
+        for (int i = 0; i < 125; i++)
+        {
+            hub.Step(480);
+            Thread.Sleep(10);
+        }
+
+        Assert.Equal(loud, asking.Loud); // and stops again
     }
 }

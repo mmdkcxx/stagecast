@@ -225,7 +225,6 @@ public partial class MainWindow : Window
         if (_noLive == noLive) return;
         _noLive = noLive;
         _engine?.Hub.SetNoLiveFlag(noLive);
-        if (_audio is not null) _audio.NoLive = noLive;
         _logger.LogInformation(noLive ? "No tab is live: the outputs show the test pattern" : "A tab is live");
         RefreshHeader();
     }
@@ -733,8 +732,6 @@ public partial class MainWindow : Window
             Ndi = _ndiConfig,
             Omt = _omtConfig,
             Presets = _presets.ToEntries(),
-            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId, Kind = TabKinds.ConfigName(t.Kind), Source = t.Source }).ToList(),
-            ActiveTab = _tabs.LiveIndex,
         };
         try
         {

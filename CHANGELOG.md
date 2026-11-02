@@ -8,6 +8,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikut
 Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`. Menambahkan sumber PowerPoint di atas
 isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
 
+### Berubah
+- Aplikasi selalu mulai tanpa tab (output menampilkan test pattern); tab dan berkas sebelumnya tidak dibuka lagi. `config.json`
+  tidak lagi menyimpan daftar tab. Folder profil login terpisah tidak lagi dihapus saat mulai, supaya login bertahan di komputer
+  yang sama saat sesi tersimpan dibuka nanti.
+- Beep test pattern (1 kHz sekali per detik) tidak lagi bunyi otomatis saat tidak ada tab tayang. Beep hanya bunyi bila test pattern
+  unit Layar, NDI, atau OMT dicentang; nada uji di panel Audio tidak berubah.
+
 ### Ditambahkan
 - Log: exception di thread latar (`AppDomain.UnhandledException`) dan task yang gagal tanpa di-await
   (`TaskScheduler.UnobservedTaskException`) sekarang tercatat di berkas log. Tombol **Buka folder log** di jendela Statistik.
