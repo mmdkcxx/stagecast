@@ -630,6 +630,20 @@ public partial class MainWindow : Window
 
     private void OnOpenStats(object sender, RoutedEventArgs e) => OpenModal("stats");
 
+    private void OnOpenLogFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(LogDirectory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(LogDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not open the log folder {Path}", LogDirectory);
+            MessageBox.Show($"Folder log tidak bisa dibuka:\n{LogDirectory}", "Stagecast", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void OnModalClose(object sender, RoutedEventArgs e) => CloseModal();
 
     private void OnModalDim(object sender, MouseButtonEventArgs e) => CloseModal();

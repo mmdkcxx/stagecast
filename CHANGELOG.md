@@ -9,6 +9,8 @@ Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `m
 isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
 
 ### Ditambahkan
+- Log: exception di thread latar (`AppDomain.UnhandledException`) dan task yang gagal tanpa di-await
+  (`TaskScheduler.UnobservedTaskException`) sekarang tercatat di berkas log. Tombol **Buka folder log** di jendela Statistik.
 - Sumber PowerPoint: tab PPT (tombol **+ PPT**) memutar berkas `.pptx` lewat PowerPoint yang terpasang (otomasi COM). Slide show
   layar penuh dijalankan di luar layar lalu ditangkap, jadi tidak ada jendela tambahan; animasi, transisi, dan video adalah milik
   PowerPoint. Scale to fit dengan bar hitam. Slide maju hanya saat diperintah (waktu di berkas diabaikan); slide tersembunyi

@@ -385,6 +385,7 @@
             <ScrollViewer x:Name="StatsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
 <StackPanel Margin="20">
                         <TextBlock x:Name="StatsText" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="12" LineHeight="18"/>
+                        <Button Content="Buka folder log" Style="{StaticResource ToolButton}" Margin="0,14,0,0" HorizontalAlignment="Left" Click="OnOpenLogFolder" ToolTip="Buka folder berkas log (error dan crash tercatat di sini)"/>
                         <CheckBox x:Name="LiveSimBox" Content="Uji: anggap ada output yang nyala" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,18,0,0"
                                   ToolTip="Untuk uji: memperlihatkan spanduk konfirmasi ubah resolusi/FPS tanpa output nyata"/>
                     </StackPanel>
