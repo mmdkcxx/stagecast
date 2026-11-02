@@ -39,6 +39,7 @@ internal sealed partial class SelfTest
     public async Task RunAsync(string name, MainWindow window)
     {
         if (name == "d5") { await RunPdfAsync(window); return; }
+        if (name == "f1") { await RunSessionAsync(window); return; }
         if (name == "p2") { await RunPowerPointAsync(window); return; }
         if (name == "shot") { await RunShotAsync(window); return; }
         if (name == "e1") { await RunPatternAsync(window); return; }

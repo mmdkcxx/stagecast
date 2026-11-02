@@ -95,12 +95,20 @@
                             <TextBlock x:Name="ChipOmtState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <Button x:Name="SessionButton" shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" ToolTip="Sesi: simpan dan buka tab (Ctrl+S, Ctrl+O)" Click="OnSessionMenu" AutomationProperties.Name="Sesi">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="SESI" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="SessionNameText" Text="Sesi baru" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" MaxWidth="180" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="{StaticResource Muted}" StrokeThickness="1.5" Margin="8,2,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </DockPanel>
             </DockPanel>
         </Border>
 
-        <Border x:Name="Banner" Grid.Row="1" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
+        <StackPanel Grid.Row="1">
+        <Border x:Name="Banner" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Terapkan" Style="{StaticResource ActionButton}" Margin="8,0,0,0" Click="OnBannerApply"/>
                 <Button DockPanel.Dock="Right" Content="Batal" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnBannerCancel"/>
@@ -110,6 +118,17 @@
                 </StackPanel>
             </DockPanel>
         </Border>
+        <Border x:Name="SessionBanner" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Tutup" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnBannerDismissMissing"/>
+                <Button DockPanel.Dock="Right" Content="Pilih berkas…" Style="{StaticResource ActionButton}" Margin="8,0,0,0" Click="OnBannerFindFiles"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="SessionBannerTitle" Foreground="{StaticResource Warn}" FontSize="14" FontWeight="Bold"/>
+                    <TextBlock x:Name="SessionBannerDetail" Foreground="{StaticResource Text}" FontSize="13" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        </StackPanel>
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>

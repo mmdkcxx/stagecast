@@ -504,3 +504,126 @@ public sealed class DiskFilesTests : IDisposable
         Assert.False(files.Exists("bad\0path"));
     }
 }
+
+public sealed class NetworkGuardTests
+{
+    private sealed class Probe : ISessionFiles
+    {
+        public List<string> Asked = [];
+
+        public bool Answer = true;
+
+        public bool Exists(string path)
+        {
+            Asked.Add(path);
+            return Answer;
+        }
+
+        public string? FindByName(string folder, string fileName)
+        {
+            Asked.Add(folder);
+            return Path.Combine(folder, fileName);
+        }
+    }
+
+    [Theory]
+    [InlineData(@"\\server\share\a.pdf", true)]
+    [InlineData("//server/share/a.pdf", true)]
+    [InlineData(@"\\?\UNC\server\share\a.pdf", true)]
+    [InlineData(@"\\?\C:\Gereja\a.pdf", false)]
+    [InlineData(@"\\.\C:\a.pdf", false)]
+    [InlineData(@"C:\Gereja\a.pdf", false)]
+    [InlineData(@"relatif\a.pdf", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void NetworkPaths_AreRecognised(string? path, bool network)
+        => Assert.Equal(network, NetworkGuard.IsNetworkPath(path));
+
+    [Fact]
+    public void WithoutPermission_ANetworkPathIsNeverAskedOfTheDisk()
+    {
+        var probe = new Probe();
+        var guard = new NetworkGuard(probe, allowNetwork: false);
+
+        Assert.False(guard.Exists(@"\\server\share\a.pdf"));
+        Assert.Null(guard.FindByName(@"\\server\share", "a.pdf"));
+        Assert.Empty(probe.Asked);
+
+        Assert.True(guard.Exists(@"C:\a.pdf"));
+        Assert.Equal(@"C:\Dok\a.pdf", guard.FindByName(@"C:\Dok", "a.pdf"));
+        Assert.Equal(2, probe.Asked.Count);
+    }
+
+    [Fact]
+    public void WithPermission_EverythingGoesThrough()
+    {
+        var probe = new Probe();
+        var guard = new NetworkGuard(probe, allowNetwork: true);
+        Assert.True(guard.Exists(@"\\server\share\a.pdf"));
+        Assert.Single(probe.Asked);
+    }
+
+    [Fact]
+    public void ANetworkDocumentInAPlan_StaysMissing_WithoutTheDiskBeingAsked()
+    {
+        var probe = new Probe { Answer = false };
+        var session = new SessionFile { Tabs = [new SessionTab { Name = "A", Kind = "pdf", Url = TabRules.BlankUrl, Source = @"\\evil\share\a.pdf" }] };
+        var plan = SessionPlan.Create(session, @"C:\Sesi\Misa.stagecast", new NetworkGuard(probe, false));
+        Assert.True(plan.Tabs[0].IsMissing);
+        Assert.Empty(probe.Asked.Where(p => p.StartsWith(@"\\evil")));
+        Assert.Equal([@"\\evil\share\a.pdf"], SessionPlan.NetworkSources(session));
+    }
+
+    [Fact]
+    public void NetworkSources_ListsEachOnceAndSkipsLocalAndWebTabs()
+    {
+        var session = new SessionFile
+        {
+            Tabs =
+            [
+                new SessionTab { Name = "A", Kind = "pdf", Source = @"\\s\a.pdf" },
+                new SessionTab { Name = "B", Kind = "pdf", Source = @"\\S\A.pdf" },
+                new SessionTab { Name = "C", Kind = "pdf", Source = @"C:\a.pdf" },
+                new SessionTab { Name = "D" },
+            ],
+        };
+        Assert.Single(SessionPlan.NetworkSources(session));
+    }
+}
+
+public sealed class RecentSessionsConfigTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "stagecast-tests-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+    }
+
+    [Fact]
+    public void TheRecentList_RoundTrips_AndIsRepairedOnLoad()
+    {
+        Directory.CreateDirectory(_dir);
+        string path = Path.Combine(_dir, "config.json");
+        var many = Enumerable.Range(1, 12).Select(i => $@"C:\Sesi\s{i}.stagecast").ToList();
+        var store = new ConfigStore(path, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        store.Save(new AppConfig { RecentSessions = [@"C:\Sesi\a.stagecast", "", @"C:\SESI\A.stagecast", "bad\0path", .. many] });
+
+        var loaded = store.Load().Config.RecentSessions;
+        Assert.Equal(AppConfig.MaxRecentSessions, loaded.Count);
+        Assert.Equal(@"C:\Sesi\a.stagecast", loaded[0]);
+        Assert.Equal(loaded.Count, loaded.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.DoesNotContain(loaded, p => p.Length == 0 || p.Contains('\0'));
+    }
+
+    [Fact]
+    public void AFileWithoutTheList_LoadsWithAnEmptyOne()
+    {
+        Directory.CreateDirectory(_dir);
+        string path = Path.Combine(_dir, "config.json");
+        File.WriteAllText(path, """{ "schemaVersion": 1 }""");
+        var result = new ConfigStore(path, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance).Load();
+        Assert.Equal(ConfigLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Config.RecentSessions);
+    }
+}

@@ -62,6 +62,7 @@ public partial class MainWindow
     // Addresses change often while pages load; write the file once things settle.
     private void SchedulePersist()
     {
+        MarkSessionDirty();
         _persistTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _persistTimer.Tick -= OnPersistTimer;
         _persistTimer.Tick += OnPersistTimer;
@@ -265,13 +266,14 @@ public partial class MainWindow
         SchedulePersist();
     }
 
-    internal async Task<bool> CloseTabAsync(Guid id)
+    /// <param name="forSession">Closed as part of leaving a session: nothing is asked about the tab on air (the session question did that) and a separate profile keeps its login.</param>
+    internal async Task<bool> CloseTabAsync(Guid id, bool forSession = false)
     {
         if (_engine is null || _engine.TabById(id) is not { } tab) return false;
         bool isProgram = _tabs.PreviewMode && id == _tabs.ProgramId;
         // Closing the tab on air, with no other tab to take over, leaves the outputs on the test pattern: ask first when they are on.
         bool endsOnAir = isProgram || (!_tabs.PreviewMode && _tabs.Active?.Id == id && _tabs.Items.Count == 1);
-        if (endsOnAir && !_noLive && OutputsLive && !Confirm("Tab ini sedang tayang. Menutupnya membuat output menampilkan test pattern. Tutup?")) return false;
+        if (!forSession && endsOnAir && !_noLive && OutputsLive && !Confirm("Tab ini sedang tayang. Menutupnya membuat output menampilkan test pattern. Tutup?")) return false;
         bool wasActive = _tabs.Active?.Id == id;
         if (!_tabs.CanCloseTab(id)) return false;
         _tabs.Close(id);
@@ -300,7 +302,7 @@ public partial class MainWindow
             }
         }
 
-        _engine.CloseTab(tab);
+        _engine.CloseTab(tab, keepProfile: forSession);
         ForgetDocument(id);
         if (leftPreviewMode) PagePreviewView.PreviewMode = false;
         UpdateModeButtons();
@@ -314,8 +316,10 @@ public partial class MainWindow
 
     internal TabNameError RenameTab(Guid id, string? name)
     {
+        int index = _tabs.IndexOf(id);
+        string? before = index >= 0 ? _tabs.Items[index].Name : null;
         var error = _tabs.Rename(id, name);
-        if (error == TabNameError.None) SchedulePersist();
+        if (error == TabNameError.None && _tabs.Items[_tabs.IndexOf(id)].Name != before) SchedulePersist();
         return error;
     }
 
@@ -447,6 +451,7 @@ public partial class MainWindow
 
     private void RebuildTabList()
     {
+        UpdateMissingBanner();
         SyncAudioSources();
         UpdateModeButtons(); // the number of tabs decides whether Preview + Take is available
         TabListPanel.Children.Clear();
@@ -601,6 +606,7 @@ public partial class MainWindow
         else if (e.Key == Key.Space && _tabs.PreviewMode && !PagePreviewView.CanPanNow) _ = TakeAsync();
         else if (ctrl && shift && e.Key == Key.F) { OnFreeze(this, e); e.Handled = true; }
         else if (ctrl && shift && e.Key == Key.B) { OnBlackout(this, e); e.Handled = true; }
+        else if (TrySessionKey(e.Key, ctrl, shift)) { }
         else if (ctrl && e.Key == Key.T) _ = AddTabAsync();
         else if (ctrl && e.Key == Key.W && _tabs.Active is { } closing) _ = CloseTabAsync(closing.Id);
         else if (ctrl && e.Key is >= Key.D1 and <= Key.D9)

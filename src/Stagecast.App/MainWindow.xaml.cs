@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         _logger = context.LoggerFactory.CreateLogger<MainWindow>();
         _presets = PresetCatalog.FromConfig(_config);
         _tabs = BuildTabList();
+        _recentSessions = [.. _config.RecentSessions];
         _outputConfig = _config.Output;
         _ndiConfig = _config.Ndi;
         _omtConfig = _config.Omt;
@@ -262,6 +263,11 @@ public partial class MainWindow : Window
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (_sessionEnding || _context.SelfTest is not null) return;
+        if (!ConfirmCloseSession())
+        {
+            e.Cancel = true;
+            return;
+        }
         string names = LiveOutputNames();
         if (names.Length == 0) return;
         var answer = MessageBox.Show(this, $"Output sedang menyala ({names}). Tutup Stagecast dan hentikan semuanya?", "Stagecast",
@@ -732,6 +738,7 @@ public partial class MainWindow : Window
             Ndi = _ndiConfig,
             Omt = _omtConfig,
             Presets = _presets.ToEntries(),
+            RecentSessions = [.. _recentSessions],
         };
         try
         {

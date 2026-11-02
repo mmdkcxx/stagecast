@@ -71,6 +71,7 @@ smoke() {
   APP_EXTRA=",'--selftest','a3b'" smoke_app "A3b selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','d1a'" smoke_app "D1a selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','d5'" smoke_app "D5 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
+  APP_EXTRA=",'--selftest','f1'" smoke_app "F1 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','p2'" smoke_app "P2 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','p1'" smoke_app "P1 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }
   APP_EXTRA=",'--selftest','p4'" smoke_app "P4 selftest ok" "exiting with code 0" || { smoke_stop || return 1; }

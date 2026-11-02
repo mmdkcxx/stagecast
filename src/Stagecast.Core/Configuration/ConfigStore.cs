@@ -164,6 +164,15 @@ public sealed class ConfigStore
         }
         int activeTab = tabs.Count == 0 ? 0 : Math.Clamp(input.ActiveTab, 0, tabs.Count - 1);
 
+        var recent = new List<string>();
+        foreach (string path in input.RecentSessions ?? [])
+        {
+            string? stored = TabRules.StorableSource(path);
+            if (stored is null || stored.Contains('\0') || recent.Contains(stored, StringComparer.OrdinalIgnoreCase)) continue;
+            if (recent.Count >= AppConfig.MaxRecentSessions) break;
+            recent.Add(stored);
+        }
+
         if (input.SchemaVersion > AppConfig.CurrentSchemaVersion)
             notes.Add($"the file is from a newer version (schema {input.SchemaVersion}); unknown settings may be lost on the next save");
 
@@ -198,6 +207,7 @@ public sealed class ConfigStore
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
             Output = new OutputConfig { MonitorId = monitorId, Scale = scale, AlwaysOnTop = output.AlwaysOnTop },
             Presets = presets,
+            RecentSessions = recent,
             Tabs = tabs,
             ActiveTab = activeTab,
         };

@@ -8,6 +8,8 @@ public sealed class AppConfig
 {
     public const int CurrentSchemaVersion = 1;
 
+    public const int MaxRecentSessions = 8;
+
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     public RenderConfig Render { get; init; } = new();
@@ -25,6 +27,9 @@ public sealed class AppConfig
 
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
+
+    /// <summary>Session files opened or saved lately, newest first. Only paths.</summary>
+    public List<string> RecentSessions { get; init; } = [];
 
     /// <summary>Not written any more and ignored at start: the application always starts without tabs. Old files may still hold a list; it is read only so such a file stays valid.</summary>
     public List<TabEntry> Tabs { get; init; } = [];

@@ -16,6 +16,19 @@ isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
   unit Layar, NDI, atau OMT dicentang; nada uji di panel Audio tidak berubah.
 
 ### Ditambahkan
+- Sesi: tombol **SESI** di top bar (menu Sesi baru, Buka sesi, Simpan, Simpan sebagai, daftar terakhir dibuka, Buka folder sesi;
+  Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S) menyimpan tab ke berkas `.stagecast` dan membukanya lagi, juga di komputer lain. Berkas sesi
+  memuat tab (alamat web, path dokumen, nama), tab yang tayang, mode Langsung/Preview, dan resolusi serta FPS; tidak memuat login atau
+  kata sandi. Login tab dengan profil terpisah dipakai lagi hanya di komputer yang punya foldernya.
+  - Dokumen dicari berurutan: path tersimpan, path relatif terhadap berkas sesi, nama yang sama di sebelah berkas sesi. Yang belum
+    ketemu ditanyakan (Cari per berkas, atau Pilih folder berkas yang juga mencari berkas lain dengan nama yang sama sampai dua
+    folder ke bawah); atau dibuka tanpa berkasnya, dengan spanduk "berkas belum ditemukan" dan tombol Pilih berkas.
+  - Membuka sesi saat tab sudah ada menanyakan Ganti atau Tambahkan, memakai resolusi sesi atau tidak, dan simpan sesi sekarang dulu.
+    Tidak ada tab yang tayang sendiri setelah sesi dibuka.
+  - Berkas sesi bisa datang dari siapa saja: alamat web selain http/https dibuka kosong, dan berkas di jaringan (`\\server\...`) tidak
+    dicari sebelum Anda setuju.
+  - Menutup jendela dengan sesi tersimpan yang berubah menawarkan simpan. Sesi yang belum pernah disimpan tidak ditanya.
+  - Menutup tab karena berpindah sesi tidak menghapus folder login tab itu.
 - Log: exception di thread latar (`AppDomain.UnhandledException`) dan task yang gagal tanpa di-await
   (`TaskScheduler.UnobservedTaskException`) sekarang tercatat di berkas log. Tombol **Buka folder log** di jendela Statistik.
 - Sumber PowerPoint: tab PPT (tombol **+ PPT**) memutar berkas `.pptx` lewat PowerPoint yang terpasang (otomasi COM). Slide show

@@ -636,8 +636,11 @@ public sealed partial class RenderEngine : IDisposable
         CursorChanged?.Invoke();
     }
 
-    /// <summary>Closes a tab that is not on the stage. Select another tab first when closing the active one.</summary>
-    public void CloseTab(StageTab tab)
+    /// <summary>
+    /// Closes a tab that is not on the stage. Select another tab first when closing the active one. The folder of a separate profile
+    /// (a login) goes with its last tab unless <paramref name="keepProfile"/> is set, as when a session is closed to open another.
+    /// </summary>
+    public void CloseTab(StageTab tab, bool keepProfile = false)
     {
         if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab or release this one before closing it (and drop it first if it is on air).");
         if (!_tabs.Remove(tab)) return;
@@ -655,7 +658,7 @@ public sealed partial class RenderEngine : IDisposable
         if (tab.ProfileId is { } profile && !_tabs.Any(t => t.ProfileId == profile))
         {
             _environments.Remove(profile);
-            _ = DeleteFolderAsync(ProfileFolder(_options.ProfilesDirectory, profile));
+            if (!keepProfile) _ = DeleteFolderAsync(ProfileFolder(_options.ProfilesDirectory, profile));
         }
     }
 

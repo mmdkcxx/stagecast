@@ -9,6 +9,27 @@ public interface ISessionFiles
     string? FindByName(string folder, string fileName);
 }
 
+/// <summary>
+/// Keeps the search for documents off the network unless the operator agreed. Looking for a file on a share makes Windows connect to
+/// that server and offer the user's credentials, and a session file may come from anyone, so a path it names is not probed until asked.
+/// </summary>
+public sealed class NetworkGuard(ISessionFiles inner, bool allowNetwork) : ISessionFiles
+{
+    /// <summary>A UNC path (\\server\share, also \\?\UNC\...). A device path to a local drive (\\?\C:\...) is not.</summary>
+    public static bool IsNetworkPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        string p = path.Replace('/', '\\');
+        if (!p.StartsWith(@"\\", StringComparison.Ordinal)) return false;
+        if (p.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return true;
+        return !(p.StartsWith(@"\\?\", StringComparison.Ordinal) || p.StartsWith(@"\\.\", StringComparison.Ordinal));
+    }
+
+    public bool Exists(string path) => (allowNetwork || !IsNetworkPath(path)) && inner.Exists(path);
+
+    public string? FindByName(string folder, string fileName) => allowNetwork || !IsNetworkPath(folder) ? inner.FindByName(folder, fileName) : null;
+}
+
 public sealed class DiskFiles : ISessionFiles
 {
     /// <summary>How many folders below the chosen one are looked into; a deck folder is shallow, and a whole drive must not be walked.</summary>

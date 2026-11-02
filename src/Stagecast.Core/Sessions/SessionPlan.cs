@@ -68,6 +68,10 @@ public sealed class SessionPlan
     public IReadOnlyList<TabInfo> ToTabInfos(Func<string, bool> profileExists)
         => [.. Tabs.Select(t => t.Info.ProfileId is { } id && !profileExists(id) ? t.Info with { ProfileId = null } : t.Info)];
 
+    /// <summary>The document paths of <paramref name="session"/> that lie on the network, which are not probed without the operator's say-so (see <see cref="NetworkGuard"/>).</summary>
+    public static IReadOnlyList<string> NetworkSources(SessionFile session)
+        => [.. session.Tabs.Select(t => t.Source).Where(NetworkGuard.IsNetworkPath).Select(s => s!).Distinct(StringComparer.OrdinalIgnoreCase)];
+
     /// <summary>The tabs of <paramref name="session"/> (as <see cref="SessionStore.Load"/> returns it) with each document looked for on the disk.</summary>
     public static SessionPlan Create(SessionFile session, string sessionPath, ISessionFiles files)
     {

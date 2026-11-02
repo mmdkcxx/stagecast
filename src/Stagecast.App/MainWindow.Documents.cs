@@ -245,12 +245,19 @@ public partial class MainWindow
         path ??= tab.Kind == TabKind.PowerPoint ? PickPowerPoint() : PickPdf();
         if (path is null) return false;
         if (IsOnAir(tab.Id) && tab.Document is { PageCount: > 0 } && !Confirm("Tab ini sedang tayang. Mengganti berkas mengubah apa yang dilihat penonton. Lanjutkan?")) return false;
+        return await ApplyDocumentSourceAsync(tab, path);
+    }
+
+    /// <summary>Opens <paramref name="path"/> in the tab and, when it opened, makes it the tab's file. The old file stays when it does not open.</summary>
+    internal async Task<bool> ApplyDocumentSourceAsync(DocumentTab tab, string path)
+    {
         bool opened = tab.Kind == TabKind.PowerPoint
             ? await OpenPowerPointAsync(tab, path) == PowerPointOpenResult.Opened
             : await OpenPdfAsync(tab, path) == PdfOpenResult.Opened;
-        if (!opened) return false; // the old file stays the tab's file
+        if (!opened) return false;
         _tabs.SetSource(tab.Id, path);
         tab.SetSource(path);
+        _missingTabs.Remove(tab.Id);
         SchedulePersist();
         return true;
     }
