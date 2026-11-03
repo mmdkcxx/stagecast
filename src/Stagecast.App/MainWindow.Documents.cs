@@ -208,14 +208,15 @@ public partial class MainWindow
     {
         if (!_hookedPdfs.Add(tab.Id)) return;
         source.PageChanged += () => OnPdfPageChanged(tab);
-        source.PageFailed += page =>
+        // PageFailed can come from a timer or render thread (PowerPoint that died mid-show); everything below touches the window.
+        source.PageFailed += page => Dispatcher.InvokeAsync(() =>
         {
             _pageFailed.Add(tab.Id);
             SetDocMessage(tab, tab.Kind == TabKind.PowerPoint
                 ? "PowerPoint tidak menjawab. Klik Muat ulang untuk membuka berkas lagi."
                 : $"Halaman {page} tidak bisa digambar. Gambar yang tampil tetap halaman sebelumnya.");
             UpdateNavigationState();
-        };
+        });
     }
 
     private void SetDocMessage(DocumentTab tab, string? message)
