@@ -315,6 +315,7 @@ public sealed partial class RenderEngine : IDisposable
     {
         if (tab.Kind != TabKind.PowerPoint) throw new ArgumentException("Only a PowerPoint tab shows slides.", nameof(tab));
         if (tab.PowerPoint is not null) return tab.PowerPoint;
+        PowerPointSource.CleanOrphanedPowerPoint(_logger);
         PowerPointSource.CleanOldTempFiles();
         _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
         tab.Content.Brush = BarBrush();

@@ -148,6 +148,114 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
+    // ---- the PowerPoint a previous run left behind ----
+
+    private static string PidFile => Path.Combine(Path.GetTempPath(), "stagecast-ppt-owner.txt");
+
+    private static void RememberStarted(int pid)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(pid);
+            File.WriteAllText(PidFile, pid + "\n" + process.StartTime.ToUniversalTime().Ticks);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException) { }
+    }
+
+    private static void ForgetStarted()
+    {
+        try { File.Delete(PidFile); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+    }
+
+    [DllImport("ole32.dll")] private static extern int CLSIDFromProgID([MarshalAs(UnmanagedType.LPWStr)] string progId, out Guid clsid);
+
+    [DllImport("oleaut32.dll")] private static extern int GetActiveObject(ref Guid clsid, IntPtr reserved, [MarshalAs(UnmanagedType.IUnknown)] out object? obj);
+
+    /// <summary>
+    /// A Stagecast that was killed or crashed leaves the PowerPoint it started running without a window, with its decks still open; the next
+    /// PowerPoint the operator opens would be that one and show all of them. Before the first deck of this run: the decks left in that
+    /// PowerPoint (our temporary copies, found by name) are closed, and when nothing else is open in it, it ends. The operator's own files are never touched.
+    /// </summary>
+    internal static void CleanOrphanedPowerPoint(ILogger logger)
+    {
+        string text;
+        try { text = File.ReadAllText(PidFile); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }
+
+        string[] lines = text.Split('\n');
+        if (lines.Length < 2 || !int.TryParse(lines[0], out int pid) || !long.TryParse(lines[1], out long ticks))
+        {
+            ForgetStarted();
+            return;
+        }
+
+        var worker = new Thread(() => CleanOrphan(pid, ticks, logger)) { IsBackground = true, Name = "PowerPoint cleanup" };
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.Start();
+        if (!worker.Join(TimeSpan.FromSeconds(20))) logger.LogWarning("Cleaning the PowerPoint left by a previous run took too long");
+    }
+
+    private static void CleanOrphan(int pid, long startTicks, ILogger logger)
+    {
+        try
+        {
+            Process process;
+            try { process = Process.GetProcessById(pid); }
+            catch (ArgumentException) { ForgetStarted(); return; }
+
+            using (process)
+            {
+                // The number may belong to another program by now: the start time tells.
+                if (process.HasExited || process.StartTime.ToUniversalTime().Ticks != startTicks
+                    || !string.Equals(process.ProcessName, "POWERPNT", StringComparison.OrdinalIgnoreCase))
+                {
+                    ForgetStarted();
+                    return;
+                }
+
+                int left = -1;
+                try
+                {
+                    if (CLSIDFromProgID("PowerPoint.Application", out Guid clsid) == 0
+                        && GetActiveObject(ref clsid, IntPtr.Zero, out object? running) == 0 && running is not null)
+                    {
+                        dynamic app = running;
+                        for (int i = (int)app.Presentations.Count; i >= 1; i--)
+                        {
+                            dynamic deck = app.Presentations[i];
+                            string name = (string)deck.FullName + "|" + (string)deck.Name;
+                            if (name.Contains(TempPrefix, StringComparison.OrdinalIgnoreCase)) { try { deck.Close(); } catch (COMException) { } }
+                        }
+
+                        left = (int)app.Presentations.Count;
+                        if (left == 0) { try { app.Quit(); } catch (COMException) { } }
+                    }
+                }
+                catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidCastException)
+                {
+                    logger.LogWarning(ex, "Could not reach the PowerPoint left by a previous run");
+                }
+
+                // Not reachable through COM and nothing of the operator's can be told apart: only when it has no window of its own is it ours alone.
+                if (left == 0 || (left < 0 && process.MainWindowHandle == IntPtr.Zero))
+                {
+                    if (!process.WaitForExit(4000)) process.Kill();
+                    logger.LogWarning("Ended the PowerPoint left running by a previous run (process {Pid})", pid);
+                }
+                else
+                {
+                    logger.LogInformation("The PowerPoint of a previous run stays: it holds other files");
+                }
+            }
+
+            ForgetStarted();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
+        {
+            logger.LogWarning(ex, "Could not clean the PowerPoint left by a previous run");
+        }
+    }
+
     // ---- the PowerPoint thread ----
 
     private void Pump()
@@ -265,6 +373,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
                     else if (s_startedPid != 0 && !before.Contains(s_startedPid)) s_startedPid = 0;
                     _ownApp = s_startedPid != 0;
                     _ownPid = s_startedPid;
+                    if (_ownApp && before.Count == 0) RememberStarted(s_startedPid);
                 }
 
                 Borrowed = !_ownApp;
@@ -723,11 +832,18 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
         if (!quitting || ownPid == 0) return;
         for (int i = 0; i < 40; i++)
         {
-            if (!ProcessRunning(ownPid)) return;
+            if (!ProcessRunning(ownPid)) { ForgetEnded(ownPid); return; }
             Thread.Sleep(100);
         }
 
         try { Process.GetProcessById(ownPid).Kill(); } catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        ForgetEnded(ownPid);
+    }
+
+    private static void ForgetEnded(int pid)
+    {
+        lock (StartedGate) { if (s_startedPid == pid) s_startedPid = 0; }
+        ForgetStarted();
     }
 
     private static bool ProcessRunning(int pid)
@@ -758,7 +874,16 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             return 0;
         });
         _work.CompleteAdding();
-        try { closing.Wait(TimeSpan.FromSeconds(10)); } catch (AggregateException) { }
+        bool closed = false;
+        try { closed = closing.Wait(TimeSpan.FromSeconds(10)); } catch (AggregateException) { closed = true; }
+        if (!closed && _ownApp && _ownPid != 0)
+        {
+            // PowerPoint is stuck: leaving it would keep the decks open without a window until the operator opens PowerPoint again.
+            _logger.LogWarning("PowerPoint did not close in time; ending process {Pid}", _ownPid);
+            try { Process.GetProcessById(_ownPid).Kill(); } catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
+            ForgetEnded(_ownPid);
+        }
+
         lock (_frameGate)
         {
             _surface?.Dispose();
