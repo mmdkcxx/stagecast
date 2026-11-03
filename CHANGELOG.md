@@ -3,10 +3,15 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
-## [1.2.0-custom.2] - belum dirilis
+## [1.2.0] - 2026-11-03
 
-Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`. Menambahkan sumber PowerPoint di atas
-isi `1.2.0-custom.1` (PDF dan clicker, di bawah).
+Rilis pertama dari `main` sejak 1.1.6. Menggabungkan branch pengembangan (sekarang `beta`, dulu `custom`): sumber PDF dan PowerPoint,
+clicker, sesi `.stagecast`, test pattern, dan antarmuka top bar. Catatan tahap sebelumnya (`1.2.0-custom.1` dan `1.2.0-custom.2`)
+ada di bawah; bagian "Belum diuji" di dalamnya masih berlaku untuk rilis ini.
+
+### Diperbaiki
+- PowerPoint yang mati atau dimatikan di tengah slide show tidak lagi menutup Stagecast: laporan "PowerPoint berhenti" dikirim dari
+  thread timer dan kini dijalankan di thread UI.
 
 ### Berubah
 - Aplikasi selalu mulai tanpa tab (output menampilkan test pattern); tab dan berkas sebelumnya tidak dibuka lagi. `config.json`
@@ -82,9 +87,9 @@ Clicker asli, dua monitor dan DPI 150%, kilatan jendela show sekitar 1 detik saa
 tab tidak tayang, penerimaan alpha oleh vMix/Resolume dan tampilan pratinjaunya, dialog tak terduga PowerPoint (Protected View,
 pemulihan, kata sandi), deck sangat panjang, soak. Konfirmasi tutup dan penahan tidur selama sesi panjang belum diuji manual (`powercfg /requests`).
 
-## [1.2.0-custom.1] - belum dirilis
+## Tahap `1.2.0-custom.1` (sudah termasuk di 1.2.0)
 
-Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`.
+Sumber PDF dan clicker, dikerjakan di branch `custom` (sekarang `beta`).
 
 ### Ditambahkan
 - Sumber PDF: tab PDF (tombol **+ PDF**) menampilkan halaman dengan scale to fit di layar penuh, NDI, dan OMT; bar hitam di sisa kanvas.
