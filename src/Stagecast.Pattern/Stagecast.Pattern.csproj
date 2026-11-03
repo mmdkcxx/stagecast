@@ -8,7 +8,7 @@
     <AssemblyName>StagecastPattern</AssemblyName>
     <Version>1.0.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>..\Stagecast.App\stagecast.ico</ApplicationIcon>
+    <ApplicationIcon>pattern.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
