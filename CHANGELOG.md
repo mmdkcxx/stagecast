@@ -3,7 +3,7 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
-## [Belum dirilis] (branch `beta`)
+## [1.2.1-beta.1] - 2026-11-03 (branch `beta`, belum dirilis)
 
 ### Ditambahkan
 - Bar progres saat berkas PowerPoint dibuka, dengan langkah yang sedang berjalan (menyalin berkas, menjalankan PowerPoint, membuka berkas,

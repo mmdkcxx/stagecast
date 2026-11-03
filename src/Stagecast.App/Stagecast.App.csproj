@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>Stagecast.App</RootNamespace>
     <AssemblyName>Stagecast</AssemblyName>
-    <Version>1.2.0</Version>
+    <Version>1.2.1-beta.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>stagecast.ico</ApplicationIcon>
   </PropertyGroup>
