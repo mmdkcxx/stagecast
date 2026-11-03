@@ -3,6 +3,22 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## Stagecast Pattern 1.0.0 - belum dirilis
+
+Aplikasi terpisah di `src/Stagecast.Pattern` (branch `pattern-app`): membuat video MP4 test pattern dengan resolusi, fps, durasi,
+dan teks yang diketik sendiri, lengkap dengan suara beep (H.264 + AAC lewat Windows Media Foundation, tanpa ffmpeg).
+Gambar memakai `TestPattern` yang sama dengan Stagecast, jadi font piksel dan tata letaknya identik.
+
+### Ditambahkan
+- Lebar dan tinggi diketik (genap, 64-4096), fps 24/25/30/50/60, durasi 1-3600 detik, dua baris teks, nada dan level beep.
+- Pratinjau langsung dan render dengan progres dan tombol Batal; berkas yang dibatalkan atau gagal dihapus.
+- `StagecastPattern.exe --selftest <folder>` merender enam ukuran lalu membaca balik: bar putih, beep di awal, hening setelahnya,
+  panjang audio.
+- `TestPattern`: teks judul dan baris kedua sendiri, seluruh huruf A-Z dan tanda baca umum di font piksel.
+
+### Berubah (juga di Stagecast)
+- Pada bingkai yang lebih sempit dari 16:9, timecode dan kotak BEEP mengecil supaya tidak saling menimpa.
+
 ## [1.2.0-custom.2] - belum dirilis
 
 Versi percobaan dari branch `custom`; bukan rilis resmi dan belum digabung ke `main`. Menambahkan sumber PowerPoint di atas

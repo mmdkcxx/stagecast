@@ -55,6 +55,38 @@ public class TestPatternTests
         Assert.True(f1.Pixels.AsSpan(0, top).Slice(0, (int)(720 * 0.40) * f1.Stride).SequenceEqual(f2.Pixels.AsSpan(0, (int)(720 * 0.40) * f2.Stride)), "the bars stay");
     }
 
+    [Fact]
+    public void Sanitize_UpperCases_AndReplacesUnknownCharacters()
+    {
+        Assert.Equal("PANGGUNG UTAMA 1/2 (CEK)", TestPattern.Sanitize("Panggung utama 1/2 (cek)"));
+        Assert.Equal("A?B", TestPattern.Sanitize("A\u00e9B".Replace("\u00e9", "\u2603")));
+        Assert.All("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,:-/()+_!?'=&%", c => Assert.Equal(c.ToString(), TestPattern.Sanitize(c.ToString())));
+    }
+
+    [Fact]
+    public void CustomText_ChangesThePlate_ButNotTheBars()
+    {
+        var plain = new TestPattern();
+        var custom = new TestPattern("Panggung Utama", "Kamera 3");
+        using var a = new Releaser(plain.Render(1280, 720, 50, TimeSpan.Zero), out Frame f1);
+        using var b = new Releaser(custom.Render(1280, 720, 50, TimeSpan.Zero), out Frame f2);
+        int plate = (int)(720 * 0.30) * f1.Stride, to = (int)(720 * 0.70) * f1.Stride;
+        Assert.False(f1.Pixels.AsSpan(plate, to - plate).SequenceEqual(f2.Pixels.AsSpan(plate, to - plate)), "the plate shows the new text");
+        Assert.True(f1.Pixels.AsSpan(0, (int)(720 * 0.20) * f1.Stride).SequenceEqual(f2.Pixels.AsSpan(0, (int)(720 * 0.20) * f2.Stride)), "the bars stay");
+    }
+
+    [Theory]
+    [InlineData(640, 360)]
+    [InlineData(1000, 1000)]
+    [InlineData(1080, 1920)]
+    [InlineData(3840, 1080)]
+    public void LongText_AndNarrowFrames_StillRender(int w, int h)
+    {
+        var pattern = new TestPattern("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE", "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
+        using var _ = new Releaser(pattern.Render(w, h, 60, TimeSpan.FromSeconds(12.5)), out Frame f);
+        Assert.Equal((w, h), (f.Width, f.Height));
+    }
+
     private sealed class Releaser : IDisposable
     {
         private readonly Frame _frame;

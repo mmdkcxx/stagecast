@@ -22,8 +22,27 @@ public sealed class TestPattern
     public static TimeSpan Now() => System.Diagnostics.Stopwatch.GetElapsedTime(Epoch);
 
     private readonly FramePool _pool = new();
+    private readonly string? _title, _subtitle;
     private byte[]? _background;
     private int _width, _height, _fps;
+
+    public TestPattern() { }
+
+    /// <summary>A pattern with its own text on the plate: <paramref name="title"/> replaces the "STAGECAST TEST PATTERN - n FPS" line and <paramref name="subtitle"/> adds a line below it.</summary>
+    public TestPattern(string? title, string? subtitle)
+    {
+        _title = string.IsNullOrWhiteSpace(title) ? null : Sanitize(title);
+        _subtitle = string.IsNullOrWhiteSpace(subtitle) ? null : Sanitize(subtitle);
+    }
+
+    /// <summary>Upper-cases the text and turns every character the built-in font has no shape for into a question mark.</summary>
+    public static string Sanitize(string text)
+    {
+        var sb = new System.Text.StringBuilder(text.Length);
+        foreach (char c in text.ToUpperInvariant())
+            sb.Append(Glyphs.ContainsKey(c) ? c : '?');
+        return sb.ToString();
+    }
 
     /// <summary>True during the first <see cref="BeepMilliseconds"/> of each second; the sound and the box use the same rule.</summary>
     public static bool BeepOn(TimeSpan elapsed) => elapsed.Ticks % TimeSpan.TicksPerSecond < TimeSpan.FromMilliseconds(BeepMilliseconds).Ticks;
@@ -33,7 +52,7 @@ public sealed class TestPattern
     {
         if (_background is null || width != _width || height != _height || fps != _fps)
         {
-            _background = DrawBackground(width, height, fps);
+            _background = DrawBackground(width, height, fps, _title, _subtitle);
             (_width, _height, _fps) = (width, height, fps);
         }
 
@@ -48,7 +67,7 @@ public sealed class TestPattern
 
     private static int StripTop(int height) => (int)(height * 0.84);
 
-    private static byte[] DrawBackground(int w, int h, int fps)
+    private static byte[] DrawBackground(int w, int h, int fps, string? title, string? subtitle)
     {
         var px = new byte[w * h * 4];
         int barsEnd = (int)(h * 0.42), rampEnd = (int)(h * 0.54), checkerEnd = StripTop(h);
@@ -82,17 +101,27 @@ public sealed class TestPattern
         Fill(px, w, h, cx, cy - radius, cx + 1, cy + radius, 0xFFFFFF);
 
         // The plate with the numbers.
-        int scale = Math.Max(1, h / 135);
-        string[] lines = [$"{w} X {h}", $"STAGECAST TEST PATTERN - {fps} FPS", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"RASIO {(double)w / h:0.00}:1")];
-        int[] sizes = [scale * 2, scale, scale];
-        int plateW = 0, plateH = scale * 4;
-        for (int i = 0; i < lines.Length; i++)
+        string[] lines = subtitle is null
+            ? [$"{w} X {h}", title ?? $"STAGECAST TEST PATTERN - {fps} FPS", string.Create(System.Globalization.CultureInfo.InvariantCulture, $"RASIO {(double)w / h:0.00}:1")]
+            : [$"{w} X {h}", title ?? $"STAGECAST TEST PATTERN - {fps} FPS", subtitle, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"RASIO {(double)w / h:0.00}:1")];
+        int scale = Math.Max(1, h / 135), plateW, plateH;
+        int[] sizes;
+        while (true)
         {
-            plateW = Math.Max(plateW, TextWidth(lines[i], sizes[i]));
-            plateH += 7 * sizes[i] + scale * 2;
+            sizes = [.. lines.Select((_, i) => i == 0 ? scale * 2 : scale)];
+            plateW = 0;
+            plateH = scale * 4;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                plateW = Math.Max(plateW, TextWidth(lines[i], sizes[i]));
+                plateH += 7 * sizes[i] + scale * 2;
+            }
+
+            plateW += scale * 8;
+            if (plateW <= w * 0.92 || scale == 1) break;
+            scale--; // long text: make the letters smaller until the plate fits the picture
         }
 
-        plateW += scale * 8;
         int py = cy - plateH / 2;
         Fill(px, w, h, cx - plateW / 2, py, cx + plateW / 2, py + plateH, 0x000000);
         int ty = py + scale * 3;
@@ -119,7 +148,8 @@ public sealed class TestPattern
 
     private static void DrawMoving(byte[] px, int w, int h, int fps, TimeSpan elapsed)
     {
-        int top = StripTop(h), strip = h - top, scale = Math.Max(1, h / 135);
+        // The timecode and the BEEP box together are about 230 scale units wide; narrower than 16:9 the letters shrink so that they never overlap.
+        int top = StripTop(h), strip = h - top, scale = Math.Max(1, Math.Min(h / 135, w / 240));
         int totalFrames = (int)(elapsed.TotalSeconds * fps);
         int ff = totalFrames % fps, seconds = (int)elapsed.TotalSeconds;
         string code = $"{seconds / 3600 % 100:00}:{seconds / 60 % 60:00}:{seconds % 60:00}:{ff:00}";
@@ -236,6 +266,30 @@ public sealed class TestPattern
         [':'] = [".....", "..#..", "..#..", ".....", "..#..", "..#..", "....."],
         ['.'] = [".....", ".....", ".....", ".....", ".....", ".....", "..#.."],
         ['-'] = [".....", ".....", ".....", ".###.", ".....", ".....", "....."],
+        ['D'] = ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."],
+        ['H'] = ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+        ['J'] = ["..###", "...#.", "...#.", "...#.", "...#.", "#..#.", ".##.."],
+        ['K'] = ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
+        ['L'] = ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+        ['M'] = ["#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"],
+        ['Q'] = [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"],
+        ['U'] = ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        ['V'] = ["#...#", "#...#", "#...#", "#...#", "#...#", ".#.#.", "..#.."],
+        ['W'] = ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "##.##", "#...#"],
+        ['Y'] = ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
+        ['Z'] = ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
+        [','] = [".....", ".....", ".....", ".....", "..#..", "..#..", ".#..."],
+        ['/'] = ["....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."],
+        ['('] = ["...#.", "..#..", ".#...", ".#...", ".#...", "..#..", "...#."],
+        [')'] = [".#...", "..#..", "...#.", "...#.", "...#.", "..#..", ".#..."],
+        ['+'] = [".....", "..#..", "..#..", "#####", "..#..", "..#..", "....."],
+        ['_'] = [".....", ".....", ".....", ".....", ".....", ".....", "#####"],
+        ['!'] = ["..#..", "..#..", "..#..", "..#..", "..#..", ".....", "..#.."],
+        ['?'] = [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
+        ['\''] = ["..#..", "..#..", ".#...", ".....", ".....", ".....", "....."],
+        ['='] = [".....", ".....", "#####", ".....", "#####", ".....", "....."],
+        ['&'] = [".##..", "#..#.", "#.#..", ".#...", "#.#.#", "#..#.", ".##.#"],
+        ['%'] = ["##..#", "##..#", "...#.", "..#..", ".#...", "#..##", "#..##"],
         [' '] = [".....", ".....", ".....", ".....", ".....", ".....", "....."],
     };
 }
