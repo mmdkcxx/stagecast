@@ -3,8 +3,38 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Stagecast.App"
         Title="Stagecast" Icon="stagecast.ico" Width="1440" Height="860" MinWidth="1220" MinHeight="640"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Background="{StaticResource Bg}" FontFamily="{StaticResource FontBody}" FontSize="15" Foreground="{StaticResource Text}" TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType" UseLayoutRounding="True" WindowStartupLocation="CenterScreen">
-    <Grid>
+    <Window.Resources>
+        <!-- The window buttons in the top bar (the Windows title bar is gone). -->
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Foreground" Value="{StaticResource Text}"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Face" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Face" Property="Background" Value="{StaticResource Raised}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="64" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="64"/>
             <RowDefinition Height="Auto"/>
@@ -13,9 +43,26 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
-            <DockPanel Margin="20,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Stretch">
+                    <Button Style="{StaticResource CaptionButton}" Content="&#xE921;" Click="OnMinimize" ToolTip="Perkecil" AutomationProperties.Name="Perkecil"/>
+                    <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" Click="OnMaximize" ToolTip="Perbesar" AutomationProperties.Name="Perbesar jendela"/>
+                    <Button x:Name="CloseWindowButton" Style="{StaticResource CaptionButton}" Content="&#xE8BB;" Click="OnCloseWindow" ToolTip="Tutup" AutomationProperties.Name="Tutup jendela"/>
+                </StackPanel>
+            <DockPanel Margin="20,0,12,0">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="ResText" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center"/>
+                    <Button shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Click="OnOpenAudio" ToolTip="Audio: perangkat lokal, volume, nada uji" AutomationProperties.Name="Audio">
+                        <Border Width="64" Height="14" CornerRadius="2" Background="{StaticResource Bg}" BorderBrush="{StaticResource Line}" BorderThickness="1" ClipToBounds="True">
+                            <Grid>
+                                <Rectangle x:Name="TopMeterLeft" HorizontalAlignment="Left" VerticalAlignment="Top" Height="6" Width="0" Fill="{StaticResource Ok}"/>
+                                <Rectangle x:Name="TopMeterRight" HorizontalAlignment="Left" VerticalAlignment="Bottom" Height="6" Width="0" Fill="{StaticResource Ok}"/>
+                            </Grid>
+                        </Border>
+                    </Button>
+                    <Button shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Content="Statistik" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" Click="OnOpenStats"/>
+                    <Button shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" Click="OnOpenRender" ToolTip="Resolusi dan FPS render, untuk semua output">
+                        <TextBlock x:Name="ResText" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center"/>
+                    </Button>
                     <TextBlock x:Name="VersionText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -27,32 +74,41 @@
                             <TextBlock x:Name="StatusPillText" Text="OUTPUT MATI" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontBody}" FontSize="16" FontWeight="Bold" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
-                    <Border Height="38" CornerRadius="3" Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12,0" Margin="8,0,0,0" ToolTip="Output layar penuh">
+                    <Button shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" ToolTip="Output layar penuh: monitor, skala, nyala/mati" Click="OnOpenScreen">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="ChipScreenDot" Width="8" Height="8" Fill="{StaticResource LineStrong}" VerticalAlignment="Center"/>
                             <TextBlock Text="LAYAR" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             <TextBlock x:Name="ChipScreenState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
-                    </Border>
-                    <Border Height="38" CornerRadius="3" Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12,0" Margin="8,0,0,0" ToolTip="Keluaran NDI">
+                    </Button>
+                    <Button shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" ToolTip="Keluaran NDI: nama, alpha, nyala/mati" Click="OnOpenNdi">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="ChipNdiDot" Width="8" Height="8" Fill="{StaticResource LineStrong}" VerticalAlignment="Center"/>
                             <TextBlock Text="NDI" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             <TextBlock x:Name="ChipNdiState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
-                    </Border>
-                    <Border Height="38" CornerRadius="3" Background="{StaticResource Raised}" BorderBrush="{StaticResource Line}" BorderThickness="1" Padding="12,0" Margin="8,0,0,0" ToolTip="Keluaran OMT (vMix)">
+                    </Button>
+                    <Button shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" ToolTip="Keluaran OMT (vMix): nama, alpha, nyala/mati" Click="OnOpenOmt">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="ChipOmtDot" Width="8" Height="8" Fill="{StaticResource LineStrong}" VerticalAlignment="Center"/>
                             <TextBlock Text="OMT" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             <TextBlock x:Name="ChipOmtState" Text="mati" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
-                    </Border>
+                    </Button>
+                    <Button x:Name="SessionButton" shell:WindowChrome.IsHitTestVisibleInChrome="True" Height="38" Style="{StaticResource ToolButton}" Padding="12,0" Margin="8,0,0,0" ToolTip="Sesi: simpan dan buka tab (Ctrl+S, Ctrl+O)" Click="OnSessionMenu" AutomationProperties.Name="Sesi">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="SESI" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontSemi}" FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="SessionNameText" Text="Sesi baru" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="14" Margin="8,0,0,0" MaxWidth="180" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="{StaticResource Muted}" StrokeThickness="1.5" Margin="8,2,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
+            </DockPanel>
             </DockPanel>
         </Border>
 
-        <Border x:Name="Banner" Grid.Row="1" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
+        <StackPanel Grid.Row="1">
+        <Border x:Name="Banner" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Terapkan" Style="{StaticResource ActionButton}" Margin="8,0,0,0" Click="OnBannerApply"/>
                 <Button DockPanel.Dock="Right" Content="Batal" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnBannerCancel"/>
@@ -62,12 +118,22 @@
                 </StackPanel>
             </DockPanel>
         </Border>
+        <Border x:Name="SessionBanner" Visibility="Collapsed" Background="{StaticResource WarnBg}" BorderBrush="{StaticResource Warn}" BorderThickness="0,0,0,1" Padding="20,12">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Tutup" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnBannerDismissMissing"/>
+                <Button DockPanel.Dock="Right" Content="Pilih berkas…" Style="{StaticResource ActionButton}" Margin="8,0,0,0" Click="OnBannerFindFiles"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="SessionBannerTitle" Foreground="{StaticResource Warn}" FontSize="14" FontWeight="Bold"/>
+                    <TextBlock x:Name="SessionBannerDetail" Foreground="{StaticResource Text}" FontSize="13" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        </StackPanel>
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="TabColumn" Width="320"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="SideColumn" Width="360"/>
             </Grid.ColumnDefinitions>
 
             <!-- Left: tabs and logins -->
@@ -75,6 +141,8 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="16">
                         <DockPanel Margin="2,0,0,10">
+                            <Button DockPanel.Dock="Right" Content="+ PPT" Style="{StaticResource ToolButton}" Margin="0,0,6,0" Padding="12,0" MinHeight="34" Click="OnAddPowerPoint" ToolTip="Tab baru dari berkas PowerPoint (.pptx); butuh PowerPoint terpasang"/>
+                            <Button DockPanel.Dock="Right" Content="+ PDF" Style="{StaticResource ToolButton}" Margin="0,0,6,0" Padding="12,0" MinHeight="34" Click="OnAddPdf" ToolTip="Tab baru dari berkas PDF"/>
                             <Button DockPanel.Dock="Right" Content="+ Tab" Style="{StaticResource ToolButton}" Margin="0" Padding="12,0" MinHeight="34" Click="OnAddTab" ToolTip="Tab baru (Ctrl+T)"/>
                             <TextBlock Text="TAB" Style="{StaticResource Label}" Margin="0" VerticalAlignment="Center"/>
                         </DockPanel>
@@ -108,9 +176,25 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                <!-- Controls of a document tab (PDF); shown instead of the address bar. -->
+                <DockPanel x:Name="DocRow" Grid.Row="0" Margin="0,0,0,12" Visibility="Collapsed">
+                    <Button x:Name="DocPickButton" DockPanel.Dock="Right" Content="Pilih berkas…" Style="{StaticResource ToolButton}" Margin="6,0,0,0" Click="OnDocPick" ToolTip="Pilih berkas lain untuk tab ini"/>
+                    <Button x:Name="DocReloadButton" DockPanel.Dock="Right" Content="Muat ulang" Style="{StaticResource ToolButton}" Margin="6,0,0,0" Click="OnDocReload" ToolTip="Buka lagi berkas dari disk dan kembali ke halaman yang sama"/>
+                    <Button x:Name="DocFirstButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏮" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnDocFirst" ToolTip="Halaman pertama" AutomationProperties.Name="Halaman pertama"/>
+                    <Button x:Name="DocPrevButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="◀" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnDocPrev" ToolTip="Halaman sebelumnya" AutomationProperties.Name="Halaman sebelumnya"/>
+                    <TextBox x:Name="DocPageBox" Style="{StaticResource Field}" Width="64" MinHeight="38" Margin="4,0,0,0" HorizontalContentAlignment="Center" MaxLength="9"
+                             KeyDown="OnDocPageKeyDown" LostKeyboardFocus="OnDocPageLostFocus" ToolTip="Ketik nomor halaman lalu Enter" AutomationProperties.Name="Nomor halaman"/>
+                    <TextBlock x:Name="DocCountText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center" Margin="8,0,8,0"/>
+                    <Button x:Name="DocNextButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="▶" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnDocNext" ToolTip="Halaman berikutnya" AutomationProperties.Name="Halaman berikutnya"/>
+                    <Button x:Name="DocLastButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏭" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnDocLast" ToolTip="Halaman terakhir" AutomationProperties.Name="Halaman terakhir"/>
+                    <TextBlock x:Name="DocStatusText" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+
+                <DockPanel x:Name="AddressRow" Grid.Row="0" Margin="0,0,0,12">
                     <Button x:Name="BackButton" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnBack" ToolTip="Halaman sebelumnya" AutomationProperties.Name="Kembali">
                         <Path Data="M13,8 H3 M7,4 L3,8 L7,12" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ButtonBase}}" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Stretch="None"/>
                     </Button>
@@ -134,7 +218,9 @@
                     <TextBlock x:Name="ZoomLabel" Foreground="{StaticResource Warn}" FontFamily="{StaticResource FontSemi}" FontSize="13" VerticalAlignment="Center"
                                ToolTip="Zoom halaman mengubah isi halaman yang keluar, bukan hanya preview"/>
                     <Button x:Name="DetachButton" DockPanel.Dock="Right" Content="Jendela terpisah" Style="{StaticResource ToolButton}" Margin="0" Click="OnDetach" ToolTip="Pindahkan preview ke jendela sendiri (untuk monitor lain)"/>
-                    <ToggleButton x:Name="EnlargeButton" DockPanel.Dock="Right" Content="Perbesar" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnEnlarge" ToolTip="Sembunyikan panel kanan"/>
+                    <ToggleButton x:Name="ClickerGlobalButton" DockPanel.Dock="Right" Content="Clicker global" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnClickerGlobal"
+                                  ToolTip="Clicker (Page Down/Up, panah kiri/kanan) bekerja juga saat program lain yang aktif. Hanya selama dinyalakan; tidak tersimpan."/>
+                    <ToggleButton x:Name="EnlargeButton" DockPanel.Dock="Right" Content="Perbesar" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnEnlarge" ToolTip="Sembunyikan daftar tab"/>
                     <ToggleButton x:Name="InteractButton" DockPanel.Dock="Right" Content="Interaksi" Style="{StaticResource ToolToggle}" Margin="0,0,8,0" Click="OnInteract" ToolTip="Teruskan klik, gulir, dan ketik ke halaman. Esc melepas keyboard dari halaman."/>
                 </DockPanel>
 
@@ -149,7 +235,33 @@
                     </Grid>
                 </Border>
 
-                <Grid Grid.Row="3" Margin="0,16,0,0">
+                <!-- Page strip of a document tab: red frame = on screen, blue frame = next. -->
+                <Border x:Name="DocStrip" Grid.Row="3" Margin="0,12,0,0" Visibility="Collapsed" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="3">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="DocStripPanel" Orientation="Horizontal" Margin="8"/>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Page control of the tab on air while the preview shows another tab (Preview + Take). -->
+                <Border x:Name="ProgramDocBar" Grid.Row="4" Margin="0,12,0,0" Padding="10,6" Visibility="Collapsed" Background="{StaticResource Panel}" BorderBrush="{StaticResource Live}" BorderThickness="1" CornerRadius="3">
+                    <StackPanel>
+                    <DockPanel>
+                        <TextBlock x:Name="ProgramTitleText" DockPanel.Dock="Left" Foreground="{StaticResource Live}" FontFamily="{StaticResource FontSemi}" FontSize="13" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <Button x:Name="ProgramFirstButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏮" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnProgFirst" ToolTip="Halaman pertama (tab program)" AutomationProperties.Name="Program: halaman pertama"/>
+                        <Button x:Name="ProgramPrevButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="◀" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnProgPrev" ToolTip="Halaman sebelumnya (tab program)" AutomationProperties.Name="Program: halaman sebelumnya"/>
+                        <TextBox x:Name="ProgramPageBox" Style="{StaticResource Field}" Width="64" MinHeight="34" Margin="4,0,0,0" HorizontalContentAlignment="Center" MaxLength="9"
+                                 KeyDown="OnProgPageKeyDown" LostKeyboardFocus="OnProgPageLostFocus" ToolTip="Ketik nomor halaman lalu Enter" AutomationProperties.Name="Program: nomor halaman"/>
+                        <TextBlock x:Name="ProgramCountText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center" Margin="8,0,8,0"/>
+                        <Button x:Name="ProgramNextButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="▶" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnProgNext" ToolTip="Halaman berikutnya (tab program)" AutomationProperties.Name="Program: halaman berikutnya"/>
+                        <Button x:Name="ProgramLastButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏭" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnProgLast" ToolTip="Halaman terakhir (tab program)" AutomationProperties.Name="Program: halaman terakhir"/>
+                    </DockPanel>
+                    <ScrollViewer x:Name="ProgramStrip" Margin="0,8,0,0" Visibility="Collapsed" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="ProgramStripPanel" Orientation="Horizontal" Margin="0,0,0,2"/>
+                    </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="5" Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -160,14 +272,26 @@
                     <ToggleButton x:Name="FreezeButton" Grid.Column="2" Content="FREEZE" Style="{StaticResource BigToggle}" Margin="6,0,0,0" Click="OnFreeze" ToolTip="Layar penonton menahan gambar terakhir; halaman tetap berjalan dan bisa dioperasikan (Ctrl+Shift+F)"/>
                 </Grid>
             </Grid>
+        </Grid>
 
-            <!-- Right: render, outputs, audio -->
-            <Border x:Name="SidePanel" Grid.Column="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1,0,0,0">
-                <ScrollViewer x:Name="SideScroll" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <!-- RENDER -->
-                    <StackPanel Margin="20">
-                        <TextBlock Text="RENDER · UNTUK SEMUA OUTPUT" Style="{StaticResource Label}"/>
+        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,8">
+            <TextBlock x:Name="StatusText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="12"/>
+        </Border>
+
+        <!-- Settings windows: a layer over the whole window, one panel shown at a time. Esc or a click outside closes it. -->
+        <Grid x:Name="ModalLayer" Grid.RowSpan="4" Visibility="Collapsed" Panel.ZIndex="50">
+            <Border Background="#B3000000" MouseLeftButtonDown="OnModalDim"/>
+            <Border x:Name="ModalCard" Width="440" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,70,20,0" Background="{StaticResource Panel}" BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="4">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+                        <DockPanel Margin="20,10,10,10">
+                            <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource ToolButton}" Width="36" MinHeight="34" Padding="0" Click="OnModalClose" ToolTip="Tutup (Esc)" AutomationProperties.Name="Tutup"/>
+                            <TextBlock x:Name="ModalTitle" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontSemi}" FontSize="16" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
+                    <Grid>
+            <ScrollViewer x:Name="RenderPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
+<StackPanel Margin="20">
                         <Button x:Name="PresetButton" Style="{StaticResource ToolButton}" Margin="0,0,0,10" HorizontalContentAlignment="Left" Click="OnPresetMenu" ToolTip="Pilih resolusi tersimpan"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -204,12 +328,9 @@
                             </Border>
                         </DockPanel>
                     </StackPanel>
-
-                    <Border Height="1" Background="{StaticResource Line}"/>
-
-                    <!-- LAYAR PENUH -->
-                    <StackPanel Margin="20">
-                        <TextBlock Text="LAYAR PENUH" Style="{StaticResource Label}"/>
+            </ScrollViewer>
+            <ScrollViewer x:Name="ScreenPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
+<StackPanel Margin="20">
                         <Button x:Name="MonitorButton" Style="{StaticResource ToolButton}" Margin="0,0,0,10" HorizontalContentAlignment="Left" Click="OnMonitorMenu" ToolTip="Pilih monitor tujuan output"/>
                         <Border BorderBrush="{StaticResource LineStrong}" BorderThickness="1" CornerRadius="3" ClipToBounds="True">
                             <UniformGrid Rows="1">
@@ -221,45 +342,48 @@
                         <TextBlock x:Name="ScaleInfo" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,10,0,0"/>
                         <CheckBox x:Name="OnTopBox" Content="Selalu di atas" Margin="0,12,0,0" IsChecked="True"
                                   Checked="OnOnTopChanged" Unchecked="OnOnTopChanged" ToolTip="Output menutupi jendela lain di monitor itu, termasuk bar tugas"/>
+                        <CheckBox x:Name="ScreenPatternBox" Content="Tampilkan test pattern" Margin="0,10,0,0" Checked="OnPatternChanged" Unchecked="OnPatternChanged"
+                                  ToolTip="Kirim pola uji (bar warna, lingkaran, timecode) ke unit ini saja. Tidak tersimpan; Blackout tetap hitam."/>
                         <Button x:Name="OutputButton" Content="Nyalakan output" Style="{StaticResource ToolButton}" Margin="0,14,0,0" Click="OnToggleOutput"/>
                         <TextBlock x:Name="OutputNote" Style="{StaticResource Hint}" Margin="0,8,0,0" Text="Matikan darurat dari mana saja: Ctrl+Alt+H."/>
                     </StackPanel>
-
-                    <Border Height="1" Background="{StaticResource Line}"/>
-
-                    <!-- NDI -->
-                    <StackPanel Margin="20">
-                        <TextBlock Text="NDI" Style="{StaticResource Label}"/>
+            </ScrollViewer>
+            <ScrollViewer x:Name="NdiPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
+<StackPanel Margin="20">
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnNdiRename" ToolTip="Mengganti nama saat NDI nyala membuat sumber dibuat ulang"/>
                             <TextBox x:Name="NdiNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix / NDI Monitor" KeyDown="OnNdiNameKeyDown"/>
                         </DockPanel>
+                        <CheckBox x:Name="NdiAlphaBox" Content="Kirim alpha (bar tembus pandang)" Margin="0,10,0,0"
+                                  Checked="OnNdiAlphaChanged" Unchecked="OnNdiAlphaChanged"
+                                  ToolTip="Bar di sekitar PDF atau PPT yang tidak memenuhi bingkai dikirim transparan. Layar penuh tetap hitam. Matikan bila penerima tidak mendukung alpha."/>
+                        <CheckBox x:Name="NdiPatternBox" Content="Tampilkan test pattern" Margin="0,10,0,0" Checked="OnPatternChanged" Unchecked="OnPatternChanged"
+                                  ToolTip="Kirim pola uji (bar warna, lingkaran, timecode) ke unit ini saja. Tidak tersimpan; Blackout tetap hitam."/>
                         <Button x:Name="NdiButton" Content="Nyalakan NDI" Style="{StaticResource ToolButton}" Margin="0,12,0,0" Click="OnToggleNdi"/>
                         <TextBlock x:Name="NdiStatus" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,8,0,0"/>
                         <TextBlock Style="{StaticResource Hint}" FontSize="12" Margin="0,4,0,0"
                                    Text="Mengirim ukuran render asli (tidak diperas) beserta audio. NDI® adalah merek dagang terdaftar dari Vizrt NDI AB. ndi.video"/>
                     </StackPanel>
-
-                    <Border Height="1" Background="{StaticResource Line}"/>
-
-                    <!-- OMT -->
-                    <StackPanel Margin="20">
-                        <TextBlock Text="OMT (vMix)" Style="{StaticResource Label}"/>
+            </ScrollViewer>
+            <ScrollViewer x:Name="OmtPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
+<StackPanel Margin="20">
                         <DockPanel>
                             <Button DockPanel.Dock="Right" Content="Ganti nama" Style="{StaticResource ToolButton}" Margin="8,0,0,0" Click="OnOmtRename" ToolTip="Mengganti nama saat OMT nyala membuat sumber dibuat ulang"/>
                             <TextBox x:Name="OmtNameBox" Style="{StaticResource Field}" MaxLength="40" ToolTip="Nama sumber yang tampil di vMix (vMix 29+)" KeyDown="OnOmtNameKeyDown"/>
                         </DockPanel>
+                        <CheckBox x:Name="OmtAlphaBox" Content="Kirim alpha (bar tembus pandang)" Margin="0,10,0,0"
+                                  Checked="OnOmtAlphaChanged" Unchecked="OnOmtAlphaChanged"
+                                  ToolTip="Bar di sekitar PDF atau PPT yang tidak memenuhi bingkai dikirim transparan. Layar penuh tetap hitam. Matikan bila penerima tidak mendukung alpha."/>
+                        <CheckBox x:Name="OmtPatternBox" Content="Tampilkan test pattern" Margin="0,10,0,0" Checked="OnPatternChanged" Unchecked="OnPatternChanged"
+                                  ToolTip="Kirim pola uji (bar warna, lingkaran, timecode) ke unit ini saja. Tidak tersimpan; Blackout tetap hitam."/>
                         <Button x:Name="OmtButton" Content="Nyalakan OMT" Style="{StaticResource ToolButton}" Margin="0,12,0,0" Click="OnToggleOmt"/>
                         <TextBlock x:Name="OmtStatus" Style="{StaticResource Hint}" Foreground="{StaticResource Text}" Margin="0,8,0,0"/>
                         <TextBlock Style="{StaticResource Hint}" FontSize="12" Margin="0,4,0,0"
                                    Text="Mengirim ukuran render asli (tidak diperas) beserta audio. Open Media Transport (MIT)."/>
                     </StackPanel>
-
-                    <Border Height="1" Background="{StaticResource Line}"/>
-
-                    <!-- AUDIO -->
-                    <StackPanel Margin="20">
-                        <TextBlock Text="AUDIO" Style="{StaticResource Label}"/>
+            </ScrollViewer>
+            <ScrollViewer x:Name="AudioPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
+<StackPanel Margin="20">
                         <Button x:Name="AudioDeviceButton" Style="{StaticResource ToolButton}" Margin="0,0,0,10" HorizontalContentAlignment="Left" Click="OnAudioDeviceMenu" ToolTip="Perangkat keluaran audio lokal"/>
                         <DockPanel>
                             <ToggleButton x:Name="MuteButton" DockPanel.Dock="Right" Content="Bisu" Style="{StaticResource ToolToggle}" Margin="12,0,0,0" MinWidth="64" Click="OnMuteClick" ToolTip="Bisukan semua keluaran audio"/>
@@ -276,23 +400,18 @@
                         <TextBlock x:Name="AudioNote" Style="{StaticResource Hint}" Margin="0,8,0,0"
                                    Text="Hanya tab yang tayang yang terdengar. Saat Freeze audio senyap; Blackout tidak memengaruhi audio."/>
                     </StackPanel>
-
-                    <Border Height="1" Background="{StaticResource Line}"/>
-
-                    <!-- STATISTIK -->
-                    <StackPanel Margin="20">
-                        <TextBlock Text="STATISTIK" Style="{StaticResource Label}"/>
+            </ScrollViewer>
+            <ScrollViewer x:Name="StatsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" MaxHeight="640">
+<StackPanel Margin="20">
                         <TextBlock x:Name="StatsText" Foreground="{StaticResource Text}" FontFamily="{StaticResource FontMono}" FontSize="12" LineHeight="18"/>
+                        <Button Content="Buka folder log" Style="{StaticResource ToolButton}" Margin="0,14,0,0" HorizontalAlignment="Left" Click="OnOpenLogFolder" ToolTip="Buka folder berkas log (error dan crash tercatat di sini)"/>
                         <CheckBox x:Name="LiveSimBox" Content="Uji: anggap ada output yang nyala" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,18,0,0"
                                   ToolTip="Untuk uji: memperlihatkan spanduk konfirmasi ubah resolusi/FPS tanpa output nyata"/>
                     </StackPanel>
-                </StackPanel>
-                </ScrollViewer>
+            </ScrollViewer>
+                    </Grid>
+                </DockPanel>
             </Border>
         </Grid>
-
-        <Border Grid.Row="3" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,8">
-            <TextBlock x:Name="StatusText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="12"/>
-        </Border>
     </Grid>
 </Window>

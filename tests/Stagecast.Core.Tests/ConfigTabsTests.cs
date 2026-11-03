@@ -69,6 +69,57 @@ public sealed class ConfigTabsTests : IDisposable
         Assert.Equal(ConfigLoadStatus.Repaired, result.Status);
         Assert.Equal(TabRules.MaxTabs, result.Config.Tabs.Count);
     }
+
+    [Fact]
+    public void TabsWithoutAKind_AreWebTabs_AndNeedNoRepair()
+    {
+        var result = LoadRaw("""{ "tabs": [ { "name": "Kuis", "url": "https://kahoot.it" } ] }""");
+        Assert.Equal(ConfigLoadStatus.Loaded, result.Status);
+        Assert.Equal("web", result.Config.Tabs[0].Kind);
+        Assert.Null(result.Config.Tabs[0].Source);
+    }
+
+    [Fact]
+    public void FileTabs_RoundTripThroughSave()
+    {
+        Directory.CreateDirectory(_dir);
+        var store = new ConfigStore(ConfigPath, NullLogger.Instance);
+        store.Save(new AppConfig
+        {
+            Tabs =
+            [
+                new TabEntry { Name = "Kuis", Url = "https://kahoot.it" },
+                new TabEntry { Name = "Gala", Kind = "pdf", Source = @"D:\Acara\Gala.pdf" },
+                new TabEntry { Name = "Deck", Kind = "powerpoint" },
+            ],
+        });
+        var loaded = store.Load();
+        Assert.Equal(ConfigLoadStatus.Loaded, loaded.Status);
+        Assert.Equal(["web", "pdf", "powerpoint"], loaded.Config.Tabs.Select(t => t.Kind));
+        Assert.Equal([null, @"D:\Acara\Gala.pdf", null], loaded.Config.Tabs.Select(t => t.Source));
+    }
+
+    [Fact]
+    public void UnknownKind_BecomesWeb_AndIsReported()
+    {
+        var result = LoadRaw("""{ "tabs": [ { "name": "Aneh", "url": "https://a.example", "kind": "hologram", "source": "x" } ] }""");
+        Assert.Equal(ConfigLoadStatus.Repaired, result.Status);
+        Assert.Equal("web", result.Config.Tabs[0].Kind);
+        Assert.Equal("https://a.example", result.Config.Tabs[0].Url);
+        Assert.Null(result.Config.Tabs[0].Source);
+    }
+
+    [Fact]
+    public void FileTab_DropsTheAddressAndTheProfile()
+    {
+        string profile = new('b', 32);
+        var result = LoadRaw($$"""{ "tabs": [ { "name": "Gala", "kind": "pdf", "url": "https://a.example", "source": " a.pdf ", "profileId": "{{profile}}" } ] }""");
+        var tab = result.Config.Tabs[0];
+        Assert.Equal("pdf", tab.Kind);
+        Assert.Equal(TabRules.BlankUrl, tab.Url);
+        Assert.Equal("a.pdf", tab.Source);
+        Assert.Null(tab.ProfileId);
+    }
 }
 
 public sealed class ConfigProfileIdTests : IDisposable

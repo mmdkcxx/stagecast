@@ -34,7 +34,7 @@ public partial class MainWindow
         _audio = new AudioHub { Volume = _audioConfig.Volume, Muted = _audioConfig.Muted, Silenced = () => _engine?.Hub.Gate == GateMode.Freeze };
         _audioCapture = new BrowserAudioCapture(_audio, _context.LoggerFactory.CreateLogger("Audio"));
         _localAudio = new LocalAudioOutput();
-        _audio.AddSink(_localAudio);
+        _audio.AddSink(_localAudio, () => _screenPattern);
         _localAudio.Open(_audioConfig.DeviceId);
         _audio.Start();
 
@@ -67,7 +67,8 @@ public partial class MainWindow
         if (_engine is null || _audioCapture is null) return;
         try
         {
-            _audioCapture.Sync(_engine.BrowserProcessIds);
+            _audioCapture.Sync(_engine.AudioProcessIds);
+            _audioCapture.SetSilent(_engine.SilentAudioProcessIds);
         }
         catch (InvalidOperationException ex)
         {
@@ -79,12 +80,16 @@ public partial class MainWindow
     {
         if (_audio is null) return;
         if (++_audioTick % 40 == 0) SyncAudioSources();
+        else if (_audioTick % 4 == 0 && _engine is not null) _audioCapture?.SetSilent(_engine.SilentAudioProcessIds); // a deck is heard only while it is on air
         if (_audioTick % 20 == 0) { ShowNdiStatus(); ShowOmtStatus(); }
 
         var levels = _audio.Levels;
         double width = (MeterLeft.Parent as Grid)?.ActualWidth ?? 0;
         MeterLeft.Width = Math.Max(0, width * MeterFraction(levels.LeftDb));
         MeterRight.Width = Math.Max(0, width * MeterFraction(levels.RightDb));
+        const double topWidth = 62; // the meter in the top bar, which is always visible
+        TopMeterLeft.Width = Math.Max(0, topWidth * MeterFraction(levels.LeftDb));
+        TopMeterRight.Width = Math.Max(0, topWidth * MeterFraction(levels.RightDb));
 
         string text;
         if (_audio.Muted) text = "SENYAP · BISU";

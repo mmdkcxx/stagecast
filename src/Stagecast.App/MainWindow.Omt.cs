@@ -22,7 +22,22 @@ public partial class MainWindow
     private void InitOmtCard()
     {
         OmtNameBox.Text = _omtConfig.Name;
+        OmtAlphaBox.IsChecked = _omtConfig.Alpha;
+        ApplyAlpha();
         ShowOmtStatus();
+    }
+
+    private void OnOmtAlphaChanged(object sender, RoutedEventArgs e) => SetOmtAlpha(OmtAlphaBox.IsChecked == true);
+
+    /// <summary>Chooses whether OMT sends transparency. Works while the output runs; only the choice is saved.</summary>
+    internal void SetOmtAlpha(bool alpha)
+    {
+        if (_omtConfig.Alpha == alpha) return;
+        _omtConfig = new OmtConfig { Name = _omtConfig.Name, Alpha = alpha };
+        if (OmtAlphaBox.IsChecked != alpha) OmtAlphaBox.IsChecked = alpha;
+        if (_omt is not null) _omt.SendAlpha = alpha;
+        ApplyAlpha();
+        SchedulePersist();
     }
 
     private void OnToggleOmt(object sender, RoutedEventArgs e)
@@ -50,10 +65,11 @@ public partial class MainWindow
             ShowOmtStatus();
             return false;
         }
+        omt.SendAlpha = _omtConfig.Alpha;
         _omt = omt;
         _omtError = null;
-        _engine.Hub.AddSink(omt);
-        _audio.AddSink(omt);
+        _engine.Hub.AddSink(omt, () => _omtPattern);
+        _audio.AddSink(omt, () => _omtPattern);
         OmtButton.Content = "Matikan OMT";
         ShowOmtStatus();
         ShowControls();
@@ -100,7 +116,7 @@ public partial class MainWindow
             OmtNameBox.Text = _omtConfig.Name;
             return false;
         }
-        _omtConfig = new OmtConfig { Name = name };
+        _omtConfig = new OmtConfig { Name = name, Alpha = _omtConfig.Alpha };
         OmtNameBox.Text = name;
         _omtError = null;
         SchedulePersist();

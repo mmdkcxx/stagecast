@@ -100,6 +100,9 @@ public sealed class NdiOutput : IFrameSink, IAudioSink, IDisposable
         }
     }
 
+    /// <summary>Whether the picture goes out with its transparency. Takes effect from the next frame.</summary>
+    public volatile bool SendAlpha;
+
     public void Deliver(Frame frame, bool repeated)
     {
         if (!IsRunning) return;
@@ -129,8 +132,8 @@ public sealed class NdiOutput : IFrameSink, IAudioSink, IDisposable
                     {
                         Xres = frame.Width,
                         Yres = frame.Height,
-                        // The picture has no transparency; BGRX tells receivers not to blend it with anything.
-                        FourCC = NdiNative.FourCcBgrx,
+                        // BGRX tells receivers not to blend the picture with anything; BGRA lets the see-through bars of a document show what is behind.
+                        FourCC = SendAlpha ? NdiNative.FourCcBgra : NdiNative.FourCcBgrx,
                         FrameRateN = Math.Max(1, _fps()),
                         FrameRateD = 1,
                         PictureAspectRatio = (float)frame.Width / frame.Height,

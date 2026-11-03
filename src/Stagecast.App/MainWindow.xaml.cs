@@ -11,6 +11,7 @@ using Stagecast.Core.Display;
 using Stagecast.Core.Output;
 using Stagecast.Core.Presets;
 using Stagecast.Core.Rendering;
+using Stagecast.Core.Tabs;
 using Stagecast.Rendering;
 using Stagecast.Rendering.Capture;
 
@@ -27,11 +28,13 @@ public partial class MainWindow : Window
     public MainWindow(StartupContext context)
     {
         InitializeComponent();
+        InitStrips();
         _context = context;
         _config = context.Config.Config;
         _logger = context.LoggerFactory.CreateLogger<MainWindow>();
         _presets = PresetCatalog.FromConfig(_config);
         _tabs = BuildTabList();
+        _recentSessions = [.. _config.RecentSessions];
         _outputConfig = _config.Output;
         _ndiConfig = _config.Ndi;
         _omtConfig = _config.Omt;
@@ -50,8 +53,14 @@ public partial class MainWindow : Window
         };
         Loaded += async (_, _) => await StartEngineAsync();
         PagePreviewView.ViewChanged += UpdateViewButtons;
+        _sleepGuard = new SleepGuard(_logger);
+        Closing += OnWindowClosing;
+        StateChanged += (_, _) => OnWindowStateChanged();
+        Application.Current.SessionEnding += (_, _) => _sessionEnding = true;
         Closed += (_, _) =>
         {
+            _sleepGuard.Dispose();
+            _clickerHook?.Dispose();
             ShutdownOutput();
             StopNdi(null);
             StopOmt(null);
@@ -70,9 +79,12 @@ public partial class MainWindow : Window
             var render = _config.Render;
             _engine = await RenderEngine.CreateAsync(
                 new RenderEngineOptions(hwnd, profile, new Resolution(render.Width, render.Height), render.Fps), _context.LoggerFactory);
+            ApplyAlpha();
             await StartTabsAsync();
             UpdateModeButtons();
             StartAudio();
+            // A start never puts a tab on air by itself: until the operator selects or takes one, the outputs show the test pattern.
+            if (_context.SelfTest is null) SetNoLive(true);
             PagePreviewView.Attach(_engine);
             _engine.PreviewReady += OnThumbSourcePreview;
             _engine.ProgramThumbReady += OnThumbSourceProgram;
@@ -91,9 +103,8 @@ public partial class MainWindow : Window
             headerTimer.Tick += (_, _) => RefreshHeader();
             headerTimer.Start();
             RefreshHeader();
-            _ = Dispatcher.BeginInvoke(() => SideScroll.ScrollToTop(), DispatcherPriority.ApplicationIdle);
 
-            if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.Active, "about:blank", TimeSpan.FromSeconds(20));
+            if (_context.SelfTest is not null) await _engine.NavigateAsync(_engine.ActivePage, "about:blank", TimeSpan.FromSeconds(20));
 
             if (_context.SelfTest is not null) {
                 await new SelfTest(_engine, _context.LoggerFactory.CreateLogger<SelfTest>()).RunAsync(_context.SelfTest, this);
@@ -112,18 +123,20 @@ public partial class MainWindow : Window
     {
         if (_engine is null) return;
         bool screen = _output is not null, ndi = _ndi is not null, omt = _omt is not null;
+        _sleepGuard.Set(screen || ndi || omt);
         string label, fill, foreground;
         if (!(screen || ndi || omt)) (label, fill, foreground) = ("OUTPUT MATI", "Raised", "Muted");
         else if (BlackoutButton.IsChecked == true) (label, fill, foreground) = ("BLACKOUT", "Text", "Bg");
+        else if (_noLive) (label, fill, foreground) = ("POLA UJI", "Warn", "WarnFg");
         else if (FreezeButton.IsChecked == true) (label, fill, foreground) = ("FREEZE", "Warn", "WarnFg");
         else (label, fill, foreground) = ("LIVE", "LiveBg", "Text");
         StatusPill.Background = (Brush)FindResource(fill);
         StatusPillText.Text = label;
         StatusPillText.Foreground = (Brush)FindResource(label == "LIVE" ? "Text" : foreground);
         StatusDot.Fill = (Brush)FindResource(label == "LIVE" ? "Text" : foreground);
-        SetChip(ChipScreenDot, ChipScreenState, screen);
-        SetChip(ChipNdiDot, ChipNdiState, ndi);
-        SetChip(ChipOmtDot, ChipOmtState, omt);
+        SetChip(ChipScreenDot, ChipScreenState, screen, false, _screenPattern || _noLive);
+        SetChip(ChipNdiDot, ChipNdiState, ndi, _ndiConfig.Alpha, _ndiPattern || _noLive);
+        SetChip(ChipOmtDot, ChipOmtState, omt, _omtConfig.Alpha, _omtPattern || _noLive);
         // Direct mode: the preview is what is on air. Preview + Take: it is the tab being prepared, so green.
         string tally = !_tabs.PreviewMode && (screen || ndi || omt)
             ? (BlackoutButton.IsChecked == true ? "Text" : FreezeButton.IsChecked == true ? "Warn" : "LiveBg")
@@ -132,10 +145,11 @@ public partial class MainWindow : Window
         ResText.Text = $"{_engine.Resolution.Width} × {_engine.Resolution.Height} · {_engine.Fps} fps";
     }
 
-    private void SetChip(System.Windows.Shapes.Shape dot, TextBlock state, bool on)
+    // The state a unit's button shows: mati, nyala, "nyala α" when it sends alpha, "nyala · TEST" while it shows the test pattern.
+    private void SetChip(System.Windows.Shapes.Shape dot, TextBlock state, bool on, bool alpha = false, bool pattern = false)
     {
         dot.Fill = (Brush)FindResource(on ? "Ok" : "LineStrong");
-        state.Text = on ? "nyala" : "mati";
+        state.Text = !on ? "mati" : pattern ? "nyala · TEST" : alpha ? "nyala α" : "nyala";
         state.Foreground = (Brush)FindResource(on ? "Text" : "Muted");
     }
 
@@ -157,7 +171,7 @@ public partial class MainWindow : Window
 
     private void OnUrlKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || _engine is null) return;
+        if (e.Key != Key.Enter || _engine is null || _engine.Active is not Rendering.PageTab) return;
         string text = UrlBox.Text.Trim();
         if (text.Length == 0) return;
         string url = text.Contains("://") || text.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ? text : "https://" + text;
@@ -201,6 +215,65 @@ public partial class MainWindow : Window
     // ---- changing resolution and rate (A2c) ----
 
     private readonly RenderChangeGate _gate = new();
+    private readonly SleepGuard _sleepGuard;
+    private bool _noLive;
+
+    /// <summary>True while no tab is live (a start, or every tab closed): the outputs show the test pattern.</summary>
+    internal bool NoLive => _noLive;
+
+    internal void SetNoLive(bool noLive)
+    {
+        if (_noLive == noLive) return;
+        _noLive = noLive;
+        _engine?.Hub.SetNoLiveFlag(noLive);
+        _logger.LogInformation(noLive ? "No tab is live: the outputs show the test pattern" : "A tab is live");
+        RefreshHeader();
+    }
+
+    // Which units show the test pattern instead of the live picture. Not saved: every start begins on the live picture.
+    private volatile bool _screenPattern, _ndiPattern, _omtPattern;
+
+    internal bool ScreenPattern => _screenPattern;
+
+    internal bool NdiPattern => _ndiPattern;
+
+    internal bool OmtPattern => _omtPattern;
+
+    private void OnPatternChanged(object sender, RoutedEventArgs e)
+    {
+        _screenPattern = ScreenPatternBox.IsChecked == true;
+        _ndiPattern = NdiPatternBox.IsChecked == true;
+        _omtPattern = OmtPatternBox.IsChecked == true;
+    }
+
+    /// <summary>Shows or hides the test pattern on one unit ("screen", "ndi" or "omt").</summary>
+    internal void SetPattern(string unit, bool on)
+    {
+        (unit switch { "screen" => ScreenPatternBox, "ndi" => NdiPatternBox, _ => OmtPatternBox }).IsChecked = on;
+    }
+    private bool _sessionEnding;
+
+    /// <summary>True while Windows is asked not to sleep (an output is on).</summary>
+    internal bool SleepHeldOff => _sleepGuard.Active;
+
+    /// <summary>Which of the outputs are on, as the operator names them.</summary>
+    private string LiveOutputNames() => string.Join(", ", new[] { _output is not null ? "Layar" : null, _ndi is not null ? "NDI" : null, _omt is not null ? "OMT" : null }.Where(n => n is not null));
+
+    // Closing with an output on asks first; Windows shutting down, and the automatic tests, are not asked.
+    private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_sessionEnding || _context.SelfTest is not null) return;
+        if (!ConfirmCloseSession())
+        {
+            e.Cancel = true;
+            return;
+        }
+        string names = LiveOutputNames();
+        if (names.Length == 0) return;
+        var answer = MessageBox.Show(this, $"Output sedang menyala ({names}). Tutup Stagecast dan hentikan semuanya?", "Stagecast",
+            MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) e.Cancel = true;
+    }
 
     /// <summary>True when a real output is on, or the test checkbox says so (NDI and OMT will join in A6 and A7).</summary>
     internal bool OutputsLive => LiveSimBox.IsChecked == true || _output is not null || _ndi is not null || _omt is not null;
@@ -441,9 +514,11 @@ public partial class MainWindow : Window
     private void UpdateNavigationState()
     {
         if (_engine is null) return;
+        UrlBox.IsEnabled = ReloadButton.IsEnabled = _engine.Active is Rendering.PageTab;
         BackButton.IsEnabled = _engine.CanGoBack;
         ForwardButton.IsEnabled = _engine.CanGoForward;
         if (!UrlBox.IsKeyboardFocusWithin && _engine.CurrentUrl is { Length: > 0 } url) UrlBox.Text = url;
+        UpdateDocumentControls();
     }
 
     private void UpdateViewButtons()
@@ -479,9 +554,104 @@ public partial class MainWindow : Window
     private void OnEnlarge(object sender, RoutedEventArgs e)
     {
         bool enlarged = EnlargeButton.IsChecked == true;
-        SidePanel.Visibility = enlarged ? Visibility.Collapsed : Visibility.Visible;
-        SideColumn.Width = enlarged ? new GridLength(0) : new GridLength(360);
+        TabColumn.Width = enlarged ? new GridLength(0) : new GridLength(320);
     }
+
+    // ---- settings windows (the layer over the window that holds Render, Layar, NDI, OMT, Audio and Statistik) ----
+
+    // ---- the window buttons of the top bar (there is no Windows title bar) ----
+
+    private void OnMinimize(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximize(object sender, RoutedEventArgs e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseWindow(object sender, RoutedEventArgs e) => Close();
+
+    // A maximized window with a custom frame is drawn a few pixels beyond the screen edge; pull the content back in.
+    private void OnWindowStateChanged()
+    {
+        bool maximized = WindowState == WindowState.Maximized;
+        RootGrid.Margin = maximized ? new Thickness(SystemParameters.WindowResizeBorderThickness.Left + SystemParameters.FixedFrameVerticalBorderWidth) : new Thickness(0);
+        MaximizeButton.Content = maximized ? "\uE923" : "\uE922";
+        MaximizeButton.ToolTip = maximized ? "Kembalikan" : "Perbesar";
+    }
+
+    private UIElement? _modalOpener;
+
+    /// <summary>Saves a picture of the window's controls (not of the page in the preview) to a PNG, for looking at the layout.</summary>
+    internal void SaveWindowShot(string path)
+    {
+        var element = (FrameworkElement)Content;
+        int width = (int)element.ActualWidth, height = (int)element.ActualHeight;
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(element);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
+    }
+
+    /// <summary>Which settings window is open: "render", "screen", "ndi", "omt", "audio", "stats", or null.</summary>
+    internal string? OpenModalName { get; private set; }
+
+    internal void OpenModal(string name)
+    {
+        (UIElement panel, string title) = name switch
+        {
+            "render" => (RenderPanel, "Render · untuk semua output"),
+            "screen" => (ScreenPanel, "Layar penuh"),
+            "ndi" => (NdiPanel, "NDI"),
+            "omt" => (OmtPanel, "OMT (vMix)"),
+            "audio" => (AudioPanel, "Audio"),
+            _ => (StatsPanel, "Statistik"),
+        };
+        _modalOpener ??= Keyboard.FocusedElement as UIElement;
+        foreach (var other in new UIElement[] { RenderPanel, ScreenPanel, NdiPanel, OmtPanel, AudioPanel, StatsPanel }) other.Visibility = Visibility.Collapsed;
+        panel.Visibility = Visibility.Visible;
+        ModalTitle.Text = title;
+        ModalLayer.Visibility = Visibility.Visible;
+        OpenModalName = name == "stats" ? "stats" : name;
+        if (name == "stats") UpdateStats();
+    }
+
+    internal void CloseModal()
+    {
+        if (OpenModalName is null) return;
+        ModalLayer.Visibility = Visibility.Collapsed;
+        OpenModalName = null;
+        _modalOpener?.Focus();
+        _modalOpener = null;
+    }
+
+    private void OnOpenRender(object sender, RoutedEventArgs e) => OpenModal("render");
+
+    private void OnOpenScreen(object sender, RoutedEventArgs e) => OpenModal("screen");
+
+    private void OnOpenNdi(object sender, RoutedEventArgs e) => OpenModal("ndi");
+
+    private void OnOpenOmt(object sender, RoutedEventArgs e) => OpenModal("omt");
+
+    private void OnOpenAudio(object sender, RoutedEventArgs e) => OpenModal("audio");
+
+    private void OnOpenStats(object sender, RoutedEventArgs e) => OpenModal("stats");
+
+    private void OnOpenLogFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(LogDirectory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(LogDirectory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not open the log folder {Path}", LogDirectory);
+            MessageBox.Show($"Folder log tidak bisa dibuka:\n{LogDirectory}", "Stagecast", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void OnModalClose(object sender, RoutedEventArgs e) => CloseModal();
+
+    private void OnModalDim(object sender, MouseButtonEventArgs e) => CloseModal();
 
     private void OnMore(object sender, RoutedEventArgs e)
     {
@@ -568,8 +738,7 @@ public partial class MainWindow : Window
             Ndi = _ndiConfig,
             Omt = _omtConfig,
             Presets = _presets.ToEntries(),
-            Tabs = _tabs.Items.Select(t => new TabEntry { Name = t.Name, Url = t.Url, ProfileId = t.ProfileId }).ToList(),
-            ActiveTab = _tabs.LiveIndex,
+            RecentSessions = [.. _recentSessions],
         };
         try
         {

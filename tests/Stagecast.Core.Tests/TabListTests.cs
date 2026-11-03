@@ -13,12 +13,16 @@ public class TabListTests
     }
 
     [Fact]
-    public void AlwaysHasATab()
+    public void MayHaveNoTab_ThenTheFirstOneAddedIsActive()
     {
         var list = new TabList([], 5);
-        Assert.Single(list.Items);
-        Assert.Equal(0, list.ActiveIndex);
+        Assert.Empty(list.Items);
+        Assert.Null(list.Active);
+        Assert.Null(list.Program);
         Assert.False(list.CanClose);
+        var first = list.Add();
+        Assert.Equal(first, list.Active);
+        Assert.Equal(0, list.ActiveIndex);
     }
 
     [Fact]
@@ -74,7 +78,7 @@ public class TabListTests
     public void Close_ATabBeforeTheActiveOne_KeepsTheSameTabActive()
     {
         var list = WithTabs(4, active: 2);
-        var active = list.Active;
+        var active = list.Active!;
         list.Close(list.Items[0].Id);
         Assert.Equal(active, list.Active);
         list.Close(list.Items[^1].Id);
@@ -82,18 +86,21 @@ public class TabListTests
     }
 
     [Fact]
-    public void Close_RefusesTheLastTab()
+    public void Close_AllowsTheLastTab_AndLeavesNoActiveTab()
     {
         var list = WithTabs(1);
+        Assert.True(list.CanCloseTab(list.Items[0].Id));
         Assert.Null(list.Close(list.Items[0].Id));
-        Assert.Single(list.Items);
+        Assert.Empty(list.Items);
+        Assert.Null(list.Active);
+        Assert.Null(list.Close(Guid.NewGuid())); // an unknown tab changes nothing
     }
 
     [Fact]
     public void Move_KeepsTheActiveTabActive_AndStopsAtTheEnds()
     {
         var list = WithTabs(3, active: 1);
-        var active = list.Active;
+        var active = list.Active!;
         Assert.True(list.Move(active.Id, -1));
         Assert.Equal(active, list.Active);
         Assert.Equal(0, list.ActiveIndex);
@@ -106,7 +113,7 @@ public class TabListTests
     public void Move_OfAnotherTab_UpdatesTheActiveIndex()
     {
         var list = WithTabs(3, active: 0);
-        var active = list.Active;
+        var active = list.Active!;
         list.Move(list.Items[2].Id, -2); // the last tab jumps in front of the active one
         Assert.Equal(active, list.Active);
         Assert.Equal(1, list.ActiveIndex);
@@ -184,7 +191,7 @@ public class TabPreviewTakeTests
     public void EnterPreviewMode_KeepsTheActiveTabOnAir_AndPreviewsTheNextOne()
     {
         var list = WithTabs(3, active: 1);
-        var onAir = list.Active;
+        var onAir = list.Active!;
         Assert.True(list.EnterPreviewMode());
         Assert.Equal(onAir, list.Program);
         Assert.Equal(2, list.ActiveIndex);
@@ -213,7 +220,7 @@ public class TabPreviewTakeTests
     {
         var list = WithTabs(3);
         list.EnterPreviewMode();
-        var onAir = list.Program;
+        var onAir = list.Program!;
         Assert.False(list.Select(onAir.Id));
         Assert.Equal(1, list.ActiveIndex);
         Assert.True(list.Select(list.Items[2].Id));
@@ -225,8 +232,8 @@ public class TabPreviewTakeTests
     {
         var list = WithTabs(3);
         list.EnterPreviewMode();
-        var wasProgram = list.Program;
-        var wasPreview = list.Active;
+        var wasProgram = list.Program!;
+        var wasPreview = list.Active!;
         Assert.True(list.Take());
         Assert.Equal(wasPreview, list.Program);
         Assert.Equal(wasProgram, list.Active);
@@ -247,20 +254,23 @@ public class TabPreviewTakeTests
         var list = WithTabs(3);
         list.EnterPreviewMode();
         list.Select(list.Items[2].Id);
-        var onAir = list.Program;
+        var onAir = list.Program!;
         Assert.True(list.ExitPreviewMode());
         Assert.Equal(onAir, list.Active);
         Assert.False(list.PreviewMode);
     }
 
     [Fact]
-    public void TheTabOnAirCannotBeClosed()
+    public void ClosingTheTabOnAir_EndsPreviewMode_AndKeepsThePreviewSelected()
     {
         var list = WithTabs(3);
         list.EnterPreviewMode();
-        Assert.False(list.CanCloseTab(list.Program.Id));
-        Assert.Null(list.Close(list.Program.Id));
-        Assert.Equal(3, list.Items.Count);
+        var preview = list.Active!;
+        Assert.True(list.CanCloseTab(list.Program!.Id));
+        Assert.Equal(preview, list.Close(list.Program!.Id));
+        Assert.Equal(2, list.Items.Count);
+        Assert.False(list.PreviewMode);
+        Assert.Equal(preview, list.Active);
     }
 
     [Fact]
@@ -268,13 +278,13 @@ public class TabPreviewTakeTests
     {
         var list = WithTabs(3, active: 0);
         list.EnterPreviewMode();            // program Tab 1, preview Tab 2
-        var program = list.Program;
-        list.Close(list.Active.Id);         // closes Tab 2; the neighbour is Tab 3
+        var program = list.Program!;
+        list.Close(list.Active!.Id);         // closes Tab 2; the neighbour is Tab 3
         Assert.Equal(program, list.Program);
-        Assert.NotEqual(list.Program.Id, list.Active.Id);
+        Assert.NotEqual(list.Program!.Id, list.Active!.Id);
         Assert.True(list.PreviewMode);
 
-        list.Close(list.Active.Id);         // only the program is left
+        list.Close(list.Active!.Id);         // only the program is left
         Assert.False(list.PreviewMode);
         Assert.Equal(program, list.Active);
     }
@@ -284,9 +294,9 @@ public class TabPreviewTakeTests
     {
         var list = WithTabs(3, active: 1);
         list.EnterPreviewMode();            // program Tab 2, preview Tab 3
-        list.Close(list.Active.Id);         // Tab 3 closed: the only other tab is Tab 1
-        Assert.Equal("Tab 1", list.Active.Name);
-        Assert.Equal("Tab 2", list.Program.Name);
+        list.Close(list.Active!.Id);         // Tab 3 closed: the only other tab is Tab 1
+        Assert.Equal("Tab 1", list.Active!.Name);
+        Assert.Equal("Tab 2", list.Program!.Name);
     }
 
     [Fact]
@@ -294,10 +304,72 @@ public class TabPreviewTakeTests
     {
         var list = WithTabs(3);
         list.EnterPreviewMode();
-        var (program, preview) = (list.Program, list.Active);
+        var (program, preview) = (list.Program!, list.Active!);
         list.Move(program.Id, +1);
         list.Move(preview.Id, -1);
         Assert.Equal(program, list.Program);
         Assert.Equal(preview, list.Active);
+    }
+
+    [Fact]
+    public void AddDocument_KeepsKindAndSource_AndCountsTowardsTheLimit()
+    {
+        var list = WithTabs(1);
+        var pdf = list.AddDocument(TabKind.Pdf, "  D:\\Acara\\Gala.pdf ");
+        Assert.NotNull(pdf);
+        Assert.Equal(TabKind.Pdf, pdf.Kind);
+        Assert.Equal("D:\\Acara\\Gala.pdf", pdf.Source);
+        Assert.Equal(TabRules.BlankUrl, pdf.Url);
+        Assert.Equal("Tab 2", pdf.Name);
+        for (int i = list.Items.Count; i < TabRules.MaxTabs; i++) Assert.NotNull(list.AddDocument(TabKind.PowerPoint, null));
+        Assert.Null(list.AddDocument(TabKind.Video, null));
+        Assert.Null(list.Add());
+    }
+
+    [Fact]
+    public void AddDocument_RefusesAWebTab_AndKeepsAnEmptyPathAsNull()
+    {
+        var list = WithTabs(1);
+        Assert.Null(list.AddDocument(TabKind.Web, "x"));
+        Assert.Null(list.AddDocument(TabKind.Pdf, "   ")!.Source);
+        Assert.Null(list.AddDocument(TabKind.Pdf, new string('x', TabRules.MaxSourceLength + 1))!.Source);
+    }
+
+    [Fact]
+    public void FileTabs_HaveNoAddressAndNoSeparateProfile()
+    {
+        var list = WithTabs(1);
+        var pdf = list.AddDocument(TabKind.Pdf, "a.pdf")!;
+        list.SetUrl(pdf.Id, "https://example.com");
+        Assert.Equal(TabRules.BlankUrl, list.Items[1].Url);
+        Assert.Null(list.SetSeparateProfile(pdf.Id, separate: true));
+        Assert.Null(list.Items[1].ProfileId);
+    }
+
+    [Fact]
+    public void SetSource_ChangesFileTabsOnly()
+    {
+        var list = WithTabs(1);
+        var pdf = list.AddDocument(TabKind.Pdf, "a.pdf")!;
+        list.SetSource(pdf.Id, "b.pdf");
+        Assert.Equal("b.pdf", list.Items[1].Source);
+        list.SetSource(list.Items[0].Id, "c.pdf");
+        Assert.Null(list.Items[0].Source);
+    }
+
+    [Fact]
+    public void TabKinds_NamesRoundTrip_AndUnknownNamesAreReported()
+    {
+        foreach (var kind in Enum.GetValues<TabKind>())
+        {
+            Assert.True(TabKinds.TryParse(TabKinds.ConfigName(kind), out var back));
+            Assert.Equal(kind, back);
+        }
+        Assert.True(TabKinds.TryParse(null, out var none));
+        Assert.Equal(TabKind.Web, none);
+        Assert.True(TabKinds.TryParse(" PDF ", out var pdf));
+        Assert.Equal(TabKind.Pdf, pdf);
+        Assert.False(TabKinds.TryParse("hologram", out var unknown));
+        Assert.Equal(TabKind.Web, unknown);
     }
 }

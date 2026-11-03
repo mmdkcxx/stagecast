@@ -95,6 +95,9 @@ public sealed class OmtOutput : IFrameSink, IAudioSink, IDisposable
 
     private long Now => _clock.ElapsedTicks * 10_000_000L / Stopwatch.Frequency;
 
+    /// <summary>Whether the picture goes out with its transparency. Takes effect from the next frame.</summary>
+    public volatile bool SendAlpha;
+
     public void Deliver(Frame frame, bool repeated)
     {
         if (!IsRunning) return;
@@ -128,8 +131,8 @@ public sealed class OmtOutput : IFrameSink, IAudioSink, IDisposable
                         Width = frame.Width,
                         Height = frame.Height,
                         Stride = frame.Stride,
-                        // No Alpha flag: BGRA is then treated as opaque BGRX.
-                        Flags = OMTVideoFlags.None,
+                        // Without the Alpha flag BGRA is treated as opaque BGRX. The stage picture is premultiplied.
+                        Flags = SendAlpha ? OMTVideoFlags.Alpha | OMTVideoFlags.PreMultiplied : OMTVideoFlags.None,
                         FrameRateN = Math.Max(1, _fps()),
                         FrameRateD = 1,
                         AspectRatio = (float)frame.Width / frame.Height,

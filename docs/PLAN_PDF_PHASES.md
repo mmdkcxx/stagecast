@@ -1,0 +1,151 @@
+# Rencana per fase: sumber PDF dan lapisan sumber dokumen
+
+Status: rencana, belum dikerjakan. Hanya di branch `custom`; tidak diubah atau digabung ke `main` sampai pemilik meminta. Belum ada kode yang diubah dan belum diuji. Dokumen induk: `docs/PLAN_PDF.md`. Lapisan yang dibangun di sini juga dipakai `docs/PLAN_PPTX.md`.
+
+Aturan proyek yang berlaku di semua fase: typecheck selama membangun (`scripts/check.sh typecheck`), batch pengujian penuh (`check.sh all`) hanya saat pemilik meminta, kode baru dilaporkan "typechecked, belum diuji" sampai dijalankan, tidak ada fase ditandai lulus sebelum pengujiannya berjalan, output (layar penuh, NDI, OMT) tetap dinyalakan manual, komentar kode dan nama mengikuti gaya kode sekitarnya.
+
+## Gambaran urutan
+
+D0 spike  →  D1a jenis tab dan sumber non-web  →  D1b PdfSource + FitComposer  →  D2 UI dan kontrol  →  D3 clicker dan Preview + Take  →  D4 ketahanan  →  D5 pengujian akhir dan rilis
+
+- D0 menentukan apakah opsi A (Windows.Data.Pdf) cukup. Hasilnya bisa mengubah D1b, tetapi tidak D1a.
+- D1a tidak bergantung pada hasil D0 dan bisa mulai bersamaan.
+- Setelah D1b lulus uji, `PowerPointSource` (rencana PPTX) tinggal memakai D1a dan komponen bersama.
+
+## D0 - Spike PDF
+
+**Tujuan:** membuktikan kualitas dan kecepatan render sebelum membangun apa pun yang bergantung padanya. Dibandingkan: A (`Windows.Data.Pdf`) dan D (pdf.js di WebView2). PDFium hanya dicoba kalau keduanya kurang.
+
+**Dikerjakan**
+- Skrip uji terpisah di folder alat (bukan bagian aplikasi), memuat PDF contoh dan merender halaman ke bitmap pada 2520×1080, 1920×1080, dan 3840×2160 (scale to fit).
+- Ukur: waktu render per halaman (rata-rata dan terburuk), pemakaian memori untuk 100+ halaman, dan waktu buka file.
+- Uji dokumen: PDF teks biasa, PDF dari ekspor PowerPoint (16:9 dan 4:3), PDF dengan gambar besar, halaman berotasi, ukuran halaman campuran (potret dan lanskap), PDF berkata sandi, PDF besar (100+ halaman), dan satu dua PDF rumit (font tertanam langka, transparansi, lapisan).
+- Bandingkan hasil dengan penampil Edge untuk file rumit (ketajaman teks, warna, tepi).
+- Opsi D: halaman penampil minimal dengan pdf.js yang ditangkap lewat jalur tab web; catat kecepatan dan apakah alpha di bar bisa dipertahankan.
+
+**Bahan dari pemilik:** 3 sampai 5 PDF yang mewakili pemakaian sungguhan (termasuk satu hasil ekspor PowerPoint dan satu yang berat). Bila belum ada, saya buat PDF uji sendiri, tetapi itu tidak mewakili file acara.
+
+**Status (2026-10-27): dijalankan pada 3 PDF pemilik; keputusan sementara opsi A cukup. Angka dan hal yang belum terbukti ada di `docs/SPIKE_REPORT.md`.**
+
+**Hasil yang dicatat:** tabel angka dan keputusan A, D, atau PDFium di `docs/SPIKE_REPORT.md` atau berkas laporan spike yang sudah ada.
+
+**Lulus kalau:** waktu render per halaman pada 2520×1080 cukup rendah untuk pindah halaman terasa instan dengan cache; teks terbaca tajam; semua jenis dokumen di atas terbuka atau gagal dengan pesan yang jelas; keputusan pilihan teknologi tertulis.
+
+## D1a - Jenis tab dan sumber non-web di mesin
+
+**Tujuan:** daftar tab dan mesin render bisa memiliki tab yang bukan halaman web, tanpa mengubah perilaku tab web yang ada.
+
+**Dikerjakan**
+- Model: tambah jenis tab (`Web`, `Pdf`, kelak `PowerPoint`, `Video`) pada `TabInfo` dan `TabEntry`, dan satu bidang sumber untuk path berkas (terpisah dari `Url`). Konfigurasi lama tanpa jenis dibaca sebagai `Web` (kompatibel mundur). `TabRules.StorableUrl` hanya berlaku untuk tab web.
+- Mesin: antarmuka sumber tab (mis. `ITabSource`) yang dipenuhi `PageTab` (web) dan sumber dokumen. Pemilihan tab, menjadikan program, Preview + Take, thumbnail, dan menutup tab bekerja lewat antarmuka itu. `FrameHub.Publish` dipakai sumber dokumen untuk mengirim bingkai.
+- Daftar tab: nama dan ikon jenis, dialog "Tab baru" menawarkan jenis (Web aktif; PDF muncul setelah D2).
+- Pilihan sumber saat tab menjadi program: bingkai berasal dari sumber program saja, dan sumber lain berhenti menerbitkan.
+- Dokumen: catat kebijakan batas jumlah tab (`MaxTabs = 12`) berlaku untuk semua jenis.
+
+**Pengujian:** unit test model dan konfigurasi (pembacaan konfigurasi lama, penyimpanan jenis dan path); self test A3 diperbarui bila perlu; tab web berperilaku sama seperti sebelumnya (batch penuh dijalankan saat pemilik meminta).
+
+**Lulus kalau:** semua uji lama tetap lulus; konfigurasi lama terbaca; sumber tiruan (uji) bisa dijadikan program dan mengirim bingkai ke layar penuh, NDI, dan OMT.
+
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Pembaruan: batch penuh dijalankan atas permintaan pemilik pada 2026-10-27; typecheck, unit (244) dan smoke termasuk `d1a` lulus. Satu kegagalan A2b (ketikan keyboard) pada putaran pertama tidak terulang pada putaran berikutnya dan diduga fokus jendela dicuri.
+
+**Yang dibuat dan keputusan rancangan di dalamnya**
+- Temuan saat membaca mesin: semua tab digambar ke satu "panggung" komposisi yang ditangkap Windows Graphics Capture, dan seluruh logika pindah tab (tumpang tindih, pemanasan), Preview + Take (tata letak panggung, pratinjau), dan thumbnail bergantung pada visual komposisi tiap tab. Maka tab dokumen dibuat sebagai **visual komposisi juga**, bukan sebagai pengirim bingkai ke `FrameHub`. Dengan begitu semua mekanisme panggung dipakai ulang tanpa perubahan, dan sumber dokumen nanti cukup menggambar ke visualnya (PDF: gambar halaman; PowerPoint: bingkai hasil tangkapan jendela). Rencana D1b disesuaikan: `FitComposer` menempatkan visual atau permukaan gambar di panggung, bukan menerbitkan bingkai langsung.
+- Model: `TabKind` (`Web`, `Pdf`, `PowerPoint`, `Video`) dan `TabKinds` di `Stagecast.Core/Tabs`; `TabInfo` mendapat `Kind` dan `Source` (opsional, bawaan web); `TabList.AddDocument`, `SetSource`; `SetUrl` dan `SetSeparateProfile` mengabaikan tab berkas. Batas 12 tab tidak diubah (keputusan pemilik).
+- Konfigurasi: `TabEntry.Kind` (teks, bukan enum, agar nama dari versi lebih baru tidak merusak seluruh berkas) dan `TabEntry.Source`. Berkas lama tanpa `kind` dibaca sebagai web tanpa perbaikan; nama tidak dikenal menjadi web dengan catatan; tab berkas tidak menyimpan alamat atau profil.
+- Mesin: kelas dasar `StageTab` (`Id`, `Kind`, `Visual`, `HasBeenShown`, `IsLoading`, `Problem`, `Resize`, `Close`), `PageTab` (web) dan `DocumentTab` turunannya. `RenderEngine.Tabs`, `Active`, `Program`, `TabById`, `SelectAsync`, `EnterPreviewModeAsync`, `CloseTab` bekerja pada `StageTab`. Tambahan: `ActivePage` dan `PageTabById` (khusus web) dan `AddDocumentTab`. Kontrol khusus halaman (mouse, fokus, zoom, maju/mundur, muat ulang, alamat, skrip) tidak berbuat apa-apa dan tidak melempar kesalahan saat tab berkas ada di panggung. Tab berkas tidak punya proses browser: tidak ikut menangkap audio dan tidak ikut pemulihan jaringan.
+- Visual tab berkas sekarang satu warna (placeholder); sumber yang menggambar isi sebenarnya menyusul di D1b.
+- Aplikasi: `MainWindow.AddDocumentTabAsync` (internal, belum dipanggil dari antarmuka), pemulihan tab berkas dari konfigurasi, penyimpanan `Kind` dan `Source`. Belum ada jalur antarmuka untuk membuat tab berkas (itu D2).
+- Pengujian yang ditulis: unit test model dan konfigurasi (`TabListTests`, `ConfigTabsTests`) dan self test `d1a` di `SelfTest.cs` (tab berkas di panggung, Preview + Take dengan tab berkas sebagai preview lalu Take, kontrol khusus halaman netral, perubahan resolusi, berkas pengaturan, menutup tab). Self test `d1a` ditambahkan ke `scripts/check.sh smoke`.
+
+**Belum dibuktikan (masuk D0/D1b):** apakah tangkapan panggung mempertahankan alpha untuk bar transparan; kinerja menggambar permukaan gambar besar ke visual komposisi.
+
+
+## D1b - PdfSource dan FitComposer
+
+**Tujuan:** satu PDF tampil di semua output dengan scale to fit.
+
+**Dikerjakan**
+- `FitComposer` di `Stagecast.Core/Frames`: menempatkan bitmap sumber di kanvas render dengan rasio terjaga. Bar hitam opaque; bar transparan saat opsi alpha menyala (mengikuti `docs/PLAN_PPTX.md` fase P2b). Murni dan bisa diuji unit.
+- `PdfSource` di proyek Rendering: membuka salinan sementara, mengambil jumlah halaman dan ukuran tiap halaman, merender halaman pada ukuran akhir area fit, cache halaman saat ini dan tetangganya dengan batas memori, menerbitkan bingkai pada FPS render (bingkai diulang saat halaman tidak berubah, seperti halaman web yang diam).
+- Penanganan rotasi, ukuran halaman campuran, dan kegagalan buka (pesan jelas, tidak membuat aplikasi berhenti).
+- Kata sandi: antarmuka sumber menerima kata sandi dari UI, dipakai sekali untuk membuka, tidak disimpan di mana pun.
+
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Dibangun: `FitComposer` (Core, dengan `FitComposerTests`), `PdfSource` (buka salinan sementara, kata sandi sekali pakai, render pada ukuran area fit dengan keluaran BMP, cache halaman sekarang -1/+2, loncat halaman dengan pembatalan permintaan lama, ukuran render berubah memicu render ulang), `DocumentSurfaces` (permukaan komposisi dari perangkat D3D bersama), `RenderEngine.AttachPdf(tab)`. Halaman masuk ke panggung lewat visual komposisi dan ikut ditangkap seperti halaman web, jadi tidak ada penerbitan bingkai ulang. Belum ada: bar transparan (opsi alpha), self test, dan tombol di UI (D2). Hal yang perlu dibuktikan saat diuji: penggambaran lewat `ICompositionDrawingSurfaceInterop`, rotasi halaman, dan pengenalan kata sandi salah.
+
+**Pengujian:** unit test `FitComposer` (4:3 dan 16:9 pada 2520×1080, 1920×1080, 3840×2160: ukuran area, posisi tengah, bar), unit test urutan halaman dan cache. Pengujian visual pada layar penuh, NDI, OMT oleh pemilik.
+
+**Lulus kalau:** angka `FitComposer` sesuai contoh di `docs/PLAN_PPTX.md` (16:9 di 2520×1080 menjadi 1920×1080 dengan bar 300 px; 4:3 menjadi 1440×1080 dengan bar 540 px); halaman tampil tajam; pindah halaman cepat; tidak ada kebocoran memori terlihat pada deretan pindah halaman berulang.
+
+## D2 - Antarmuka dan kontrol
+
+**Dikerjakan**
+- Jenis PDF di dialog "Tab baru", dialog pilih berkas (hanya `.pdf`), isian kata sandi di dalam aplikasi.
+- Kontrol: berikutnya, sebelumnya, awal, akhir, loncat; **kotak ketik nomor halaman** (keputusan pemilik) dengan batas 1 sampai jumlah halaman dan penanganan masukan tidak valid; status "Halaman 3 / 40".
+- Strip thumbnail di bawah pratinjau (satu komponen bersama dengan PPTX): halaman sekarang berbingkai merah, berikutnya biru; thumbnail dibuat sesuai kebutuhan di latar belakang, halaman yang terlihat didahulukan; klik untuk loncat.
+- Tombol Muat ulang: buka salinan baru dari berkas asli dan kembali ke nomor halaman yang sama; konfirmasi di dalam aplikasi bila tab sedang program.
+- Thumbnail tab di daftar tab memakai halaman sekarang.
+- Keadaan kesalahan: berkas hilang, PDF rusak, kata sandi salah, tampil sebagai pesan di tab dengan tombol Pilih ulang.
+- Posisi UI mengikuti keadaan antarmuka saat dikerjakan: kalau top bar belum selesai, kontrol ditaruh di panel tengah yang sekarang.
+
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Ditaruh di panel tengah yang sekarang (top bar belum dibangun). Dibangun: tombol **+ PDF** di daftar tab (dialog pilih berkas `.pdf`, nama tab dari nama berkas); bar dokumen menggantikan bar alamat pada tab PDF (Awal, Sebelumnya, kotak nomor halaman dengan Enter untuk loncat dan `/ jumlah`, Berikutnya, Akhir, Muat ulang, Pilih berkas…); `PageJump` (Core, murni, dengan `PageJumpTests`) untuk masukan nomor; dialog kata sandi di dalam aplikasi (tidak disimpan, ditanyakan lagi saat Muat ulang, tidak ditanyakan saat aplikasi dibuka); strip thumbnail di bawah pratinjau (bingkai merah halaman sekarang, biru berikutnya, thumbnail dirender dari halaman sekarang ke luar, klik untuk loncat); Muat ulang dan Pilih berkas minta konfirmasi bila tab sedang tayang; pesan kesalahan (berkas hilang, rusak, kata sandi) di bar dokumen dan sebagai chip MASALAH di daftar tab; berkas PDF dibuka ulang saat aplikasi dimulai. Thumbnail tab di daftar memakai tangkapan pratinjau seperti tab web. Belum ada: self test, cek visual DPI 125/150%, hotkey/clicker (D3).
+
+**Pengujian:** unit test logika kontrol (batas, loncat, masukan tidak valid), self test untuk alur dasar dengan sumber tiruan, cek visual teks terpotong (lebar minimum 1220 px, DPI 125/150%).
+
+**Lulus kalau:** operator menjalankan PDF dari awal sampai akhir hanya dengan antarmuka Stagecast; masukan nomor halaman yang tidak valid tidak membuat apa pun rusak.
+
+## D3 - Clicker dan Preview + Take
+
+**Dikerjakan**
+- Penangkap tombol clicker sebagai perintah (bukan penerusan mentah): pemetaan bawaan dari `docs/PLAN_PPTX.md` (Page Down/panah kanan/spasi/Enter = berikutnya, Page Up/panah kiri/Backspace = sebelumnya, B atau titik = Blackout, F5 = awal, Esc tidak dipakai). Mode fokus bawaan; mode global opsional dengan lencana, mengikuti rencana PPTX.
+- Tab PDF sebagai preview maupun program; Take tanpa memulai ulang; perintah navigasi halaman (Berikutnya, Sebelumnya, awal, akhir, loncat ke nomor, klik thumbnail, clicker) tetap bekerja pada tab dokumen yang sedang program, tanpa keluar dari mode Preview + Take (keputusan pemilik 2026-10-27, pengecualian yang sama dengan rencana PPTX). Klik dan tombol mentah ke isi halaman tetap terkunci.
+- Target clicker: tab dokumen yang program lebih dulu; kalau tidak ada, yang di preview.
+
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji.** Dibangun: `ClickerKeys` (Core, murni, dengan `ClickerKeysTests`; pemetaan sesuai rencana PPTX); mode fokus lewat tombol jendela sendiri; mode global opsional (`ClickerHook`, tombol "Clicker global" di bar pratinjau, tampil "CLICKER AKTIF" berwarna merah, tidak tersimpan, mati saat jendela ditutup); target clicker = tab program bila dokumen, kalau tidak tab di preview; bar **PROGRAM** di bawah strip (Awal, Sebelumnya, nomor halaman, Berikutnya, Akhir) yang muncul saat Preview + Take dan tab program adalah PDF sementara preview menampilkan tab lain.
+Keputusan saya (belum dikonfirmasi pemilik): (1) di Preview + Take, Spasi tetap TAKE; Enter, Page Down dan panah tetap Berikutnya; di mode Langsung Spasi = Berikutnya. (2) Spasi dan Enter tidak dipakai bila tombol aplikasi sedang fokus. (3) Mode global hanya mengambil Page Down/Up dan panah kiri/kanan dan menelan tombol itu; Spasi, Enter, Backspace, B dan titik tidak dipakai global karena akan merusak pengetikan di mana pun. (4) B/titik (Blackout) dan F5 hanya bekerja bila ada dokumen sebagai target. (5) Halaman web di preview yang memegang keyboard tetap mendapat tombolnya. Klik thumbnail pada tab program belum ada (strip menampilkan tab preview); hanya lewat bar PROGRAM.
+
+**Lulus kalau:** satu klik clicker = satu halaman; Berikutnya/Sebelumnya dan loncat bekerja pada tab dokumen yang sedang program di mode Preview + Take, sementara klik ke isi halaman tetap terkunci; Take dari preview mulus dan tanpa suara atau kilatan aneh; mode global tidak merusak aplikasi lain saat mati.
+
+## D4 - Ketahanan
+
+- PDF besar (ratusan halaman) dan halaman raksasa: batas ukuran render dan memori stabil.
+- Pindah halaman berturut-turut cepat, tab ditutup saat render berjalan, muat ulang saat sedang program.
+- PDF rusak sebagian dan berkas yang hilang saat tab sudah terbuka.
+- Soak singkat: ratusan pindah halaman dengan output menyala; periksa memori dan FPS.
+
+**Status (2026-10-27): kode ditulis di branch `custom`, typecheck lulus, belum diuji; soak belum dijalankan.** Perubahan:
+- Buka berkas bersifat transaksional: berkas baru dimuat dulu, baru menggantikan yang lama. Muat ulang atau Pilih berkas yang gagal (hilang, rusak, kata sandi salah) tidak mengosongkan tab yang sedang tayang; gambar lama tetap tampil dan pesan menyebut "Yang tampil masih berkas sebelumnya". Sumber tab baru disimpan hanya bila berkas baru berhasil dibuka. Gambar lama tetap tampil sampai halaman pertama berkas baru siap (tidak ada kedipan hitam saat Muat ulang).
+- Pindah halaman cepat: permintaan yang sudah usang dilewati sebelum merender (tidak antre di belakang kunci render); Berikutnya/Sebelumnya menghitung dari halaman yang terakhir diminta, jadi dua klik cepat = dua halaman.
+- Halaman yang gagal digambar (halaman rusak, memori) memunculkan pesan di bar dokumen dan chip MASALAH; gambar sebelumnya tetap tampil; pesan hilang saat halaman berikutnya berhasil.
+- Memori: cache halaman punya anggaran 256 MB (halaman yang tampil selalu disimpan, tetangga hanya diambil lebih dulu bila masih muat); strip thumbnail dimatikan di atas 500 halaman dan hanya memuat jendela ±150 halaman dari halaman sekarang; berkas sementara sisa crash (lebih dari 12 jam) dihapus saat tab PDF pertama dibuat.
+- Menutup tab saat render berjalan dan perubahan ukuran sesudah ditutup dijaga (hasil usang dibuang, Resize setelah Dispose tidak melakukan apa pun).
+Belum diuji: soak ratusan pindah halaman dengan output menyala (memori dan FPS), PDF ratusan halaman sungguhan, halaman raksasa, PDF rusak sebagian.
+
+**Lulus kalau:** aplikasi tidak membeku atau bocor memori, dan kegagalan menampilkan pesan yang jelas.
+
+## D5 - Pengujian akhir dan rilis di branch
+
+**Versi diberi nomor `1.2.0-custom.1` (csproj, installer, `CHANGELOG.md`); tidak ada tag, rilis, atau penggabungan ke `main`.**
+
+**Hasil putaran pertama (2026-10-27): `check.sh selftest d5` lulus 6 kali berturut-turut setelah dua perbaikan, juga dengan PDF asli (Paparan Bu Shanty, 13 halaman, halaman terakhir tergambar dalam 277 ms).** Temuan: (1) `UpdateSubresource` pada tekstur permukaan komposisi membuat proses crash (access violation native); diganti dengan tekstur unggah sendiri lalu `CopySubresourceRegion`. (2) Sebelum ada `Flush()` konteks D3D setelah penyalinan, tes gagal tidak menentu (2 dari 4 putaran: gambar tertinggal setelah pergantian ukuran, dan halaman tidak berganti di keluaran sesudah TAKE); dengan `Flush()` 6 dari 6 putaran lulus. Penyebab itu dugaan yang cocok dengan gejalanya, belum dibuktikan langsung. Yang masih belum dicakup tes: kata sandi, rotasi, ukuran campuran, ratusan halaman, tampilan UI (strip, DPI 125/150%), dan soak dengan output menyala.
+
+**Status sebelumnya: self test ditulis, typecheck lulus, belum dijalankan.** `--selftest d5` (`SelfTest.Pdf.cs`, ditambahkan ke `check.sh smoke` setelah `d1a`) menulis PDF sendiri (satu warna penuh per halaman: 16:9 merah, 4:3 hijau, 16:9 biru, dan satu halaman 4:3 oranye) lalu memeriksa piksel di keluaran: bar 300 px untuk 16:9 dan 540 px untuk 4:3 pada 2520×1080, halaman penuh pada 1920×1080 dan bar kembali setelah ukuran dikembalikan; berikutnya/sebelumnya/loncat dengan nomor (masukan di luar rentang tidak mengubah apa pun); dua klik cepat = dua halaman; perintah clicker; halaman tab program berpindah saat preview adalah tab lain; berkas rusak atau hilang ditolak dan dokumen lama tetap tampil; Muat ulang kembali ke halaman yang sama; 60 pindah halaman beruntun berakhir konsisten dengan keluaran; ganti berkas; berkas pengaturan; menutup tab saat halaman digambar. Bila variabel lingkungan `STAGECAST_TEST_PDF` menunjuk ke sebuah PDF, tes juga membuka dan mencatat waktu halaman terakhirnya. Tidak tercakup (tidak bisa dibuat tanpa enkripsi): PDF berkata sandi, rotasi, ukuran campuran, ratusan halaman.
+
+- `scripts/check.sh all` dijalankan saat pemilik meminta; hasil dilaporkan apa adanya.
+- Pengujian manual pemilik: layar penuh dan videotron (bar dan ketajaman), NDI dan OMT di vMix/Resolume, clicker sungguhan.
+- Naikkan versi dengan nomor khusus (mis. `1.2.0-custom.1`), tulis `CHANGELOG.md`, bangun installer uji. Tidak ada tag, rilis, atau penggabungan ke `main` tanpa permintaan pemilik.
+
+## Bahan dan keputusan yang dibutuhkan
+
+| Fase | Dari pemilik |
+|---|---|
+| D0 | 3 sampai 5 PDF contoh yang mewakili pemakaian sungguhan (satu hasil ekspor PowerPoint, satu yang berat); keputusan A/D/PDFium setelah angka keluar |
+| D1a | Tidak ada; ada satu pertanyaan terbuka: apakah batas 12 tab perlu dinaikkan setelah ada jenis tab baru |
+| D2 | Tinjau mockup antarmuka PDF (strip, kotak nomor halaman) sebelum dibangun bila diinginkan |
+| D3 | Sudah diputuskan: navigasi halaman boleh dipakai pada tab dokumen yang sedang program di Preview + Take |
+| D5 | Pengujian manual di perangkat keras sungguhan |
+
+## Hubungan dengan rencana lain
+- `docs/PLAN_PPTX.md`: memakai D1a, `FitComposer`, strip, dan clicker; spike P0 PowerPoint bisa berjalan paralel dengan D0 dan D1a.
+- `docs/PLAN_EMPTY_STAGE.md`: sumber per unit di `FrameHub` (E3) dan sumber dokumen sama-sama menambah jenis sumber bingkai; keduanya perlu dikerjakan tanpa saling menimpa, dan keadaan "tidak ada tab live" ditangani di mesin yang sama dengan D1a.
+- `docs/PLAN_TOPBAR_UI.md`: posisi kontrol dokumen menyesuaikan.
+- `docs/PLAN_SAFETY_GUARDS.md`: independen.

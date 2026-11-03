@@ -215,3 +215,79 @@ public class SampleRingTests
         Assert.Equal([2f, 2f, 3f, 3f], output);
     }
 }
+
+public class AudioHubBeepTests
+{
+    private sealed class Peak : Stagecast.Core.Audio.IAudioSink
+    {
+        public string Name => "peak";
+        public float Max;
+        public int Loud, Quiet;
+
+        public void Write(float[] samples, int frames)
+        {
+            float m = 0;
+            for (int i = 0; i < frames * 2; i++) m = Math.Max(m, Math.Abs(samples[i]));
+            Max = Math.Max(Max, m);
+            if (m > 0.01f) Loud++; else Quiet++;
+        }
+    }
+
+    [Fact]
+    public void ASinkThatWantsTheBeep_HearsBurstsOfAToneOnceASecond_WhileOthersHearThePage()
+    {
+        using var hub = new Stagecast.Core.Audio.AudioHub();
+        var beeper = new Peak();
+        var page = new Peak();
+        hub.AddSink(beeper, () => true);
+        hub.AddSink(page);
+        for (int i = 0; i < 125; i++)
+        {
+            hub.Step(480); // 10 ms
+            Thread.Sleep(10);
+        }
+
+        Assert.True(beeper.Loud > 3 && beeper.Quiet > 20, $"bursts, not a steady tone (loud {beeper.Loud}, quiet {beeper.Quiet})");
+        Assert.InRange(beeper.Max, 0.05f, 0.11f); // about -20 dBFS
+        Assert.Equal(0, page.Loud); // no page audio was fed, so the other sink stays silent
+    }
+
+    [Fact]
+    public void WithoutARequest_NoSinkHearsABeep_AndTheBeepStartsAndStopsWithTheRequest()
+    {
+        using var hub = new Stagecast.Core.Audio.AudioHub();
+        var plain = new Peak();
+        var asking = new Peak();
+        bool wantsBeep = false;
+        hub.AddSink(plain);
+        hub.AddSink(asking, () => wantsBeep);
+        for (int i = 0; i < 125; i++)
+        {
+            hub.Step(480);
+            Thread.Sleep(10);
+        }
+
+        Assert.Equal(0, plain.Loud); // no page audio and no request: a start or an empty stage is silent
+        Assert.Equal(0, asking.Loud);
+
+        wantsBeep = true;
+        for (int i = 0; i < 125; i++)
+        {
+            hub.Step(480);
+            Thread.Sleep(10);
+        }
+
+        Assert.True(asking.Loud > 3, "the sink that asks hears the beep");
+        Assert.Equal(0, plain.Loud);
+
+        wantsBeep = false;
+        int loud = asking.Loud;
+        for (int i = 0; i < 125; i++)
+        {
+            hub.Step(480);
+            Thread.Sleep(10);
+        }
+
+        Assert.Equal(loud, asking.Loud); // and stops again
+    }
+}

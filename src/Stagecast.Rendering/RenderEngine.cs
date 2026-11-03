@@ -6,6 +6,7 @@ using Microsoft.Web.WebView2.Core;
 using Stagecast.Core.Display;
 using Stagecast.Core.Frames;
 using Stagecast.Core.Rendering;
+using Stagecast.Core.Tabs;
 using Stagecast.Rendering.Capture;
 using Stagecast.Rendering.Interop;
 using Windows.UI.Composition;
@@ -47,10 +48,11 @@ public sealed partial class RenderEngine : IDisposable
     private readonly IntPtr _windowHandle;
     private readonly FrameCapturer _capturer;
     private readonly FramePump _pump;
-    private readonly List<PageTab> _tabs = [];
+    private readonly List<StageTab> _tabs = [];
+    private DocumentSurfaces? _documentSurfaces;
     private readonly SemaphoreSlim _switching = new(1, 1);
-    private PageTab? _active;   // the tab the operator works on: the program in Direct mode, the preview in Preview + Take
-    private PageTab? _program;  // the tab on air while in Preview + Take; null in Direct mode
+    private StageTab? _active;  // the tab the operator works on: the program in Direct mode, the preview in Preview + Take
+    private StageTab? _program; // the tab on air while in Preview + Take; null in Direct mode
 
     private RenderEngine(RenderEngineOptions options, IntPtr dispatcherQueueController, Compositor compositor, ContainerVisual stage,
         CoreWebView2Environment sharedEnvironment, FrameHub hub, FramePool pool, FrameCapturer capturer, FramePump pump, ILogger<RenderEngine> logger)
@@ -68,6 +70,7 @@ public sealed partial class RenderEngine : IDisposable
         _logger = logger;
         Resolution = options.Resolution;
         Fps = options.Fps;
+        Hub.SetPatternFormat(Resolution.Width, Resolution.Height, Fps);
     }
 
     public FrameHub Hub { get; }
@@ -78,12 +81,16 @@ public sealed partial class RenderEngine : IDisposable
 
     public int Fps { get; private set; }
 
-    public IReadOnlyList<PageTab> Tabs => _tabs;
+    /// <summary>Every tab, web pages and files, in the operator's order.</summary>
+    public IReadOnlyList<StageTab> Tabs => _tabs;
 
     /// <summary>The tab on the stage. Throws before the first tab was added.</summary>
-    public PageTab Active => _active ?? throw new InvalidOperationException("The engine has no tab yet.");
+    public StageTab? Active => _active;
 
-    public CoreWebView2 Browser => Active.Browser;
+    /// <summary>The tab on the stage as a web page. Throws when there is no tab or the tab is a file.</summary>
+    public PageTab ActivePage => _active as PageTab ?? throw new InvalidOperationException("The active tab is not a web page.");
+
+    public CoreWebView2 Browser => ActivePage.Browser;
 
     /// <summary>A copy of the page for the operator, about 15 times a second, raised on a capture thread.</summary>
     public event Action<PreviewImage>? PreviewReady
@@ -154,7 +161,7 @@ public sealed partial class RenderEngine : IDisposable
     public async Task<int> ClearLoginDataAsync()
     {
         var profiles = new Dictionary<string, CoreWebView2Profile>(StringComparer.OrdinalIgnoreCase);
-        foreach (var tab in _tabs) profiles[tab.Browser.Profile.ProfilePath] = tab.Browser.Profile;
+        foreach (var tab in _tabs.OfType<PageTab>()) profiles[tab.Browser.Profile.ProfilePath] = tab.Browser.Profile;
 
         // The shared profile may have no tab at the moment (all tabs on separate profiles): borrow a browser just to reach it.
         string sharedPath = Path.GetFullPath(ProfileFolder(_options.ProfilesDirectory, null));
@@ -171,7 +178,7 @@ public sealed partial class RenderEngine : IDisposable
             }
         }
         foreach (var profile in profiles.Values) await profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.AllSite);
-        foreach (var tab in _tabs) tab.Browser.Reload();
+        foreach (var tab in _tabs.OfType<PageTab>()) tab.Browser.Reload();
         _logger.LogInformation("Login data cleared in {Count} profile(s)", profiles.Count);
         return profiles.Count;
     }
@@ -252,10 +259,81 @@ public sealed partial class RenderEngine : IDisposable
 
         var tab = new PageTab(id, visual, controller, profileId) { Environment = environment, LastUrl = url };
         Hook(tab);
+        Register(tab);
+        tab.IsLoading = true;
+        tab.Browser.Navigate(url);
+        _logger.LogInformation("Tab {Id} added ({Count} tabs)", id, _tabs.Count);
+        return tab;
+    }
+
+    /// <summary>
+    /// Creates a tab for a file instead of a web page. It is shown, selected, taken and closed like any other tab. Until the
+    /// sources that play files exist, its visual is a single colour (<paramref name="color"/>, a dark slate by default).
+    /// </summary>
+    public DocumentTab AddDocumentTab(Guid id, TabKind kind, string? source, string title, Windows.UI.Color? color = null)
+    {
+        if (!TabKinds.IsDocument(kind)) throw new ArgumentException("A web page is added with AddTabAsync.", nameof(kind));
+        var visual = _compositor.CreateContainerVisual();
+        visual.Size = new Vector2(Resolution.Width, Resolution.Height);
+        var content = _compositor.CreateSpriteVisual();
+        content.Size = visual.Size;
+        content.Brush = _compositor.CreateColorBrush(color ?? Windows.UI.Color.FromArgb(255, 28, 34, 46));
+        visual.Children.InsertAtTop(content);
+
+        var tab = new DocumentTab(id, visual, content, kind, source, title);
+        Register(tab);
+        _logger.LogInformation("{Kind} tab {Id} added ({Count} tabs)", kind, id, _tabs.Count);
+        return tab;
+    }
+
+    /// <summary>
+    /// Gives a PDF tab the component that draws its pages. Open a file with <see cref="PdfSource.OpenAsync"/>; the tab's visual
+    /// shows the page scaled to fit, with black bars.
+    /// </summary>
+    public PdfSource AttachPdf(DocumentTab tab)
+    {
+        if (tab.Kind != TabKind.Pdf) throw new ArgumentException("Only a PDF tab shows pages.", nameof(tab));
+        if (tab.Pdf is not null) return tab.Pdf;
+        PdfSource.CleanOldTempFiles();
+        _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
+        tab.Content.Brush = BarBrush();
+        tab.Pdf = new PdfSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
+        // A still page makes no new frames: a capture restarted for a new size can keep the picture from just before the page was
+        // drawn again, so once it is drawn the capture starts over and its first frame has the finished page.
+        tab.Pdf.Redrawn += () =>
+        {
+            if (tab == _program || tab == _active) _capturer.Restart();
+        };
+        return tab.Pdf;
+    }
+
+    /// <summary>
+    /// Gives a PowerPoint tab the component that plays its slides with the installed PowerPoint. Open a file with
+    /// <see cref="PowerPointSource.OpenAsync"/>; the tab's visual shows the slide scaled to fit, with black bars.
+    /// </summary>
+    public PowerPointSource AttachPowerPoint(DocumentTab tab)
+    {
+        if (tab.Kind != TabKind.PowerPoint) throw new ArgumentException("Only a PowerPoint tab shows slides.", nameof(tab));
+        if (tab.PowerPoint is not null) return tab.PowerPoint;
+        PowerPointSource.CleanOrphanedPowerPoint(_logger);
+        PowerPointSource.CleanOldTempFiles();
+        _documentSurfaces ??= new DocumentSurfaces(_compositor, _logger);
+        tab.Content.Brush = BarBrush();
+        tab.PowerPoint = new PowerPointSource(_compositor, _documentSurfaces, tab.Visual, Resolution.Width, Resolution.Height, _logger);
+        // Same as a PDF page: a still slide makes no new frames, so a capture started for a new size is started again once the slide is placed.
+        tab.PowerPoint.Redrawn += () =>
+        {
+            if (tab == _program || tab == _active) _capturer.Restart();
+        };
+        return tab.PowerPoint;
+    }
+
+    private void Register(StageTab tab)
+    {
         _tabs.Add(tab);
         // Every tab's visual stays on the stage for good and only one is switched on: adding or removing visuals while capturing
         // gave empty frames, switching a visual's own visibility does not.
-        _stage.Children.InsertAtTop(visual);
+        _stage.Children.InsertAtTop(tab.Visual);
         if (_active is null)
         {
             _active = tab;
@@ -264,15 +342,11 @@ public sealed partial class RenderEngine : IDisposable
         }
         else
         {
-            // Not on the output yet: its visual is off and the tab is muted. The browser itself keeps running and drawing,
+            // Not on the output yet: its visual is off and the tab is muted. A web browser itself keeps running and drawing,
             // because a page that was hidden does not repaint when shown again if it did not change (see docs/PLAN_PHASES.md A3).
-            visual.IsVisible = false;
+            tab.Visual.IsVisible = false;
             SetMuted(tab, true);
         }
-        tab.IsLoading = true;
-        tab.Browser.Navigate(url);
-        _logger.LogInformation("Tab {Id} added ({Count} tabs)", id, _tabs.Count);
-        return tab;
     }
 
     /// <summary>
@@ -280,7 +354,7 @@ public sealed partial class RenderEngine : IDisposable
     /// the tab on air stays as it is. A tab that was never shown first gets time to load and draw. Then the new visual is switched
     /// on underneath the old one and only raised once the compositor has drawn it, so nothing ever shows an empty picture.
     /// </summary>
-    public async Task SelectAsync(PageTab tab)
+    public async Task SelectAsync(StageTab tab)
     {
         await _switching.WaitAsync();
         try
@@ -330,12 +404,51 @@ public sealed partial class RenderEngine : IDisposable
 
     /// <summary>True while the tab on air (<see cref="Program"/>) and the operator's tab (<see cref="Active"/>) are different tabs.</summary>
     /// <summary>The WebView2 browser processes in use (one per profile); the audio capture follows these. UI thread only.</summary>
-    public IReadOnlyList<int> BrowserProcessIds => _tabs.Select(t => (int)t.Browser.BrowserProcessId).Distinct().ToList();
+    public IReadOnlyList<int> BrowserProcessIds => _tabs.OfType<PageTab>().Select(t => (int)t.Browser.BrowserProcessId).Distinct().ToList();
+
+    /// <summary>The processes whose sound is captured: the browsers, and the PowerPoint that plays a deck. UI thread only.</summary>
+    public IReadOnlyList<int> AudioProcessIds => BrowserProcessIds
+        .Concat(_tabs.OfType<DocumentTab>().Select(t => t.PowerPoint?.ProcessId ?? 0).Where(id => id > 0)).Distinct().ToList();
+
+    /// <summary>
+    /// The PowerPoint processes that must not be heard right now: a web tab is muted at its browser, but a deck's sound comes from
+    /// the PowerPoint process, so it is let through only while a deck is the tab on air. UI thread only.
+    /// </summary>
+    public IReadOnlySet<int> SilentAudioProcessIds
+    {
+        get
+        {
+            var silent = _tabs.OfType<DocumentTab>().Select(t => t.PowerPoint?.ProcessId ?? 0).Where(id => id > 0).ToHashSet();
+            if (Program is DocumentTab { PowerPoint.ProcessId: > 0 } onAir) silent.Remove(onAir.PowerPoint.ProcessId);
+            return silent;
+        }
+    }
+
+    private bool _transparentBars;
+
+    /// <summary>
+    /// When true the bars around a document that does not fill the frame are see-through instead of black, so an output that sends
+    /// transparency (NDI or OMT with "Kirim alpha") shows what is behind them. Outputs that do not send it show them black: the
+    /// stage picture is premultiplied, so dropping the alpha is the same as laying it on black. UI thread only.
+    /// </summary>
+    public bool TransparentBars
+    {
+        get => _transparentBars;
+        set
+        {
+            if (_transparentBars == value) return;
+            _transparentBars = value;
+            foreach (var tab in _tabs.OfType<DocumentTab>().Where(t => t.Pdf is not null || t.PowerPoint is not null)) tab.Content.Brush = BarBrush();
+            _logger.LogInformation("Bars around documents are {State}", value ? "transparent" : "black");
+        }
+    }
+
+    private CompositionBrush? BarBrush() => _transparentBars ? null : _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
 
     public bool PreviewMode { get; private set; }
 
     /// <summary>The tab on air. Same as <see cref="Active"/> in Direct mode.</summary>
-    public PageTab Program => _program ?? Active;
+    public StageTab? Program => _program ?? _active;
 
     /// <summary>The program, small, a few times a second, raised on a capture thread. Only in Preview + Take.</summary>
     public event Action<PreviewImage>? ProgramThumbReady
@@ -351,7 +464,7 @@ public sealed partial class RenderEngine : IDisposable
     /// Starts Preview + Take: the tab on air stays on air at the left of a wider stage, and <paramref name="preview"/> appears
     /// at the right for the operator. The output keeps its size; only the capture is restarted once.
     /// </summary>
-    public async Task EnterPreviewModeAsync(PageTab preview)
+    public async Task EnterPreviewModeAsync(StageTab preview)
     {
         await _switching.WaitAsync();
         try
@@ -447,11 +560,7 @@ public sealed partial class RenderEngine : IDisposable
     {
         int width = Resolution.Width, height = Resolution.Height, originX = PreviewOriginX;
         _stage.Size = new Vector2(PreviewMode ? originX + width : width, height);
-        foreach (var tab in _tabs)
-        {
-            tab.Visual.Size = new Vector2(width, height);
-            tab.Controller.Bounds = new System.Drawing.Rectangle(0, 0, width, height);
-        }
+        foreach (var tab in _tabs) tab.Resize(width, height);
         if (PreviewMode)
         {
             _program!.Visual.Offset = Vector3.Zero;
@@ -460,28 +569,86 @@ public sealed partial class RenderEngine : IDisposable
         }
         else
         {
-            _active!.Visual.Offset = Vector3.Zero;
+            if (_active is not null) _active.Visual.Offset = Vector3.Zero;
             _capturer.Layout = null;
         }
         if (restartCapture) _capturer.Restart();
     }
 
     // A hidden tab keeps loading in the background; wait (bounded) for it so the stage does not get an empty picture.
-    private static async Task WaitForFirstLoadAsync(PageTab tab)
+    private static async Task WaitForFirstLoadAsync(StageTab tab)
     {
         var limit = DateTime.UtcNow.AddSeconds(5);
         while (tab.IsLoading && DateTime.UtcNow < limit) await Task.Delay(20);
     }
 
-    /// <summary>Closes a tab that is not on the stage. Select another tab first when closing the active one.</summary>
-    public void CloseTab(PageTab tab)
+    /// <summary>
+    /// Takes the tab on air off the stage when it is the only one (or the operator wants none): afterwards no tab is active and the
+    /// stage is empty, so the outputs show the test pattern. The tab itself is not closed; call <see cref="CloseTab"/> next.
+    /// </summary>
+    public async Task ReleaseActiveAsync()
     {
-        if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab before closing this one (and take another first if it is on air).");
+        await _switching.WaitAsync();
+        try
+        {
+            if (_active is not { } tab || PreviewMode) return;
+            tab.Visual.IsVisible = false;
+            SetMuted(tab, true);
+            tab.HasKeyboardFocus = false;
+            _active = null;
+            SetPageFocus(false);
+            _logger.LogInformation("Tab {Id} left the stage: nothing is on air", tab.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Ends Preview + Take by dropping the tab on air (it is about to be closed): the preview tab stays selected, as the only tab
+    /// in Direct mode, and nothing is on air until the operator chooses a tab.
+    /// </summary>
+    public async Task DropProgramAsync()
+    {
+        await _switching.WaitAsync();
+        try
+        {
+            if (!PreviewMode || _program is not { } program || _active is not { } preview) return;
+            program.Visual.IsVisible = false;
+            SetMuted(program, true);
+            program.HasKeyboardFocus = false;
+            PreviewMode = false;
+            _program = null;
+            SetMuted(preview, false);
+            ApplyStageGeometry(restartCapture: true);
+            SetPageFocus(false);
+            _logger.LogInformation("Preview + Take off: the tab on air {Program} was dropped", program.Id);
+        }
+        finally
+        {
+            _switching.Release();
+        }
+        ActiveTabChanged?.Invoke();
+        NavigationStateChanged?.Invoke();
+        CursorChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Closes a tab that is not on the stage. Select another tab first when closing the active one. The folder of a separate profile
+    /// (a login) goes with its last tab unless <paramref name="keepProfile"/> is set, as when a session is closed to open another.
+    /// </summary>
+    public void CloseTab(StageTab tab, bool keepProfile = false)
+    {
+        if (ReferenceEquals(tab, _active) || ReferenceEquals(tab, _program)) throw new InvalidOperationException("Select another tab or release this one before closing it (and drop it first if it is on air).");
         if (!_tabs.Remove(tab)) return;
         _stage.Children.Remove(tab.Visual);
         try
         {
-            tab.Controller.Close();
+            tab.Close();
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
         {
@@ -492,16 +659,19 @@ public sealed partial class RenderEngine : IDisposable
         if (tab.ProfileId is { } profile && !_tabs.Any(t => t.ProfileId == profile))
         {
             _environments.Remove(profile);
-            _ = DeleteFolderAsync(ProfileFolder(_options.ProfilesDirectory, profile));
+            if (!keepProfile) _ = DeleteFolderAsync(ProfileFolder(_options.ProfilesDirectory, profile));
         }
     }
 
-    public PageTab? TabById(Guid id) => _tabs.FirstOrDefault(t => t.Id == id);
+    public StageTab? TabById(Guid id) => _tabs.FirstOrDefault(t => t.Id == id);
+
+    /// <summary>The web page with this id; null when there is none or the tab is a file.</summary>
+    public PageTab? PageTabById(Guid id) => TabById(id) as PageTab;
 
     /// <summary>Keeps the engine's tab order equal to the operator's list; only affects <see cref="Tabs"/>.</summary>
     public void SortTabs(IReadOnlyList<Guid> order)
     {
-        var sorted = order.Select(TabById).OfType<PageTab>().ToList();
+        var sorted = order.Select(TabById).OfType<StageTab>().ToList();
         if (sorted.Count != _tabs.Count) return;
         _tabs.Clear();
         _tabs.AddRange(sorted);
@@ -556,7 +726,8 @@ public sealed partial class RenderEngine : IDisposable
     {
         // WebView2 rejects mouse input with E_INVALIDARG in some transient states (page navigating, tab switching, window
         // deactivating). A lost mouse event is harmless; an exception on the UI thread is not.
-        try { Active.Controller.SendMouseInput(kind, keys, data, pagePoint); }
+        if (_active is not PageTab page) return; // a file has no page to click
+        try { page.Controller.SendMouseInput(kind, keys, data, pagePoint); }
         catch (Exception ex) when (ex is ArgumentException or COMException or InvalidOperationException or ObjectDisposedException)
         {
             if (!_mouseErrorLogged)
@@ -570,7 +741,7 @@ public sealed partial class RenderEngine : IDisposable
     private bool _mouseErrorLogged;
 
     /// <summary>Gives keyboard focus to the page. The application window must be the active window for keys to arrive.</summary>
-    public void FocusPage() => Active.Controller.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
+    public void FocusPage() => (_active as PageTab)?.Controller.MoveFocus(CoreWebView2MoveFocusReason.Programmatic);
 
     /// <summary>True while keystrokes go to the page.</summary>
     public bool PageHasFocus { get; private set; }
@@ -581,36 +752,38 @@ public sealed partial class RenderEngine : IDisposable
     public event Action? EscapePressed;
 
     /// <summary>The shape the mouse pointer should have over the page (a Windows IDC_ cursor id).</summary>
-    public uint CursorId => Active.Controller.SystemCursorId;
+    public uint CursorId => (_active as PageTab)?.Controller.SystemCursorId ?? ArrowCursorId;
+
+    private const uint ArrowCursorId = 32512; // IDC_ARROW
 
     public event Action? CursorChanged;
 
     /// <summary>Page zoom (the Ctrl+scroll kind) of the active tab. It changes the viewport the page sees, so it affects the output too.</summary>
     public double PageZoom
     {
-        get => Active.Controller.ZoomFactor;
-        set => Active.Controller.ZoomFactor = Math.Clamp(value, 0.25, 5.0);
+        get => (_active as PageTab)?.Controller.ZoomFactor ?? 1.0;
+        set { if (_active is PageTab page) page.Controller.ZoomFactor = Math.Clamp(value, 0.25, 5.0); }
     }
 
-    public bool CanGoBack => Browser.CanGoBack;
+    public bool CanGoBack => _active is PageTab page && page.Browser.CanGoBack;
 
-    public bool CanGoForward => Browser.CanGoForward;
+    public bool CanGoForward => _active is PageTab page && page.Browser.CanGoForward;
 
-    public void GoBack() => Browser.GoBack();
+    public void GoBack() => (_active as PageTab)?.Browser.GoBack();
 
-    public void GoForward() => Browser.GoForward();
+    public void GoForward() => (_active as PageTab)?.Browser.GoForward();
 
-    public void Reload() => Browser.Reload();
+    public void Reload() => (_active as PageTab)?.Browser.Reload();
 
     /// <summary>Raised after the address or the back/forward history of the active tab changed, or another tab became active.</summary>
     public event Action? NavigationStateChanged;
 
-    public string CurrentUrl => Browser.Source;
+    public string CurrentUrl => (_active as PageTab)?.Browser.Source ?? string.Empty;
 
-    public Task<string> EvaluateAsync(string script) => Browser.ExecuteScriptAsync(script);
+    public Task<string> EvaluateAsync(string script) => _active is PageTab page ? page.Browser.ExecuteScriptAsync(script) : Task.FromResult("null");
 
     /// <summary>Loads a page in the active tab and waits until it has finished loading (or <paramref name="timeout"/> passes).</summary>
-    public Task<bool> NavigateAsync(string url, TimeSpan timeout) => NavigateAsync(Active, url, timeout);
+    public Task<bool> NavigateAsync(string url, TimeSpan timeout) => NavigateAsync(ActivePage, url, timeout);
 
     public async Task<bool> NavigateAsync(PageTab tab, string url, TimeSpan timeout)
     {
@@ -636,6 +809,7 @@ public sealed partial class RenderEngine : IDisposable
     {
         if (resolution == Resolution) return;
         Resolution = resolution;
+        Hub.SetPatternFormat(resolution.Width, resolution.Height, Fps);
         if (_active is null)
         {
             _stage.Size = new Vector2(resolution.Width, resolution.Height);
@@ -659,6 +833,7 @@ public sealed partial class RenderEngine : IDisposable
     {
         if (fps == Fps) return;
         Fps = fps;
+        Hub.SetPatternFormat(Resolution.Width, Resolution.Height, fps);
         _capturer.TargetFps = fps;
         _pump.Fps = fps;
         Hub.ResetStats();
@@ -682,11 +857,12 @@ public sealed partial class RenderEngine : IDisposable
         Hub.Clear();
         foreach (var tab in _tabs)
         {
-            tab.Controller.Close();
+            tab.Close();
             tab.Visual.Dispose();
         }
         _tabs.Clear();
         _stage.Dispose();
+        _documentSurfaces?.Dispose();
         _compositor.Dispose();
         if (_dispatcherQueueController != IntPtr.Zero) Marshal.Release(_dispatcherQueueController);
     }

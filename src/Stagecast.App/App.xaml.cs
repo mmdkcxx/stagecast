@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,8 @@ public partial class App : Application
         var factory = new SerilogLoggerFactory(Log.Logger);
         _logger = factory.CreateLogger<App>();
         DispatcherUnhandledException += OnUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?";
         _logger.LogInformation("Stagecast {Version} starting; data folder {Root}", version, paths.Root);
@@ -59,6 +62,20 @@ public partial class App : Application
         Log.Fatal(e.Exception, "Unhandled exception");
         MessageBox.Show($"Terjadi kesalahan yang tidak terduga:\n\n{e.Exception.Message}\n\nRincian ada di berkas log.", "Stagecast", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
+    }
+
+    // Exceptions on other threads end the process; the log gets them before it goes.
+    private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        Log.Fatal(e.ExceptionObject as Exception, "Unhandled exception on a background thread (terminating: {Terminating}): {Object}", e.IsTerminating, e.ExceptionObject);
+        Log.CloseAndFlush();
+    }
+
+    // A faulted task nobody awaited: the process goes on, but the failure should not be silent.
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        Log.Error(e.Exception, "Unobserved task exception");
+        e.SetObserved();
     }
 
     private static string? ArgValue(string[] args, string name)

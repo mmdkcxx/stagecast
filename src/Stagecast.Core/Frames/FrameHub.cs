@@ -53,7 +53,10 @@ public sealed class FrameHub
     private Frame? _black;
     private GateMode _gateMode = GateMode.Live;
     private GateMode _sentMode = GateMode.Live;
-    private IFrameSink[] _sinks = [];
+    private SinkEntry[] _sinks = [];
+    private readonly TestPattern _pattern = new();
+    private int _patternWidth = 1920, _patternHeight = 1080, _patternFps = 60;
+    private bool _noLive;
     private long _published, _delivered, _repeated, _dropped, _idle, _sinkErrors;
     private double _ageSumMs, _ageMaxMs;
     private long _statsStart, _previousTick;
@@ -63,6 +66,27 @@ public sealed class FrameHub
         _time = time ?? TimeProvider.System;
         _statsStart = _time.GetTimestamp();
     }
+
+    private sealed record SinkEntry(IFrameSink Sink, Func<bool>? WantsPattern);
+
+    /// <summary>The size and rate of the test pattern, normally the render size: used when no live picture exists to take them from.</summary>
+    public void SetPatternFormat(int width, int height, int fps)
+    {
+        lock (_gate) (_patternWidth, _patternHeight, _patternFps) = (width, height, fps);
+    }
+
+    /// <summary>
+    /// True when no tab is live: every sink then shows the test pattern (Blackout still wins). Sinks that asked for the pattern
+    /// themselves (see <see cref="AddSink"/>) show it whether or not a tab is live.
+    /// </summary>
+    public bool NoLive
+    {
+        get { lock (_gate) return _noLive; }
+        set { lock (_gate) _noLive = value; }
+    }
+
+    /// <summary>Same as setting <see cref="NoLive"/>; a method so callers that also drive the audio read alike.</summary>
+    public void SetNoLiveFlag(bool noLive) => NoLive = noLive;
 
     /// <summary>Takes over the caller's reference to <paramref name="frame"/>.</summary>
     public void Publish(Frame frame)
@@ -89,28 +113,36 @@ public sealed class FrameHub
         set { lock (_gate) _gateMode = value; }
     }
 
-    public void AddSink(IFrameSink sink)
+    /// <param name="wantsPattern">Asked on every tick; true makes this sink show the test pattern instead of the live picture.</param>
+    public void AddSink(IFrameSink sink, Func<bool>? wantsPattern = null)
     {
-        lock (_gate) _sinks = [.. _sinks, sink];
+        lock (_gate) _sinks = [.. _sinks, new SinkEntry(sink, wantsPattern)];
     }
 
     public void RemoveSink(IFrameSink sink)
     {
-        lock (_gate) _sinks = _sinks.Where(s => !ReferenceEquals(s, sink)).ToArray();
+        lock (_gate) _sinks = _sinks.Where(s => !ReferenceEquals(s.Sink, sink)).ToArray();
     }
 
-    /// <summary>One output tick. Returns false only while no frame has ever been published.</summary>
+    /// <summary>One output tick. Returns false only while there is nothing to send: no frame has ever been published and no sink shows the pattern.</summary>
     public bool Tick()
     {
-        Frame frame;
-        bool repeated;
-        IFrameSink[] sinks;
+        Frame? frame = null;
+        bool repeated = false;
+        SinkEntry[] sinks;
+        bool wantPattern, blackout, noLive;
+        int pw, ph, pfps;
         long now = _time.GetTimestamp();
         lock (_gate)
         {
             if (_previousTick != 0 && _tickIntervalsMs.Count < MaxTickSamples)
                 _tickIntervalsMs.Add(_time.GetElapsedTime(_previousTick, now).TotalMilliseconds);
             _previousTick = now;
+            sinks = _sinks;
+            noLive = _noLive;
+            wantPattern = noLive || sinks.Any(s => s.WantsPattern?.Invoke() == true);
+            blackout = _gateMode == GateMode.Blackout;
+            (pw, ph, pfps) = (_patternWidth, _patternHeight, _patternFps);
 
             if (_pending is not null)
             {
@@ -128,36 +160,64 @@ public sealed class FrameHub
                 repeated = true;
                 _repeated++;
             }
-            else
+            else if (!wantPattern)
             {
                 _idle++;
                 return false;
             }
-            frame = ApplyGate(_last, ref repeated, now);
-            frame.Retain();
-            sinks = _sinks;
+
+            if (_last is not null)
+            {
+                frame = ApplyGate(_last, ref repeated, now);
+                frame.Retain();
+            }
+            else if (blackout)
+            {
+                frame = BlackFrame(pw, ph);
+                frame.Retain();
+                repeated = true;
+            }
         }
 
+        Frame? pattern = wantPattern && !blackout ? _pattern.Render(pw, ph, pfps, TestPattern.Now()) : null;
         try
         {
-            foreach (var sink in sinks)
+            foreach (var entry in sinks)
             {
+                bool shows = pattern is not null && (noLive || entry.WantsPattern?.Invoke() == true);
+                Frame? chosen = shows ? pattern : frame;
+                if (chosen is null) continue;
                 try
                 {
-                    sink.Deliver(frame, repeated);
+                    entry.Sink.Deliver(chosen, shows ? false : repeated);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     Interlocked.Increment(ref _sinkErrors);
-                    Debug.WriteLine($"Sink {sink.Name} failed: {ex.Message}");
+                    Debug.WriteLine($"Sink {entry.Sink.Name} failed: {ex.Message}");
                 }
             }
         }
         finally
         {
-            frame.Release();
+            frame?.Release();
+            pattern?.Release();
         }
         return true;
+    }
+
+    /// <summary>Called under the lock.</summary>
+    private Frame BlackFrame(int width, int height)
+    {
+        if (_black is null || _black.Width != width || _black.Height != height)
+        {
+            _black?.Release();
+            _black = _blackPool.Rent(width, height, width * 4);
+            Array.Fill(_black.Pixels, (byte)0);
+            for (int i = 3; i < _black.Pixels.Length; i += 4) _black.Pixels[i] = 255;
+        }
+
+        return _black;
     }
 
     /// <summary>Called under the lock: the frame the sinks get for <paramref name="live"/> in the current gate mode.</summary>
@@ -182,14 +242,7 @@ public sealed class FrameHub
                 repeated = true;
                 break;
             case GateMode.Blackout:
-                if (_black is null || _black.Width != live.Width || _black.Height != live.Height)
-                {
-                    _black?.Release();
-                    _black = _blackPool.Rent(live.Width, live.Height, live.Width * 4);
-                    Array.Fill(_black.Pixels, (byte)0);
-                    for (int i = 3; i < _black.Pixels.Length; i += 4) _black.Pixels[i] = 255;
-                }
-                chosen = _black;
+                chosen = BlackFrame(live.Width, live.Height);
                 repeated = true;
                 break;
             default:

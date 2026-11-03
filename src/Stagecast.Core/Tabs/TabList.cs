@@ -1,8 +1,49 @@
 namespace Stagecast.Core.Tabs;
 
+/// <summary>What a tab shows. A web tab is a browser page; the others are files played by Stagecast itself.</summary>
+public enum TabKind
+{
+    Web,
+    Pdf,
+    PowerPoint,
+    Video,
+}
+
+public static class TabKinds
+{
+    /// <summary>The name stored in the settings file. Names, not numbers, so the file stays readable and survives reordering.</summary>
+    public static string ConfigName(TabKind kind) => kind switch
+    {
+        TabKind.Pdf => "pdf",
+        TabKind.PowerPoint => "powerpoint",
+        TabKind.Video => "video",
+        _ => "web",
+    };
+
+    /// <summary>
+    /// A missing name means <see cref="TabKind.Web"/> (older files have none). False for a name this version does not know (a file
+    /// from a newer version, or hand edited); <paramref name="kind"/> is then <see cref="TabKind.Web"/>.
+    /// </summary>
+    public static bool TryParse(string? name, out TabKind kind)
+    {
+        switch ((name ?? string.Empty).Trim().ToLowerInvariant())
+        {
+            case "" or "web": kind = TabKind.Web; return true;
+            case "pdf": kind = TabKind.Pdf; return true;
+            case "powerpoint": kind = TabKind.PowerPoint; return true;
+            case "video": kind = TabKind.Video; return true;
+            default: kind = TabKind.Web; return false;
+        }
+    }
+
+    public static bool IsDocument(TabKind kind) => kind != TabKind.Web;
+}
+
 /// <summary>One tab as the operator sees it. The name is only a label; the address is where the tab last was.</summary>
-/// <param name="ProfileId">Null when the tab shares the common browser profile; otherwise the id of its own profile (a separate login).</param>
-public sealed record TabInfo(Guid Id, string Name, string Url, string? ProfileId = null);
+/// <param name="ProfileId">Null when the tab shares the common browser profile; otherwise the id of its own profile (a separate login). Only web tabs have one.</param>
+/// <param name="Kind">What the tab shows. Older settings files have no kind and mean <see cref="TabKind.Web"/>.</param>
+/// <param name="Source">For a file tab, the path of the file (null until one is chosen); always null for a web tab.</param>
+public sealed record TabInfo(Guid Id, string Name, string Url, string? ProfileId = null, TabKind Kind = TabKind.Web, string? Source = null);
 
 public enum TabNameError
 {
@@ -19,6 +60,16 @@ public static class TabRules
     public const int MaxTabs = 12;
 
     public const string BlankUrl = "about:blank";
+
+    /// <summary>Longest file path kept in the settings (the Windows long-path limit is far larger, but no real file is near this).</summary>
+    public const int MaxSourceLength = 1024;
+
+    /// <summary>The path to store for a file tab: trimmed, and null when empty or absurdly long.</summary>
+    public static string? StorableSource(string? source)
+    {
+        string trimmed = (source ?? string.Empty).Trim();
+        return trimmed.Length == 0 || trimmed.Length > MaxSourceLength ? null : trimmed;
+    }
 
     /// <summary>A profile id is the name of a folder, so only the exact form this program makes is accepted (32 hex digits).</summary>
     public static bool IsValidProfileId(string? id)
@@ -50,7 +101,7 @@ public static class TabRules
 }
 
 /// <summary>
-/// The ordered tabs and which one is active. At least one tab always exists. Closing the active tab activates its neighbour;
+/// The ordered tabs and which one is active (none when the list is empty). Closing the active tab activates its neighbour;
 /// moving a tab never changes which tab is active.
 /// <para>
 /// Two ways to work. <b>Direct</b> (the default): the active tab is what the audience sees. <b>Preview + Take</b>: the active tab
@@ -65,15 +116,15 @@ public sealed class TabList
     public TabList(IEnumerable<TabInfo> items, int activeIndex)
     {
         _items = items.Take(TabRules.MaxTabs).ToList();
-        if (_items.Count == 0) _items.Add(new TabInfo(Guid.NewGuid(), "Tab 1", TabRules.BlankUrl));
-        ActiveIndex = Math.Clamp(activeIndex, 0, _items.Count - 1);
+        ActiveIndex = _items.Count == 0 ? -1 : Math.Clamp(activeIndex, 0, _items.Count - 1);
     }
 
     public IReadOnlyList<TabInfo> Items => _items;
 
     public int ActiveIndex { get; private set; }
 
-    public TabInfo Active => _items[ActiveIndex];
+    /// <summary>The tab the operator works on; null when there are no tabs.</summary>
+    public TabInfo? Active => ActiveIndex >= 0 ? _items[ActiveIndex] : null;
 
     /// <summary>The tab on air while working in Preview + Take; null in Direct mode (where the active tab is on air).</summary>
     public Guid? ProgramId { get; private set; }
@@ -81,7 +132,7 @@ public sealed class TabList
     public bool PreviewMode => ProgramId is not null;
 
     /// <summary>The tab the audience sees.</summary>
-    public TabInfo Program => ProgramId is { } id ? _items[IndexOf(id)] : Active;
+    public TabInfo? Program => ProgramId is { } id ? _items[IndexOf(id)] : Active;
 
     public int LiveIndex => ProgramId is { } id ? IndexOf(id) : ActiveIndex;
 
@@ -91,7 +142,7 @@ public sealed class TabList
     public bool EnterPreviewMode()
     {
         if (!CanEnterPreviewMode) return false;
-        ProgramId = Active.Id;
+        ProgramId = Active!.Id;
         ActiveIndex = (ActiveIndex + 1) % _items.Count;
         return true;
     }
@@ -108,8 +159,8 @@ public sealed class TabList
     /// <summary>Puts the preview tab on air and the tab that was on air becomes the preview.</summary>
     public bool Take()
     {
-        if (ProgramId is not { } onAir || Active.Id == onAir) return false;
-        var next = Active.Id;
+        if (ProgramId is not { } onAir || Active is not { } preview || preview.Id == onAir) return false;
+        var next = preview.Id;
         ActiveIndex = IndexOf(onAir);
         ProgramId = next;
         return true;
@@ -117,18 +168,30 @@ public sealed class TabList
 
     public bool CanAdd => _items.Count < TabRules.MaxTabs;
 
-    public bool CanClose => _items.Count > 1;
+    public bool CanClose => _items.Count > 0;
 
-    public bool CanCloseTab(Guid id) => _items.Count > 1 && id != ProgramId && IndexOf(id) >= 0;
+    /// <summary>Any tab can be closed, including the last and the one on air (the caller asks the operator first when it is on air).</summary>
+    public bool CanCloseTab(Guid id) => IndexOf(id) >= 0;
 
     public int IndexOf(Guid id) => _items.FindIndex(t => t.Id == id);
 
-    /// <summary>Appends a tab. Returns null at the limit. The new tab is not selected.</summary>
-    public TabInfo? Add(string? url = null)
+    /// <summary>Appends a tab. Returns null at the limit. The new tab is not selected. A valid <paramref name="profileId"/> gives it that separate profile; anything else leaves it on the shared one.</summary>
+    public TabInfo? Add(string? url = null, string? profileId = null)
     {
         if (!CanAdd) return null;
-        var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.StorableUrl(url));
+        var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.StorableUrl(url), TabRules.IsValidProfileId(profileId) ? profileId : null);
         _items.Add(tab);
+        if (_items.Count == 1) ActiveIndex = 0;
+        return tab;
+    }
+
+    /// <summary>Appends a file tab (it counts towards the same limit). Returns null at the limit or for <see cref="TabKind.Web"/>; the new tab is not selected.</summary>
+    public TabInfo? AddDocument(TabKind kind, string? source)
+    {
+        if (!CanAdd || !TabKinds.IsDocument(kind)) return null;
+        var tab = new TabInfo(Guid.NewGuid(), TabRules.NextDefaultName(_items), TabRules.BlankUrl, null, kind, TabRules.StorableSource(source));
+        _items.Add(tab);
+        if (_items.Count == 1) ActiveIndex = 0;
         return tab;
     }
 
@@ -140,18 +203,27 @@ public sealed class TabList
         return true;
     }
 
-    /// <summary>Removes a tab unless it is the last one. Returns the tab that is active afterwards, or null when nothing was removed.</summary>
+    /// <summary>
+    /// Removes a tab. Returns the tab that is active afterwards; null when nothing was removed or when no tab is left (ask <see cref="CanCloseTab"/>
+    /// first to tell the two apart). Closing the tab on air in Preview + Take ends that mode: the preview tab stays selected and nothing is on air.
+    /// </summary>
     public TabInfo? Close(Guid id)
     {
         int index = IndexOf(id);
-        if (index < 0 || !CanCloseTab(id)) return null;
+        if (index < 0) return null;
+        bool wasProgram = id == ProgramId;
         _items.RemoveAt(index);
-        if (index < ActiveIndex) ActiveIndex--;
-        else if (index == ActiveIndex) ActiveIndex = Math.Min(index, _items.Count - 1);
+        if (wasProgram)
+        {
+            ProgramId = null;
+            if (index < ActiveIndex) ActiveIndex--;
+        }
+        else if (index < ActiveIndex) ActiveIndex--;
+        else if (index == ActiveIndex) ActiveIndex = _items.Count == 0 ? -1 : Math.Min(index, _items.Count - 1);
         if (ProgramId is { } onAir)
         {
             if (_items.Count < 2) ExitPreviewMode();
-            else if (Active.Id == onAir)
+            else if (Active?.Id == onAir)
             {
                 // Closing the preview left the tab on air next to it: the preview moves to the nearest other tab.
                 int program = IndexOf(onAir);
@@ -165,7 +237,7 @@ public sealed class TabList
     public string? SetSeparateProfile(Guid id, bool separate)
     {
         int index = IndexOf(id);
-        if (index < 0) return null;
+        if (index < 0 || _items[index].Kind != TabKind.Web) return null; // a login belongs to a browser; file tabs have none
         string? old = _items[index].ProfileId;
         string? next = separate ? old ?? TabRules.NewProfileId() : null;
         _items[index] = _items[index] with { ProfileId = next };
@@ -184,7 +256,14 @@ public sealed class TabList
     public void SetUrl(Guid id, string? url)
     {
         int index = IndexOf(id);
-        if (index >= 0) _items[index] = _items[index] with { Url = TabRules.StorableUrl(url) };
+        if (index >= 0 && _items[index].Kind == TabKind.Web) _items[index] = _items[index] with { Url = TabRules.StorableUrl(url) };
+    }
+
+    /// <summary>Changes the file of a file tab (for example after choosing the file again). Web tabs are left alone.</summary>
+    public void SetSource(Guid id, string? source)
+    {
+        int index = IndexOf(id);
+        if (index >= 0 && TabKinds.IsDocument(_items[index].Kind)) _items[index] = _items[index] with { Source = TabRules.StorableSource(source) };
     }
 
     /// <summary>Moves a tab by <paramref name="delta"/> places (negative is towards the start). Returns false at an end.</summary>
@@ -196,7 +275,7 @@ public sealed class TabList
         var tab = _items[from];
         _items.RemoveAt(from);
         _items.Insert(to, tab);
-        ActiveIndex = IndexOf(active.Id);
+        if (active is not null) ActiveIndex = IndexOf(active.Id);
         return true;
     }
 }

@@ -8,6 +8,8 @@ public sealed class AppConfig
 {
     public const int CurrentSchemaVersion = 1;
 
+    public const int MaxRecentSessions = 8;
+
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     public RenderConfig Render { get; init; } = new();
@@ -26,10 +28,13 @@ public sealed class AppConfig
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
-    /// <summary>The tabs open when the application was closed. Only names and addresses; never credentials.</summary>
+    /// <summary>Session files opened or saved lately, newest first. Only paths.</summary>
+    public List<string> RecentSessions { get; init; } = [];
+
+    /// <summary>Not written any more and ignored at start: the application always starts without tabs. Old files may still hold a list; it is read only so such a file stays valid.</summary>
     public List<TabEntry> Tabs { get; init; } = [];
 
-    /// <summary>Position in <see cref="Tabs"/> of the tab that was active.</summary>
+    /// <summary>Position in <see cref="Tabs"/>; see there.</summary>
     public int ActiveTab { get; init; }
 }
 
@@ -41,6 +46,15 @@ public sealed class TabEntry
 
     /// <summary>Set when the tab has its own browser profile (a separate login); names a folder, never holds credentials.</summary>
     public string? ProfileId { get; init; }
+
+    /// <summary>
+    /// What the tab shows: "web" (also when missing, as in older files), "pdf", "powerpoint" or "video". A string, not an enum, so a
+    /// name from a newer version does not make the whole file unreadable.
+    /// </summary>
+    public string Kind { get; init; } = "web";
+
+    /// <summary>The path of the file of a pdf, powerpoint or video tab. Never the contents, never a password; null for web tabs.</summary>
+    public string? Source { get; init; }
 }
 
 public sealed class RenderConfig
@@ -72,11 +86,17 @@ public sealed class OutputConfig
 public sealed class OmtConfig
 {
     public string Name { get; init; } = Stagecast.Core.Output.SourceNameRules.DefaultOmtName;
+
+    /// <summary>Send the picture with transparency: the bars around a document that does not fill the frame are see-through. Only the choice is saved; the output itself is started by hand.</summary>
+    public bool Alpha { get; init; }
 }
 
 public sealed class NdiConfig
 {
     public string Name { get; init; } = Stagecast.Core.Output.SourceNameRules.DefaultNdiName;
+
+    /// <summary>Send the picture with transparency: the bars around a document that does not fill the frame are see-through. Only the choice is saved; the output itself is started by hand.</summary>
+    public bool Alpha { get; init; }
 }
 
 public sealed class AudioConfig
