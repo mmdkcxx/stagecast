@@ -49,6 +49,9 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     internal static readonly TimeSpan DefaultOpenStall = TimeSpan.FromSeconds(60);
     internal static readonly TimeSpan DefaultOpenLimit = TimeSpan.FromMinutes(5);
 
+    /// <summary>The look for missing fonts and linked files is a courtesy: it is stopped after this long and the deck opens without its result.</summary>
+    private static readonly TimeSpan CheckBudget = TimeSpan.FromSeconds(20);
+
     private readonly Compositor _compositor;
     private readonly DocumentSurfaces _surfaces;
     private readonly SpriteVisual _page;
@@ -341,6 +344,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
                 long quiet = clock.ElapsedMilliseconds - Interlocked.Read(ref lastProgress);
                 if (quiet < stallAfter.TotalMilliseconds && clock.Elapsed < maxTime) continue;
                 cancel.Cancel();
+                _ = job.ContinueWith(t => _logger.LogWarning(t.Exception?.GetBaseException(), "The PowerPoint open that was given up on ended"), TaskContinuationOptions.OnlyOnFaulted);
                 _logger.LogWarning("PowerPoint open timed out after {Seconds:0} s ({Quiet:0} s without progress)", clock.Elapsed.TotalSeconds, quiet / 1000.0);
                 return Fail(quiet >= stallAfter.TotalMilliseconds
                     ? $"PowerPoint tidak menjawab selama {Math.Round(stallAfter.TotalSeconds)} detik saat membuka berkas. Mungkin ada kotak dialog di PowerPoint (kata sandi, perbaikan berkas) yang menunggu jawaban. Tutup dialognya lalu klik Muat ulang."
@@ -448,6 +452,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             }
 
             if (hidden.All(h => h)) throw new InvalidOperationException("Every slide is hidden.");
+            _logger.LogInformation("PowerPoint: {Slides} slides read, checking fonts and links", count);
             report(0.70, "Memeriksa font dan file tertaut");
             IReadOnlyList<string> warnings = CheckDeck(presentation, count, cancel, report);
             cancel.ThrowIfCancellationRequested();
@@ -481,7 +486,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             try { File.Delete(temp); } catch (IOException) { }
             return PowerPointOpenResult.TimedOut;
         }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        catch (Exception ex) when (ex is COMException or InvalidOperationException or ArgumentException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
             _logger.LogWarning(ex, "Could not open PowerPoint file {Path}", path);
             try { presentation?.Close(); } catch (COMException) { }
@@ -496,6 +501,8 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private IReadOnlyList<string> CheckDeck(dynamic presentation, int count, CancellationToken cancel, Action<double, string> report)
     {
         var warnings = new List<string>();
+        var clock = Stopwatch.StartNew();
+        bool skipped = false;
         try
         {
             var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -517,22 +524,33 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             int fonts = Retry(() => (int)presentation.Fonts.Count);
             for (int i = 1; i <= fonts; i++)
             {
+                cancel.ThrowIfCancellationRequested();
+                if (clock.Elapsed > CheckBudget) { skipped = true; break; }
+                report(0.70 + 0.08 * i / fonts, $"Memeriksa font {i} dari {fonts}");
                 int index = i;
-                dynamic font = Retry(() => presentation.Fonts[index]);
-                string name = Retry(() => (string)font.Name);
-                if (Retry(() => (int)font.Embedded) == 0 && !installed.Contains(name)) missing.Add(name);
+                try
+                {
+                    dynamic font = Retry(() => presentation.Fonts[index]);
+                    string name = Retry(() => (string)font.Name);
+                    if (Retry(() => (int)font.Embedded) == 0 && !installed.Contains(name)) missing.Add(name);
+                }
+                catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or ArgumentException or InvalidCastException)
+                {
+                    _logger.LogWarning(ex, "Could not read font {Index} of the deck", index); // one font that will not answer is no reason to give up on the file
+                }
             }
 
             if (missing.Count > 0) warnings.Add("Font tidak terpasang dan tidak disertakan di berkas: " + string.Join(", ", missing));
 
             var lost = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-            for (int i = 1; i <= count; i++)
+            for (int i = 1; i <= count && !skipped; i++)
             {
                 int slide = i;
+                if (clock.Elapsed > CheckBudget) { skipped = true; break; }
                 if (i % 5 == 0)
                 {
                     cancel.ThrowIfCancellationRequested();
-                    report(0.70 + 0.20 * i / count, $"Memeriksa slide {i} dari {count}");
+                    report(0.78 + 0.12 * i / count, $"Memeriksa slide {i} dari {count}");
                 }
 
                 int shapes = Retry(() => (int)presentation.Slides[slide].Shapes.Count);
@@ -555,10 +573,13 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
 
             if (lost.Count > 0) warnings.Add("File tertaut tidak ditemukan: " + string.Join(", ", lost));
         }
-        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or ArgumentException or InvalidCastException)
         {
             _logger.LogWarning(ex, "Could not check the fonts and links of the deck");
         }
+
+        _logger.LogInformation("Deck check took {Seconds:0.0} s{Skipped}", clock.Elapsed.TotalSeconds, skipped ? " (stopped early: it took too long)" : "");
+        if (skipped) warnings.Add("Pemeriksaan font dan file tertaut dihentikan karena terlalu lama; berkas bisa memuat font atau media yang hilang.");
 
         foreach (string warning in warnings) _logger.LogWarning("PowerPoint deck: {Warning}", warning);
         return warnings;

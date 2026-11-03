@@ -3,7 +3,7 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
-## [1.2.1-beta.1] - 2026-11-03 (branch `beta`, belum dirilis)
+## [1.2.1-beta.2] - 2026-11-03 (branch `beta`, belum dirilis)
 
 ### Ditambahkan
 - Bar progres saat berkas PowerPoint dibuka, dengan langkah yang sedang berjalan (menyalin berkas, menjalankan PowerPoint, membuka berkas,
@@ -12,6 +12,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikut
   jawaban) atau seluruhnya melewati 5 menit. Tab menampilkan penyebabnya, dan deck yang sedang tayang tetap tayang.
 
 ### Diperbaiki
+- Membuka deck besar macet di "Memeriksa font dan file tertaut… 70%": satu font yang tidak mau menjawab PowerPoint (ArgumentException) menggagalkan
+  seluruh pembukaan, dan pemeriksaan tanpa batas waktu bisa memakan lebih dari satu menit tanpa laporan. Sekarang font yang bermasalah dilewati,
+  bar menunjukkan font dan slide yang sedang diperiksa, dan pemeriksaan dihentikan setelah 20 detik (deck tetap terbuka, dengan peringatan).
 - Strip thumbnail slide/halaman kini bisa digeser ke kiri dan kanan sampai ujung: scrollbar horizontal sebelumnya hanya selebar 10 px karena memakai
   bentuk scrollbar vertikal. Roda mouse di atas strip menggeser ke samping, dan gambar thumbnail slide yang jauh dari posisi sekarang digambar
   saat strip digeser ke sana.
