@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Stagecast.Core.Tabs;
 using Stagecast.Rendering;
 
@@ -25,6 +26,9 @@ public partial class MainWindow
     private readonly HashSet<Guid> _hookedPdfs = [];
     private readonly HashSet<Guid> _pageFailed = [];
     private readonly Dictionary<Guid, Dictionary<int, ImageSource>> _pageThumbs = [];
+
+    // Tabs whose file is opening right now, with how far it is (0..1) and what it is doing.
+    private readonly Dictionary<Guid, (double Fraction, string Step)> _loading = [];
 
     // A strip of page thumbnails: one below the preview for the tab the operator works on, one in the PROGRAM bar for the document on air
     // while the preview shows another tab.
@@ -109,7 +113,24 @@ public partial class MainWindow
     {
         PowerPointSource deck = _engine!.AttachPowerPoint(tab);
         HookDocument(tab, deck);
-        PowerPointOpenResult result = await deck.OpenAsync(path, startSlide);
+        if (_loading.ContainsKey(tab.Id)) return PowerPointOpenResult.Failed; // already opening
+        _loading[tab.Id] = (0, "Menyiapkan berkas");
+        UpdateDocumentControls();
+        PowerPointOpenResult result;
+        try
+        {
+            // The progress comes from the PowerPoint thread; the bar is the window's.
+            result = await deck.OpenAsync(path, startSlide, (fraction, step) => Dispatcher.InvokeAsync(() =>
+            {
+                if (!_loading.ContainsKey(tab.Id)) return; // finished already
+                _loading[tab.Id] = (fraction, step);
+                ShowLoading(tab);
+            }));
+        }
+        finally
+        {
+            _loading.Remove(tab.Id);
+        }
         bool hadDocument = tab.PowerPoint is { PageCount: > 0 } && result != PowerPointOpenResult.Opened;
         if (result == PowerPointOpenResult.Opened)
             SetDocMessage(tab, deck.Warnings.Count == 0 ? null : "Perhatian: " + string.Join(" ", deck.Warnings) + " Tampilan di acara bisa berbeda.");
@@ -219,6 +240,19 @@ public partial class MainWindow
         });
     }
 
+    /// <summary>Shows the progress bar in place of the file name while the active tab's file opens.</summary>
+    private void ShowLoading(DocumentTab tab)
+    {
+        if (ActiveDocument?.Id != tab.Id) return;
+        bool loading = _loading.TryGetValue(tab.Id, out var state);
+        DocProgressPanel.Visibility = loading ? Visibility.Visible : Visibility.Collapsed;
+        DocStatusText.Visibility = loading ? Visibility.Collapsed : Visibility.Visible;
+        if (!loading) return;
+        DocProgress.Value = Math.Round(state.Fraction * 100);
+        DocProgressText.Text = $"{state.Step}… {Math.Round(state.Fraction * 100)}%";
+        DocProgressText.ToolTip = FileLabel(tab.Source);
+    }
+
     private void SetDocMessage(DocumentTab tab, string? message)
     {
         if (message is null) _docMessages.Remove(tab.Id);
@@ -245,6 +279,7 @@ public partial class MainWindow
         if (ActiveDocument is not { Kind: TabKind.Pdf or TabKind.PowerPoint } tab) return false;
         path ??= tab.Kind == TabKind.PowerPoint ? PickPowerPoint() : PickPdf();
         if (path is null) return false;
+        if (_loading.ContainsKey(tab.Id)) return false;
         if (IsOnAir(tab.Id) && tab.Document is { PageCount: > 0 } && !Confirm("Tab ini sedang tayang. Mengganti berkas mengubah apa yang dilihat penonton. Lanjutkan?")) return false;
         return await ApplyDocumentSourceAsync(tab, path);
     }
@@ -269,6 +304,7 @@ public partial class MainWindow
     internal async Task<bool> ReloadPdfAsync()
     {
         if (ActiveDocument is not { Kind: TabKind.Pdf or TabKind.PowerPoint } tab || string.IsNullOrEmpty(tab.Source)) return false;
+        if (_loading.ContainsKey(tab.Id)) return false;
         int page = Math.Max(tab.Document?.PageIndex ?? 0, 0);
         if (IsOnAir(tab.Id) && tab.Document is { PageCount: > 0 } && !Confirm($"Tab ini sedang tayang. Berkas dibuka lagi dan kembali ke {UnitName(tab).ToLowerInvariant()} {page + 1}. Lanjutkan?")) return false;
         if (tab.Kind == TabKind.PowerPoint) await OpenPowerPointAsync(tab, tab.Source, page);
@@ -371,10 +407,13 @@ public partial class MainWindow
         DocPageBox.IsEnabled = open && count > 1;
         DocFirstButton.IsEnabled = DocPrevButton.IsEnabled = open && pdf!.PageIndex > FirstIndex(pdf);
         DocNextButton.IsEnabled = DocLastButton.IsEnabled = open && pdf!.PageIndex < (pdf is PowerPointSource ? LastIndex(pdf) : count - 1);
-        DocReloadButton.IsEnabled = !string.IsNullOrEmpty(tab.Source);
+        bool busy = _loading.ContainsKey(tab.Id);
+        DocReloadButton.IsEnabled = !busy && !string.IsNullOrEmpty(tab.Source);
+        DocPickButton.IsEnabled = !busy;
         DocStatusText.Foreground = (Brush)FindResource(_docMessages.ContainsKey(tab.Id) ? "Warn" : "Muted");
         DocStatusText.Text = _docMessages.TryGetValue(tab.Id, out var message) ? message : open ? FileLabel(tab.Source) : "";
         DocStatusText.ToolTip = tab.Source;
+        ShowLoading(tab);
 
         bool strip = open && count <= MaxStripPages;
         DocStrip.Visibility = strip ? Visibility.Visible : Visibility.Collapsed;
@@ -433,6 +472,40 @@ public partial class MainWindow
         _ = LoadStripAsync(st, tab.Id, pdf, version);
     }
 
+    /// <summary>The mouse wheel over a strip moves it sideways (the strip has no vertical scrolling); Shift or a tilt wheel works too.</summary>
+    private void OnStripWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer viewer) return;
+        viewer.ScrollToHorizontalOffset(viewer.HorizontalOffset - e.Delta);
+        e.Handled = true;
+    }
+
+    private DispatcherTimer? _stripScrollTimer;
+
+    /// <summary>After the strip stops moving, the pictures of the pages in view are drawn (the first run only covers the pages near the one on screen).</summary>
+    private void OnStripScrolled(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.HorizontalChange == 0) return;
+        var viewer = (ScrollViewer)sender;
+        StripState st = ReferenceEquals(viewer, ProgramStrip) ? _program : _main;
+        _stripScrollTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _stripScrollTimer.Stop();
+        _stripScrollTimer.Tick -= OnStripScrollSettled;
+        _stripScrollTimer.Tag = (viewer, st);
+        _stripScrollTimer.Tick += OnStripScrollSettled;
+        _stripScrollTimer.Start();
+    }
+
+    private void OnStripScrollSettled(object? sender, EventArgs e)
+    {
+        _stripScrollTimer!.Stop();
+        if (_stripScrollTimer.Tag is not (ScrollViewer viewer, StripState st) || st.Tab is not { } id || st.Items.Count == 0) return;
+        if (_engine?.TabById(id) is not DocumentTab { Document: { } pdf }) return;
+        double pitch = st.Items[0].ActualWidth > 0 ? st.Items[0].ActualWidth + 8 : StripThumbWidth + 12;
+        int center = (int)Math.Clamp((viewer.HorizontalOffset + viewer.ViewportWidth / 2) / pitch, 0, st.Items.Count - 1);
+        _ = LoadStripAsync(st, id, pdf, ++st.Version, center);
+    }
+
     private static void ClearStrip(StripState st)
     {
         if (st.Tab is null && st.Items.Count == 0) return;
@@ -442,10 +515,10 @@ public partial class MainWindow
     }
 
     // Thumbnails are drawn one at a time, starting at the page on screen and moving outwards, so the visible ones come first.
-    private async Task LoadStripAsync(StripState st, Guid id, IDocumentSource pdf, int version)
+    private async Task LoadStripAsync(StripState st, Guid id, IDocumentSource pdf, int version, int? center = null)
     {
         if (!_pageThumbs.TryGetValue(id, out var known)) return;
-        int start = Math.Max(pdf.PageIndex, 0);
+        int start = Math.Max(center ?? pdf.PageIndex, 0);
         foreach (int index in Enumerable.Range(Math.Max(0, start - StripWindow), Math.Min(pdf.PageCount, start + StripWindow + 1) - Math.Max(0, start - StripWindow))
                      .OrderBy(i => Math.Abs(i - start)).ThenBy(i => i))
         {

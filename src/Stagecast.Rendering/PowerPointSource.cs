@@ -21,6 +21,9 @@ public enum PowerPointOpenResult
 
     /// <summary>Missing, damaged, protected or not a .pptx; <see cref="PowerPointSource.Problem"/> says what happened.</summary>
     Failed,
+
+    /// <summary>PowerPoint stopped answering while the file was opening (a dialog waiting for an answer, a hung process, a very large file); <see cref="PowerPointSource.Problem"/> says so.</summary>
+    TimedOut,
 }
 
 /// <summary>
@@ -41,6 +44,10 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     // Two updates of the picture a few milliseconds apart (a slide change makes two frames) can leave the stage capture with the first one:
     // a still slide makes no frame to correct it. This long after the last frame the picture is touched, which makes one more.
     private const int SettleMilliseconds = 150;
+
+    /// <summary>An open that reports nothing for this long is given up on (a dialog waiting in PowerPoint); the whole open may take <see cref="DefaultOpenLimit"/>.</summary>
+    internal static readonly TimeSpan DefaultOpenStall = TimeSpan.FromSeconds(60);
+    internal static readonly TimeSpan DefaultOpenLimit = TimeSpan.FromMinutes(5);
 
     private readonly Compositor _compositor;
     private readonly DocumentSurfaces _surfaces;
@@ -300,23 +307,55 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     /// is not hidden). A file that cannot be opened changes nothing: a deck that is already showing
     /// keeps showing, so a failed reload does not blank a tab that is on air.
     /// </summary>
-    public async Task<PowerPointOpenResult> OpenAsync(string path, int startSlide = -1)
+    public async Task<PowerPointOpenResult> OpenAsync(string path, int startSlide = -1, Action<double, string>? progress = null, TimeSpan? stall = null, TimeSpan? limit = null)
     {
         if (_disposed) return PowerPointOpenResult.Failed;
         string extension = Path.GetExtension(path);
         if (!string.Equals(extension, ".pptx", StringComparison.OrdinalIgnoreCase))
             return Fail(".pptm, .ppsx dan jenis lain belum didukung. Simpan sebagai .pptx.");
 
+        // PowerPoint can wait for an answer nobody sees (a repair prompt, a password, a licence dialog): the open is given up on when it makes no
+        // progress for a while, or takes too long altogether. The call itself cannot be aborted; it is told to stop at its next step.
+        TimeSpan stallAfter = stall ?? DefaultOpenStall;
+        TimeSpan maxTime = limit ?? DefaultOpenLimit;
+        using var cancel = new CancellationTokenSource();
+        var clock = Stopwatch.StartNew();
+        long lastProgress = 0;
+        double highest = 0;
+        void Report(double fraction, string step)
+        {
+            Interlocked.Exchange(ref lastProgress, clock.ElapsedMilliseconds);
+            highest = Math.Max(highest, Math.Clamp(fraction, 0, 1)); // the bar never goes back
+            try { progress?.Invoke(highest, step); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Open progress handler failed"); }
+        }
+
         PowerPointOpenResult result;
         try
         {
-            result = await Run(() => OpenCore(path, startSlide));
+            Report(0, "Menyiapkan berkas");
+            Task<PowerPointOpenResult> job = Run(() => OpenCore(path, startSlide, Report, cancel.Token));
+            while (true)
+            {
+                if (await Task.WhenAny(job, Task.Delay(250)) == job) break;
+                long quiet = clock.ElapsedMilliseconds - Interlocked.Read(ref lastProgress);
+                if (quiet < stallAfter.TotalMilliseconds && clock.Elapsed < maxTime) continue;
+                cancel.Cancel();
+                _logger.LogWarning("PowerPoint open timed out after {Seconds:0} s ({Quiet:0} s without progress)", clock.Elapsed.TotalSeconds, quiet / 1000.0);
+                return Fail(quiet >= stallAfter.TotalMilliseconds
+                    ? $"PowerPoint tidak menjawab selama {Math.Round(stallAfter.TotalSeconds)} detik saat membuka berkas. Mungkin ada kotak dialog di PowerPoint (kata sandi, perbaikan berkas) yang menunggu jawaban. Tutup dialognya lalu klik Muat ulang."
+                    : $"Membuka berkas melewati batas {Math.Round(maxTime.TotalSeconds)} detik. Berkas mungkin terlalu besar atau PowerPoint macet. Klik Muat ulang untuk mencoba lagi.",
+                    PowerPointOpenResult.TimedOut);
+            }
+
+            result = await job;
         }
         catch (ObjectDisposedException)
         {
             return PowerPointOpenResult.Failed;
         }
         if (result != PowerPointOpenResult.Opened) return result;
+        progress?.Invoke(1, "Selesai");
 
         _logger.LogInformation("PowerPoint opened: {Slides} slides, {Borrowed}", _pageCount, Borrowed ? "borrowed instance" : "own instance");
         PageChanged?.Invoke();
@@ -330,8 +369,10 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     }
 
     // On the PowerPoint thread.
-    private PowerPointOpenResult OpenCore(string path, int startSlide)
+    private PowerPointOpenResult OpenCore(string path, int startSlide, Action<double, string> report, CancellationToken cancel)
     {
+        cancel.ThrowIfCancellationRequested();
+        report(0.03, "Menyalin berkas");
         string temp = Path.Combine(Path.GetTempPath(), TempPrefix + Guid.NewGuid().ToString("N") + ".pptx");
         try
         {
@@ -362,6 +403,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             {
                 Type? type = Type.GetTypeFromProgID("PowerPoint.Application");
                 if (type is null) return Fail("PowerPoint tidak terpasang di PC ini.", PowerPointOpenResult.NotInstalled);
+                report(0.10, "Menjalankan PowerPoint");
                 var before = Process.GetProcessesByName("POWERPNT").Select(p => p.Id).ToHashSet();
                 app = Activator.CreateInstance(type);
                 newApp = true;
@@ -384,7 +426,11 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
                 app = _app;
             }
 
+            cancel.ThrowIfCancellationRequested();
+            report(0.25, "Membuka berkas di PowerPoint");
             presentation = Retry(() => app!.Presentations.Open(temp, -1, 0, 0)); // read only, untitled, no window
+            cancel.ThrowIfCancellationRequested();
+            report(0.55, "Membaca slide");
             int count = Retry(() => (int)presentation!.Slides.Count);
             if (count < 1) throw new InvalidOperationException("The presentation has no slides.");
             double width = Retry(() => (double)presentation!.PageSetup.SlideWidth);
@@ -394,10 +440,18 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             {
                 int index = i + 1;
                 hidden[i] = Retry(() => (int)presentation!.Slides[index].SlideShowTransition.Hidden) != 0;
+                if (i % 5 == 0 || i == count - 1)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    report(0.55 + 0.15 * (i + 1) / count, $"Membaca slide {i + 1} dari {count}");
+                }
             }
 
             if (hidden.All(h => h)) throw new InvalidOperationException("Every slide is hidden.");
-            IReadOnlyList<string> warnings = CheckDeck(presentation, count);
+            report(0.70, "Memeriksa font dan file tertaut");
+            IReadOnlyList<string> warnings = CheckDeck(presentation, count, cancel, report);
+            cancel.ThrowIfCancellationRequested();
+            report(0.90, "Memulai tayangan");
 
             // The new file is good: the show that was running gives way to it.
             CloseShow();
@@ -417,6 +471,16 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             StartShow(startSlide < 0 ? -1 : Math.Min(startSlide, count - 1));
             return PowerPointOpenResult.Opened;
         }
+        catch (OperationCanceledException)
+        {
+            // the caller gave up (timeout) and has said so: what this call opened is closed again
+            _logger.LogWarning("PowerPoint open of {Path} was cancelled", path);
+            try { presentation?.Close(); } catch (COMException) { }
+            if (newApp && _presentation is null) TryQuit(app, _ownPid);
+            if (newApp && _presentation is null) { _app = null; _ownApp = false; Borrowed = false; }
+            try { File.Delete(temp); } catch (IOException) { }
+            return PowerPointOpenResult.TimedOut;
+        }
         catch (Exception ex) when (ex is COMException or InvalidOperationException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
         {
             _logger.LogWarning(ex, "Could not open PowerPoint file {Path}", path);
@@ -429,7 +493,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     }
 
     // On the PowerPoint thread: looks for fonts and linked files the event PC may lack. A failed look is no warning.
-    private IReadOnlyList<string> CheckDeck(dynamic presentation, int count)
+    private IReadOnlyList<string> CheckDeck(dynamic presentation, int count, CancellationToken cancel, Action<double, string> report)
     {
         var warnings = new List<string>();
         try
@@ -465,6 +529,12 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
             for (int i = 1; i <= count; i++)
             {
                 int slide = i;
+                if (i % 5 == 0)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    report(0.70 + 0.20 * i / count, $"Memeriksa slide {i} dari {count}");
+                }
+
                 int shapes = Retry(() => (int)presentation.Slides[slide].Shapes.Count);
                 for (int j = 1; j <= shapes; j++)
                 {

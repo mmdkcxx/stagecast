@@ -3,6 +3,19 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [Belum dirilis] (branch `beta`)
+
+### Ditambahkan
+- Bar progres saat berkas PowerPoint dibuka, dengan langkah yang sedang berjalan (menyalin berkas, menjalankan PowerPoint, membuka berkas,
+  membaca slide, memeriksa font dan file tertaut, memulai tayangan). Pilih berkas dan Muat ulang dimatikan selama berkas dibuka.
+- Batas waktu membuka PowerPoint: dibatalkan bila tidak ada kemajuan selama 60 detik (biasanya ada kotak dialog di PowerPoint yang menunggu
+  jawaban) atau seluruhnya melewati 5 menit. Tab menampilkan penyebabnya, dan deck yang sedang tayang tetap tayang.
+
+### Diperbaiki
+- Strip thumbnail slide/halaman kini bisa digeser ke kiri dan kanan sampai ujung: scrollbar horizontal sebelumnya hanya selebar 10 px karena memakai
+  bentuk scrollbar vertikal. Roda mouse di atas strip menggeser ke samping, dan gambar thumbnail slide yang jauh dari posisi sekarang digambar
+  saat strip digeser ke sana.
+
 ## [1.2.0] - 2026-11-03
 
 Rilis pertama dari `main` sejak 1.1.6. Menggabungkan branch pengembangan (sekarang `beta`, dulu `custom`): sumber PDF dan PowerPoint,

@@ -86,6 +86,18 @@ internal sealed partial class SelfTest
         Expect(await WaitUntilAsync(() => probe.Row == Pattern("green", wide: false), 15000), $"and the slide shows again (saw {probe.Row})");
         Expect(await ppt.NextAsync() && ppt.PageNumber == 3, "which turns");
 
+        // ---- progress while a file opens, and a give-up when PowerPoint stays silent ----
+        var seen = new List<double>();
+        var reopened = await ppt.OpenAsync(deck, 1, (fraction, _) => { lock (seen) seen.Add(fraction); });
+        bool rising;
+        lock (seen) rising = seen.Count >= 4 && seen.Zip(seen.Skip(1), (a, b) => b >= a).All(x => x) && seen[^1] == 1;
+        Expect(reopened == PowerPointOpenResult.Opened && rising, $"opening reports progress that only rises and ends at 100% ({reopened}, reports {string.Join(" ", seen.Select(x => x.ToString("0.00")))})");
+        var silent = await ppt.OpenAsync(deck, 1, null, TimeSpan.FromMilliseconds(1));
+        Expect(silent is PowerPointOpenResult.TimedOut or PowerPointOpenResult.Opened, $"an open that reports nothing in time is given up on (got {silent})");
+        if (silent == PowerPointOpenResult.TimedOut) Expect(ppt.Problem?.Contains("tidak menjawab") == true, $"and says why (problem {ppt.Problem})");
+        await Task.Delay(1500); // the cancelled call stops at its next step
+        Expect(await ppt.NextAsync() || await ppt.PreviousAsync(), "the deck that was showing still turns after that");
+
         // ---- the file is gone ----
         File.Delete(deck);
         Expect(!await window.ReloadPdfAsync() || current.Problem is not null, "a file that is gone is refused or reported");

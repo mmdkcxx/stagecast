@@ -191,7 +191,15 @@
                     <TextBlock x:Name="DocCountText" Foreground="{StaticResource Muted}" FontFamily="{StaticResource FontMono}" FontSize="14" VerticalAlignment="Center" Margin="8,0,8,0"/>
                     <Button x:Name="DocNextButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="▶" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnDocNext" ToolTip="Halaman berikutnya" AutomationProperties.Name="Halaman berikutnya"/>
                     <Button x:Name="DocLastButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏭" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnDocLast" ToolTip="Halaman terakhir" AutomationProperties.Name="Halaman terakhir"/>
-                    <TextBlock x:Name="DocStatusText" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    <Grid Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="DocStatusText" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <!-- Shown while a file opens: how far PowerPoint is, and what it is doing. -->
+                        <StackPanel x:Name="DocProgressPanel" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                            <ProgressBar x:Name="DocProgress" Minimum="0" Maximum="100" Width="160" Height="8" VerticalAlignment="Center" BorderThickness="0"
+                                         Foreground="{StaticResource Warn}" Background="{StaticResource Line}" AutomationProperties.Name="Kemajuan membuka berkas"/>
+                            <TextBlock x:Name="DocProgressText" Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Grid>
                 </DockPanel>
 
                 <DockPanel x:Name="AddressRow" Grid.Row="0" Margin="0,0,0,12">
@@ -237,7 +245,7 @@
 
                 <!-- Page strip of a document tab: red frame = on screen, blue frame = next. -->
                 <Border x:Name="DocStrip" Grid.Row="3" Margin="0,12,0,0" Visibility="Collapsed" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="3">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ScrollViewer HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Disabled" PreviewMouseWheel="OnStripWheel" ScrollChanged="OnStripScrolled">
                         <StackPanel x:Name="DocStripPanel" Orientation="Horizontal" Margin="8"/>
                     </ScrollViewer>
                 </Border>
@@ -255,7 +263,7 @@
                         <Button x:Name="ProgramNextButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="▶" Style="{StaticResource ToolButton}" Width="40" Padding="0" Click="OnProgNext" ToolTip="Halaman berikutnya (tab program)" AutomationProperties.Name="Program: halaman berikutnya"/>
                         <Button x:Name="ProgramLastButton" FontFamily="Segoe UI Symbol" FontSize="14" Content="⏭" Style="{StaticResource ToolButton}" Width="40" Padding="0" Margin="4,0,0,0" Click="OnProgLast" ToolTip="Halaman terakhir (tab program)" AutomationProperties.Name="Program: halaman terakhir"/>
                     </DockPanel>
-                    <ScrollViewer x:Name="ProgramStrip" Margin="0,8,0,0" Visibility="Collapsed" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ScrollViewer x:Name="ProgramStrip" Margin="0,8,0,0" Visibility="Collapsed" HorizontalScrollBarVisibility="Visible" VerticalScrollBarVisibility="Disabled" PreviewMouseWheel="OnStripWheel" ScrollChanged="OnStripScrolled">
                         <StackPanel x:Name="ProgramStripPanel" Orientation="Horizontal" Margin="0,0,0,2"/>
                     </ScrollViewer>
                     </StackPanel>
