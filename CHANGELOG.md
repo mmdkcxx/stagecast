@@ -3,6 +3,15 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.2.2-beta.1] - 2026-11-04
+
+### Ditambahkan
+- Clicker: tombol panah **↓ (Down)** = slide/halaman berikutnya dan **↑ (Up)** = sebelumnya, di mode fokus maupun mode global
+  (di mode global, panah atas/bawah ikut diambil Stagecast selama "CLICKER AKTIF" dan ada dokumen yang bisa digerakkan).
+
+### Belum diuji
+- Perubahan ini belum dijalankan lewat tes maupun dicoba langsung.
+
 ## [1.2.1] - 2026-11-03
 
 ### Ditambahkan

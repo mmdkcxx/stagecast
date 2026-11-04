@@ -17,7 +17,7 @@ public enum ClickerCommand
 /// </summary>
 public static class ClickerKeys
 {
-    public const int Back = 0x08, Enter = 0x0D, Space = 0x20, PageUp = 0x21, PageDown = 0x22, Left = 0x25, Right = 0x27, B = 0x42, F5 = 0x74, Period = 0xBE;
+    public const int Back = 0x08, Enter = 0x0D, Space = 0x20, PageUp = 0x21, PageDown = 0x22, Left = 0x25, Up = 0x26, Right = 0x27, Down = 0x28, B = 0x42, F5 = 0x74, Period = 0xBE;
 
     public static ClickerCommand Map(int virtualKey, bool ctrl = false, bool alt = false, bool shift = false)
     {
@@ -26,8 +26,8 @@ public static class ClickerKeys
         if (shift && virtualKey != B) return ClickerCommand.None;
         return virtualKey switch
         {
-            PageDown or Right or Space or Enter => ClickerCommand.Next,
-            PageUp or Left or Back => ClickerCommand.Previous,
+            PageDown or Right or Down or Space or Enter => ClickerCommand.Next,
+            PageUp or Left or Up or Back => ClickerCommand.Previous,
             B or Period => ClickerCommand.Blackout,
             F5 => ClickerCommand.Restart,
             _ => ClickerCommand.None,
@@ -35,8 +35,8 @@ public static class ClickerKeys
     }
 
     /// <summary>
-    /// Keys the global mode takes over (also while another program has the focus). Only the page keys: Space, Enter, Backspace, B and
+    /// Keys the global mode takes over (also while another program has the focus). Only the page and arrow keys: Space, Enter, Backspace, B and
     /// the full stop would break typing everywhere else.
     /// </summary>
-    public static bool IsGlobalKey(int virtualKey) => virtualKey is PageDown or PageUp or Right or Left;
+    public static bool IsGlobalKey(int virtualKey) => virtualKey is PageDown or PageUp or Right or Left or Down or Up;
 }
