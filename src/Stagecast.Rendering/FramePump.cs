@@ -40,7 +40,9 @@ public sealed class FramePump : IDisposable
             long interval = frequency / fps;
             if (fps != lastFps) { next = System.Diagnostics.Stopwatch.GetTimestamp(); lastFps = fps; }
 
-            next += interval;
+            // The hub asks for small shifts so the ticks do not run past the frames the capture publishes (see PhaseLock).
+            double correctionMs = _hub.TakePhaseCorrectionMs();
+            next += interval + (long)(correctionMs * frequency / 1000.0);
             long now = System.Diagnostics.Stopwatch.GetTimestamp();
             if (now - next > 2 * interval) next = now; // far behind (machine stalled): resynchronise instead of bursting
             else if (next > now) timer.Wait(TimeSpan.FromSeconds((double)(next - now) / frequency));

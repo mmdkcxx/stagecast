@@ -92,7 +92,7 @@ public sealed partial class RenderEngine : IDisposable
 
     public CoreWebView2 Browser => ActivePage.Browser;
 
-    /// <summary>A copy of the page for the operator, about 15 times a second, raised on a capture thread.</summary>
+    /// <summary>A copy of the page for the operator, at the output's frame rate (one per frame sent), raised on a capture thread.</summary>
     public event Action<PreviewImage>? PreviewReady
     {
         add => _capturer.PreviewReady += value;
@@ -116,6 +116,7 @@ public sealed partial class RenderEngine : IDisposable
         var hub = new FrameHub();
         var pool = new FramePool();
         var capturer = new FrameCapturer(stage, hub, pool, options.Fps, TimeProvider.System, loggerFactory.CreateLogger<FrameCapturer>());
+        hub.FramesWanted += capturer.RequestFrame;
         capturer.Start();
         var pump = new FramePump(hub, options.Fps, loggerFactory.CreateLogger<FramePump>());
         return new RenderEngine(options, queue, compositor, stage, env, hub, pool, capturer, pump, logger);
@@ -405,6 +406,27 @@ public sealed partial class RenderEngine : IDisposable
     /// <summary>True while the tab on air (<see cref="Program"/>) and the operator's tab (<see cref="Active"/>) are different tabs.</summary>
     /// <summary>The WebView2 browser processes in use (one per profile); the audio capture follows these. UI thread only.</summary>
     public IReadOnlyList<int> BrowserProcessIds => _tabs.OfType<PageTab>().Select(t => (int)t.Browser.BrowserProcessId).Distinct().ToList();
+
+    /// <summary>
+    /// Every WebView2 process of the pages in use: the browser, renderers, GPU and utility processes. It asks each distinct environment
+    /// (one per profile), so WebView2 of other applications is not included. UI thread only.
+    /// </summary>
+    public IReadOnlyList<int> WebViewProcessIds()
+    {
+        var ids = new HashSet<int>(BrowserProcessIds);
+        foreach (var environment in _tabs.OfType<PageTab>().Select(t => t.Environment).OfType<CoreWebView2Environment>().Distinct())
+        {
+            try
+            {
+                foreach (var info in environment.GetProcessInfos()) ids.Add(info.ProcessId);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                // The browser is restarting: the browser process ids above are all there is for now.
+            }
+        }
+        return ids.ToList();
+    }
 
     /// <summary>The processes whose sound is captured: the browsers, and the PowerPoint that plays a deck. UI thread only.</summary>
     public IReadOnlyList<int> AudioProcessIds => BrowserProcessIds

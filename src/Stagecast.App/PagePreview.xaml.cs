@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
+using Stagecast.Core.Metrics;
 using Stagecast.Core.Display;
 using Stagecast.Core.Output;
 using Stagecast.Core.Rendering;
@@ -12,6 +13,9 @@ using Stagecast.Rendering;
 using Stagecast.Rendering.Capture;
 
 namespace Stagecast.App;
+
+/// <summary>How the operator's preview kept up: pictures shown, pictures replaced before they could be shown, and read-to-shown delay.</summary>
+public sealed record PreviewStats(double ShownPerSecond, double SkippedPerSecond, TimingSnapshot Lag);
 
 /// <summary>
 /// The operator's view of the page: the rendered page fitted or at 100% (draggable, with a mini-map), and, when Interaksi is on,
@@ -33,6 +37,8 @@ public partial class PagePreview : UserControl
     private Shot? _pendingShot;
     private int _imageScheduled;
     private (int X, int Y, int Mip, int Width, int Height) _shown;
+    private readonly TimingStats _lag = new();
+    private long _shownCount, _skippedCount, _statsStart = System.Diagnostics.Stopwatch.GetTimestamp();
 
     public PagePreview() => InitializeComponent();
 
@@ -120,6 +126,20 @@ public partial class PagePreview : UserControl
         engine.PageFocusChanged += _ => Dispatcher.BeginInvoke(UpdateOverlays);
         engine.EscapePressed += ReleaseKeyboard;
         Refresh();
+    }
+
+    public PreviewStats Stats()
+    {
+        double seconds = Math.Max(0.001, System.Diagnostics.Stopwatch.GetElapsedTime(Interlocked.Read(ref _statsStart)).TotalSeconds);
+        return new PreviewStats(Interlocked.Read(ref _shownCount) / seconds, Interlocked.Read(ref _skippedCount) / seconds, _lag.Snapshot());
+    }
+
+    public void ResetStats()
+    {
+        Interlocked.Exchange(ref _shownCount, 0);
+        Interlocked.Exchange(ref _skippedCount, 0);
+        _lag.Reset();
+        Interlocked.Exchange(ref _statsStart, System.Diagnostics.Stopwatch.GetTimestamp());
     }
 
     public void SetResolution(Resolution resolution)
@@ -221,7 +241,8 @@ public partial class PagePreview : UserControl
     {
         var bitmap = BitmapSource.Create(image.Width, image.Height, 96, 96, PixelFormats.Bgra32, null, image.Pixels, image.Stride);
         bitmap.Freeze();
-        Volatile.Write(ref _pendingShot, new Shot(image, bitmap));
+        // A picture still waiting when the next one arrives was never shown: the window is not keeping up.
+        if (Interlocked.Exchange(ref _pendingShot, new Shot(image, bitmap)) is not null) Interlocked.Increment(ref _skippedCount);
         if (Interlocked.Exchange(ref _imageScheduled, 1) == 0) Dispatcher.BeginInvoke(ShowPending);
     }
 
@@ -232,6 +253,8 @@ public partial class PagePreview : UserControl
         if (shot is null) return;
         var image = shot.Image;
         Picture.Source = shot.Bitmap;
+        Interlocked.Increment(ref _shownCount);
+        if (image.CapturedAt != 0) _lag.Add(System.Diagnostics.Stopwatch.GetElapsedTime(image.CapturedAt).TotalMilliseconds);
         _shown = (image.SourceX, image.SourceY, image.Mip, image.Width, image.Height);
         PlacePicture();
     }

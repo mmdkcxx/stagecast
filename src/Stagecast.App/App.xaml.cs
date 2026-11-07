@@ -13,6 +13,8 @@ namespace Stagecast.App;
 public partial class App : Application
 {
     private ILogger<App>? _logger;
+    private bool _selfTest;
+    private System.Threading.Timer? _watchdog;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -25,6 +27,20 @@ public partial class App : Application
             .CreateLogger();
         var factory = new SerilogLoggerFactory(Log.Logger);
         _logger = factory.CreateLogger<App>();
+        _selfTest = e.Args.Contains("--selftest");
+        if (_selfTest)
+        {
+            // A dialog or a hang must never keep an unattended test (and the script waiting for it) alive forever. This runs on its own
+            // thread, so it works even when the window is blocked by a message box. STAGECAST_SOAK_MINUTES lengthens it for soak runs.
+            int soak = int.TryParse(Environment.GetEnvironmentVariable("STAGECAST_SOAK_MINUTES"), out int m) && m > 0 ? m : 0;
+            int minutes = Math.Max(12, soak + 10);
+            _watchdog = new System.Threading.Timer(_ =>
+            {
+                Log.Fatal("SELFTEST TIMEOUT after {Minutes} minutes: a dialog or a hang kept the test from finishing; ending the process", minutes);
+                Log.CloseAndFlush();
+                Environment.Exit(3);
+            }, null, TimeSpan.FromMinutes(minutes), System.Threading.Timeout.InfiniteTimeSpan);
+        }
         DispatcherUnhandledException += OnUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -60,6 +76,7 @@ public partial class App : Application
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Log.Fatal(e.Exception, "Unhandled exception");
+        if (_selfTest) { e.Handled = true; return; } // no message box under an unattended test; the log has it
         MessageBox.Show($"Terjadi kesalahan yang tidak terduga:\n\n{e.Exception.Message}\n\nRincian ada di berkas log.", "Stagecast", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     }

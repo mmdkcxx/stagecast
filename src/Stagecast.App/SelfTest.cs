@@ -38,6 +38,14 @@ internal sealed partial class SelfTest
 
     public async Task RunAsync(string name, MainWindow window)
     {
+        // Nothing may wait for a click while a test runs unattended: every dialog gets a neutral answer that is written to the log.
+        // A test that needs a particular answer sets its own after this.
+        window.Confirm = text => { _logger.LogWarning("SELFTEST unexpected confirmation, declined: {Text}", text); return false; };
+        window.Notify ??= text => _logger.LogInformation("SELFTEST notice: {Text}", text);
+        window.AskSaveChanges ??= file => { _logger.LogWarning("SELFTEST unexpected 'save changes?' for {File}, discarded", file); return SaveAnswer.Discard; };
+        window.AskOpenChoice ??= (name, _, _, _, _, _, _) => { _logger.LogWarning("SELFTEST unexpected open choice for {Name}, cancelled", name); return null; };
+        window.AskRelink ??= (name, _, _) => { _logger.LogWarning("SELFTEST unexpected relink question for {Name}, cancelled", name); return null; };
+
         if (name == "d5") { await RunPdfAsync(window); return; }
         if (name == "f1") { await RunSessionAsync(window); return; }
         if (name == "p2") { await RunPowerPointAsync(window); return; }
@@ -52,6 +60,7 @@ internal sealed partial class SelfTest
         if (name is "a3c-set" or "a3c-check") { await RunLoginsAsync(window, name == "a3c-set"); return; }
         if (name == "a8") { await RunRecoveryAsync(window); return; }
         if (name == "soak") { await RunSoakAsync(window); return; }
+        if (name == "perf") { await RunPerfAsync(window); return; }
         if (name == "a7") { await RunOmtAsync(window); return; }
         if (name == "a6") { await RunNdiAsync(window); return; }
         if (name == "a5") { await RunGateAndAudioAsync(window); return; }
@@ -61,6 +70,9 @@ internal sealed partial class SelfTest
         if (name == "a2c") { await RunChangesAndPresetsAsync(window); return; }
         if (name != "a2") { _logger.LogError("Unknown self test {Name}", name); return; }
 
+        // The hub only produces output while something wants frames, as a monitor or a connected receiver does.
+        var screenLike = new ScreenLikeSink();
+        _engine.Hub.AddSink(screenLike);
         string animation = new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "selftest-animation.html")).AbsoluteUri;
         await _engine.NavigateAsync(animation, TimeSpan.FromSeconds(20));
         await Task.Delay(1500);
@@ -93,6 +105,7 @@ internal sealed partial class SelfTest
         var back = await MeasureAsync("back to 2520x1080 @60", 4);
         Expect(back.Capture is { Width: 2520, Height: 1080 }, "frames are 2520x1080 again");
 
+        _engine.Hub.RemoveSink(screenLike);
         _logger.LogInformation(_failures.Count == 0 ? "A2 selftest ok" : "A2 selftest FAILED: {Failures}", string.Join("; ", _failures));
     }
 
@@ -840,6 +853,7 @@ internal sealed partial class SelfTest
         // A browser process dies while its tab is on air (a new tab goes on air at once, here with its own profile).
         await window.AddTabAsync(url);
         var otherId = window.Tabs.Items[^1].Id;
+        window.Confirm = _ => true; // giving a tab its own login asks first; the test accepts
         Expect(await window.SetSeparateProfileAsync(otherId, true), "a second tab gets its own profile");
         await Task.Delay(2500);
         Expect(window.Tabs.Active!.Id == otherId, "the new tab is the one on air");
@@ -885,6 +899,9 @@ internal sealed partial class SelfTest
         await window.AddTabAsync(page);
         await Task.Delay(2000);
         window.SyncAudioSources();
+        // NDI and OMT without a receiver no longer ask for frames; a sink that always does stands in for the monitor so the output path is exercised.
+        var screenLike = new ScreenLikeSink();
+        _engine.Hub.AddSink(screenLike);
         bool ndi = window.StartNdi();
         bool omt = window.StartOmt();
         bool screen = window.Monitors.Count > 1 && window.StartOutput();
@@ -937,6 +954,7 @@ internal sealed partial class SelfTest
             clock.Elapsed.TotalSeconds, samples[0].App, samples[^1].App, appPerHour, samples[0].Browser, samples[^1].Browser, browserPerHour,
             final.Delivered, final.Repeated, final.Dropped, final.SinkErrors, window.Ndi?.VideoSkipped ?? 0, window.Omt?.VideoSkipped ?? 0, csv);
         Expect(final.SinkErrors == 0, $"no sink errors ({final.SinkErrors})");
+        _engine.Hub.RemoveSink(screenLike);
         window.StopNdi(null);
         window.StopOmt(null);
         window.StopOutput(null);

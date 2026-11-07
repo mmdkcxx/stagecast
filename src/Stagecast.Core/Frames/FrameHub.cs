@@ -14,6 +14,13 @@ public interface IFrameSink
     /// <see cref="Frame.Retain"/> to keep it longer.
     /// </summary>
     void Deliver(Frame frame, bool repeated);
+
+    /// <summary>
+    /// False while nobody is looking at this sink's output (NDI or OMT without a receiver). The hub then does not call
+    /// <see cref="Deliver"/>, and when no sink wants frames the capture does not copy them to system memory at all.
+    /// May be called on every tick, so it must be cheap.
+    /// </summary>
+    bool WantsFrames => true;
 }
 
 /// <param name="Seconds">Time covered, since creation or the last <see cref="FrameHub.ResetStats"/>.</param>
@@ -57,6 +64,9 @@ public sealed class FrameHub
     private readonly TestPattern _pattern = new();
     private int _patternWidth = 1920, _patternHeight = 1080, _patternFps = 60;
     private bool _noLive;
+    private bool _wantedLast = true; // under _gate
+    private readonly PhaseLock _phase = new();
+    private bool _wantsFrames = true;
     private long _published, _delivered, _repeated, _dropped, _idle, _sinkErrors;
     private double _ageSumMs, _ageMaxMs;
     private long _statsStart, _previousTick;
@@ -73,6 +83,7 @@ public sealed class FrameHub
     public void SetPatternFormat(int width, int height, int fps)
     {
         lock (_gate) (_patternWidth, _patternHeight, _patternFps) = (width, height, fps);
+        if (fps > 0) _phase.IntervalMs = 1000.0 / fps; // a different rate forgets the measured phase
     }
 
     /// <summary>
@@ -93,6 +104,11 @@ public sealed class FrameHub
     {
         lock (_gate)
         {
+            if (_previousTick != 0)
+            {
+                long arrived = _time.GetTimestamp();
+                _phase.AddPublish(ToMs(arrived), _time.GetElapsedTime(_previousTick, arrived).TotalMilliseconds);
+            }
             _published++;
             if (_pending is not null)
             {
@@ -124,9 +140,51 @@ public sealed class FrameHub
         lock (_gate) _sinks = _sinks.Where(s => !ReferenceEquals(s.Sink, sink)).ToArray();
     }
 
+    private double ToMs(long timestamp) => timestamp * 1000.0 / _time.TimestampFrequency;
+
+    /// <summary>
+    /// Milliseconds the ticker should add to the delay before its next tick (negative: tick sooner) to keep the ticks from running past the
+    /// frames the capture publishes; see <see cref="PhaseLock"/>. Zero when there is nothing to correct. Called by the ticker once per tick.
+    /// </summary>
+    public double TakePhaseCorrectionMs() => _phase.TakeCorrection(ToMs(_time.GetTimestamp()));
+
+    /// <summary>True while at least one sink wants frames; the capture skips copying frames to system memory when it is false.</summary>
+    public bool WantsFrames => Volatile.Read(ref _wantsFrames);
+
+    /// <summary>
+    /// Raised on the tick thread when the first sink starts to want frames again (a receiver connected). The frames kept while
+    /// nobody wanted them are dropped first, so no old picture goes out; the owner of the capture should then publish a fresh one.
+    /// </summary>
+    public event Action? FramesWanted;
+
+    private void UpdateWantsFrames()
+    {
+        bool any = false;
+        foreach (var entry in Volatile.Read(ref _sinks))
+        {
+            if (entry.Sink.WantsFrames) { any = true; break; }
+        }
+        bool edge;
+        lock (_gate)
+        {
+            edge = any && !_wantedLast;
+            _wantedLast = any;
+            if (edge)
+            {
+                _pending?.Release(); _pending = null;
+                _last?.Release(); _last = null;
+                _liveSent?.Release(); _liveSent = null;
+                _held?.Release(); _held = null;
+            }
+        }
+        Volatile.Write(ref _wantsFrames, any);
+        if (edge) FramesWanted?.Invoke();
+    }
+
     /// <summary>One output tick. Returns false only while there is nothing to send: no frame has ever been published and no sink shows the pattern.</summary>
     public bool Tick()
     {
+        UpdateWantsFrames();
         Frame? frame = null;
         bool repeated = false;
         SinkEntry[] sinks;
@@ -184,6 +242,7 @@ public sealed class FrameHub
         {
             foreach (var entry in sinks)
             {
+                if (!entry.Sink.WantsFrames) continue;
                 bool shows = pattern is not null && (noLive || entry.WantsPattern?.Invoke() == true);
                 Frame? chosen = shows ? pattern : frame;
                 if (chosen is null) continue;

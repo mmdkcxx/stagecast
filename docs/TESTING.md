@@ -57,3 +57,22 @@ Aturan commit: commit tiap fase selesai; hasil kelompok uji dicatat di `PLAN_PHA
 - **S10 dalam batch penuh:** pada 2026-10-27 dua kali berturut-turut mengukur 10/12 klik (dua klik tidak menghasilkan frame dalam 2 dtk) setelah A6 ditambahkan ke batch, tetapi lulus 12/12 tiga kali bila dijalankan sendiri. Sampel frame spike terlihat kekurangan frame saat mesin masih sibuk dari proses sebelumnya. Anggap flaky; jalankan ulang sendiri sebelum menyelidiki.
 
 - **S10 keyboard:** gagal dengan `foreground=False` bila jendela lain sedang aktif (mis. Anda memakai PC saat batch jalan); lulus bila PC tidak disentuh. Tanda: `typed '' foreground=False`. Terjadi pada 2026-10-27 18:00 meski dijalankan sendirian. Bukan bug aplikasi.
+
+## Performa (jalur render)
+
+`scripts/perf.sh` menjalankan skenario ukur yang bisa diulang (self test `perf`, sekitar 3 menit): 2520×1080 @ 60 dengan preview
+hidup, halaman diam, halaman dibuka (satu baris per detik), halaman stabil, NDI dan OMT dengan dan tanpa penerima. Hasil: satu baris
+`PERF <fase>` di log aplikasi dan `perf-*.csv` di folder log. Bukan lulus/gagal; bandingkan dengan `docs/perf/baseline-*.md` sebelum
+dan sesudah tiap perubahan. `STAGECAST_PERF_URLS=https://situs` memakai situs nyata sebagai pengganti halaman uji.
+
+## Self test tanpa dialog (2026-11-07)
+
+Self test (`--selftest`) tidak boleh menunggu klik. Di `SelfTest.RunAsync`, `Confirm`, "Simpan dulu?", info OK, buka sesi, dan tautkan ulang diberi jawaban bawaan
+non-blokir (ditolak, dibuang, atau dibatalkan) yang dicatat sebagai `SELFTEST unexpected ...` di log; pesan error tak terduga tidak memunculkan `MessageBox`;
+penjaga waktu di `App.xaml.cs` mengakhiri proses setelah 12 menit (soak: menit soak + 10) dengan log `SELFTEST TIMEOUT` dan kode keluar 3. Tes yang butuh
+jawaban "Ya" harus menimpa `window.Confirm` sendiri (contoh: `a8` sebelum `SetSeparateProfileAsync`). Baris `SELFTEST unexpected` di log menunjuk tes yang kurang stub.
+
+Catatan: sampai perbaikan ini, `a8` memunculkan Yes/No sungguhan ("Tab ini akan memakai login sendiri…") dan hanya lulus bila seseorang mengkliknya.
+
+Riwayat: `p4` (PowerPoint, langkah "the first deck, now in the preview, still turns") gagal pada commit `a03f5c5` juga. Penyebabnya bug produk: pembersihan PowerPoint
+yatim dijalankan di setiap tab PowerPoint dan menutup PowerPoint deck pertama saat deck kedua dibuka. Kini hanya sekali per proses (`s_orphanCleanupDone`); `p4` lulus (2026-11-07).

@@ -69,6 +69,7 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     private IntPtr _hwnd;
     private static readonly object StartedGate = new();
     private static int s_startedPid; // the PowerPoint process a deck of ours started, 0 when the operator's own runs
+    private static int s_orphanCleanupDone;
     private bool _ownApp;
     private int _ownPid;
     private bool[] _hidden = [];
@@ -188,6 +189,10 @@ public sealed class PowerPointSource : IDocumentSource, IDisposable
     /// </summary>
     internal static void CleanOrphanedPowerPoint(ILogger logger)
     {
+        // Once per run, for the first deck only. After that the pid file names the PowerPoint this run started, which is alive and showing
+        // the decks already open; running the cleanup again would close them and end it (a second deck used to take the first one down).
+        if (Interlocked.Exchange(ref s_orphanCleanupDone, 1) == 1) return;
+
         string text;
         try { text = File.ReadAllText(PidFile); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return; }

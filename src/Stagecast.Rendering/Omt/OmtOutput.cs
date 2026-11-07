@@ -98,6 +98,24 @@ public sealed class OmtOutput : IFrameSink, IAudioSink, IDisposable
     /// <summary>Whether the picture goes out with its transparency. Takes effect from the next frame.</summary>
     public volatile bool SendAlpha;
 
+    private long _wantsCheckedAt = -1000; // so the first look happens at once
+    private volatile bool _wants;
+
+    /// <summary>Only while a receiver is connected (looked at every 250 ms); without one the hub neither sends nor copies frames.</summary>
+    public bool WantsFrames
+    {
+        get
+        {
+            long now = Environment.TickCount64;
+            if (now - Interlocked.Read(ref _wantsCheckedAt) >= 250)
+            {
+                _wants = IsRunning && Receivers > 0;
+                Interlocked.Exchange(ref _wantsCheckedAt, now);
+            }
+            return _wants;
+        }
+    }
+
     public void Deliver(Frame frame, bool repeated)
     {
         if (!IsRunning) return;
