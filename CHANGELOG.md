@@ -3,6 +3,11 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.2.3] - 2026-11-07
+
+### Diperbaiki
+- Jendela pengaturan Layar, NDI, dan OMT kini terbuka tepat di bawah tombol yang diklik di top bar, bukan di pojok kanan.
+
 ## [1.2.2] - 2026-11-07
 
 ### Ditambahkan

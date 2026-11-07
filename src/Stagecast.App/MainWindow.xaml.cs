@@ -612,8 +612,26 @@ public partial class MainWindow : Window
         panel.Visibility = Visibility.Visible;
         ModalTitle.Text = title;
         ModalLayer.Visibility = Visibility.Visible;
+        PlaceModalCard(name switch { "screen" => ChipScreenButton, "ndi" => ChipNdiButton, "omt" => ChipOmtButton, _ => null });
         OpenModalName = name == "stats" ? "stats" : name;
         if (name == "stats") UpdateStats();
+    }
+
+    /// <summary>The card of Layar, NDI and OMT opens right under the button that was clicked; the others stay at the right edge.</summary>
+    private void PlaceModalCard(FrameworkElement? anchor)
+    {
+        const double edge = 20;
+        if (anchor is null)
+        {
+            ModalCard.HorizontalAlignment = HorizontalAlignment.Right;
+            ModalCard.Margin = new Thickness(0, 70, edge, 0);
+            return;
+        }
+        ModalLayer.UpdateLayout();
+        var below = anchor.TranslatePoint(new Point(0, anchor.ActualHeight), ModalLayer);
+        double left = Math.Clamp(below.X, edge, Math.Max(edge, ModalLayer.ActualWidth - ModalCard.Width - edge));
+        ModalCard.HorizontalAlignment = HorizontalAlignment.Left;
+        ModalCard.Margin = new Thickness(left, Math.Max(below.Y + 8, 68), 0, 0);
     }
 
     internal void CloseModal()
