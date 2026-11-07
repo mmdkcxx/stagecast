@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         _outputConfig = _config.Output;
         _ndiConfig = _config.Ndi;
         _omtConfig = _config.Omt;
+        _updateConfig = _config.Updates;
         Confirm = text => MessageBox.Show(this, text, "Stagecast", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
         VersionText.Text = $"v{context.Version}";
         WidthBox.Text = _config.Render.Width.ToString();
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
             _ => context.Paths.ConfigFile,
         };
         Loaded += async (_, _) => await StartEngineAsync();
+        Loaded += (_, _) => StartUpdateChecks();
         PagePreviewView.ViewChanged += UpdateViewButtons;
         _sleepGuard = new SleepGuard(_logger);
         Closing += OnWindowClosing;
@@ -262,7 +264,7 @@ public partial class MainWindow : Window
     // Closing with an output on asks first; Windows shutting down, and the automatic tests, are not asked.
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (_sessionEnding || _context.SelfTest is not null) return;
+        if (_sessionEnding || _installingUpdate || _context.SelfTest is not null) return;
         if (!ConfirmCloseSession())
         {
             e.Cancel = true;
@@ -737,6 +739,7 @@ public partial class MainWindow : Window
             Audio = _audioConfig,
             Ndi = _ndiConfig,
             Omt = _omtConfig,
+            Updates = _updateConfig,
             Presets = _presets.ToEntries(),
             RecentSessions = [.. _recentSessions],
         };

@@ -444,7 +444,8 @@ public partial class MainWindow
                 Background = new SolidColorBrush(Color.FromArgb(170, 0, 0, 0)), Padding = new Thickness(4, 0, 4, 0),
                 HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom,
             };
-            var grid = new Grid { Width = StripThumbWidth, Height = StripThumbHeight, Background = (Brush)FindResource("Bg") };
+            var (thumbW, thumbH) = ThumbSize(st);
+            var grid = new Grid { Width = thumbW, Height = thumbH, Background = (Brush)FindResource("Bg") };
             grid.Children.Add(picture);
             grid.Children.Add(number);
             var item = new Border
@@ -519,11 +520,13 @@ public partial class MainWindow
     {
         if (!_pageThumbs.TryGetValue(id, out var known)) return;
         int start = Math.Max(center ?? pdf.PageIndex, 0);
-        foreach (int index in Enumerable.Range(Math.Max(0, start - StripWindow), Math.Min(pdf.PageCount, start + StripWindow + 1) - Math.Max(0, start - StripWindow))
+        int window = StripWindowFor(st);
+        var (renderW, renderH) = ThumbRenderSize(st);
+        foreach (int index in Enumerable.Range(Math.Max(0, start - window), Math.Min(pdf.PageCount, start + window + 1) - Math.Max(0, start - window))
                      .OrderBy(i => Math.Abs(i - start)).ThenBy(i => i))
         {
             if (known.ContainsKey(index)) continue;
-            PageThumbnail? thumb = await pdf.RenderThumbnailAsync(index, StripThumbWidth * 2, StripThumbHeight * 2);
+            PageThumbnail? thumb = await pdf.RenderThumbnailAsync(index, renderW, renderH);
             if (version != st.Version || st.Tab != id) return; // another tab or a reload took over the strip
             if (thumb is null) continue;
             var bitmap = BitmapSource.Create(thumb.Width, thumb.Height, 96, 96, PixelFormats.Pbgra32, null, thumb.Pixels, thumb.Width * 4);

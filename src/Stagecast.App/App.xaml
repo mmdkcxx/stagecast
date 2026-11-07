@@ -14,6 +14,8 @@
         <SolidColorBrush x:Key="WarnBg" Color="#2F2203"/>
         <SolidColorBrush x:Key="WarnFg" Color="#1C1505"/>
         <SolidColorBrush x:Key="Ok" Color="#56DC85"/>
+        <SolidColorBrush x:Key="Info" Color="#7FB4FF"/>
+        <SolidColorBrush x:Key="InfoBg" Color="#0F1D33"/>
         <SolidColorBrush x:Key="Live" Color="#E5484D"/>
         <SolidColorBrush x:Key="LiveBg" Color="#C50516"/>
 

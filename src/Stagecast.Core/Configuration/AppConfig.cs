@@ -25,6 +25,9 @@ public sealed class AppConfig
     /// <summary>OMT source name. Whether OMT is on is never saved.</summary>
     public OmtConfig Omt { get; init; } = new();
 
+    /// <summary>What the update notice remembers. Never anything that starts an update by itself.</summary>
+    public UpdateConfig Updates { get; init; } = new();
+
     /// <summary>Presets made by the operator. The built-in presets are never stored.</summary>
     public List<PresetEntry> Presets { get; init; } = [];
 
@@ -117,4 +120,13 @@ public sealed class PresetEntry
     public int Width { get; init; }
 
     public int Height { get; init; }
+}
+
+public sealed class UpdateConfig
+{
+    /// <summary>A version the operator chose to skip ("Lewati versi ini"); no notice for it, a newer one is announced again.</summary>
+    public string? SkippedVersion { get; init; }
+
+    /// <summary>The version whose banner was shown already; the banner appears once per version, the chip stays.</summary>
+    public string? BannerShownVersion { get; init; }
 }

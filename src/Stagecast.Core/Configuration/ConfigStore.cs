@@ -206,6 +206,7 @@ public sealed class ConfigStore
             Audio = new AudioConfig { DeviceId = deviceId, Volume = volume, Muted = audio.Muted },
             Render = new RenderConfig { Width = width, Height = height, Fps = fps },
             Output = new OutputConfig { MonitorId = monitorId, Scale = scale, AlwaysOnTop = output.AlwaysOnTop },
+            Updates = new UpdateConfig { SkippedVersion = input.Updates?.SkippedVersion, BannerShownVersion = input.Updates?.BannerShownVersion },
             Presets = presets,
             RecentSessions = recent,
             Tabs = tabs,

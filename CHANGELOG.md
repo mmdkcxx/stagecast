@@ -3,6 +3,23 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.2.2-beta.2] - 2026-11-07
+
+### Ditambahkan
+- Pemberitahuan pembaruan: saat start dan tiap 6 jam Stagecast memeriksa rilis stabil terbaru di GitHub. Bila ada versi lebih baru, chip
+  **PEMBARUAN** muncul di top bar (dan satu banner per versi). Rincian memuat catatan rilis dengan pilihan **Unduh dan pasang**, **Nanti**,
+  dan **Lewati versi ini**. Installer diunduh ke folder sementara, hash SHA-256 diperiksa (berkas dengan hash salah dihapus dan tidak
+  dijalankan), lalu dijalankan; Stagecast menutup, memasang, dan terbuka lagi. Tidak ada yang dipasang tanpa tindakan operator; bila output
+  menyala ada peringatan. Pengecekan yang gagal (offline) diam. Matikan dengan variabel lingkungan `STAGECAST_NO_UPDATE_CHECK=1`.
+
+- Strip thumbnail slide/halaman bisa diperbesar: tarik gagang di tepi atas strip ke atas (thumbnail membesar sampai tinggi 240 px, preview
+  menyusut tapi tetap minimal 200 px), tarik ke bawah untuk mengecilkan; klik dua kali mengembalikan ukuran awal. Gambar thumbnail digambar
+  ulang lebih tajam setelah gagang dilepas. Strip di bar PROGRAM tetap berukuran kecil.
+
+### Belum diuji
+- Ukuran strip yang bisa ditarik belum dicoba di jendela nyata (hanya typecheck dan self test PDF).
+- Chip, banner, dan dialog belum dicoba dengan rilis nyata yang lebih baru; pemasangan lewat installer belum dicoba dari ujung ke ujung.
+
 ## [1.2.2-beta.1] - 2026-11-04
 
 ### Ditambahkan
