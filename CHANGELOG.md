@@ -3,6 +3,17 @@
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/); versi mengikuti `<Version>` di
 `src/Stagecast.App/Stagecast.App.csproj` (sumber tunggal untuk exe, zip, dan installer).
 
+## [1.2.4] - 2026-11-08
+
+### Diubah
+- Pipeline render lebih ringan: salinan frame GPU ke CPU untuk output dibuat asinkron, preview punya thread sendiri (tetap sama fps dengan output), dan frame hanya diminta dari GPU bila ada keluaran yang membutuhkannya (Layar/NDI/OMT yang tersambung).
+- Jam output dikunci ke jadwal capture, sehingga frame yang diulang/dibuang akibat selisih fase berkurang.
+- Alat ukur kinerja baru: self test `perf` dan `scripts/perf.sh` (CPU, GPU, jitter, latensi), hasil di `docs/perf/`.
+
+### Diperbaiki
+- Membuka deck PowerPoint kedua tidak lagi menutup PowerPoint deck pertama yang sedang tampil.
+- Self test berjalan tanpa dialog Ya/Tidak yang menggantung, dan ada pengaman waktu.
+
 ## [1.2.3] - 2026-11-07
 
 ### Diperbaiki
